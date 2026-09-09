@@ -17,6 +17,7 @@ const TASK_MODEL_CONFIG: Record<
     | "brand_analysis"
     | "image"
     | "image_fidelity_check"
+    | "image_quality_assessment"
   >,
   { model: string }
 > = {
@@ -26,6 +27,7 @@ const TASK_MODEL_CONFIG: Record<
   brand_analysis: { model: "anthropic/claude-sonnet-5" }, // precisa de bom julgamento, não é tarefa frequente
   image: { model: "google/gemini-2.5-flash-image" }, // Nano Banana — mesmo modelo do projeto da Mangará
   image_fidelity_check: { model: "anthropic/claude-sonnet-5" }, // modelo de geração não é o ideal pra julgar a própria imagem
+  image_quality_assessment: { model: "anthropic/claude-sonnet-5" }, // mesmo modelo do fidelity check, tarefa de julgamento parecida
 };
 
 export function getProviderForTask(taskType: AITaskType): AIProvider {

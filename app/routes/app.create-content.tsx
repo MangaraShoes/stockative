@@ -13,6 +13,9 @@ import { inferObjective } from "../services/decisionEngine/archetypes.server";
 import { decideContentBrief } from "../services/decisionEngine/stage1.server";
 import { generateCreativeCopy } from "../services/decisionEngine/stage2.server";
 import { generateProductImage } from "../services/imageMvp/generateProductImage.server";
+import { assessProductImageQuality } from "../services/imageMvp/assessProductImageQuality.server";
+import { getProductUsageStats } from "../services/decisionEngine/contentHistory.server";
+import { buildCarousel } from "../services/imageMvp/buildCarousel.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -29,7 +32,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : [];
 
-  return { products, hasBrandVoice: Boolean(shop?.brandTone?.trim()) };
+  const usageStats = shop ? await getProductUsageStats(shop.id) : {};
+
+  return { products, hasBrandVoice: Boolean(shop?.brandTone?.trim()), usageStats };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -80,6 +85,45 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     return { intent: "generate-image" as const, result };
+  }
+
+  if (intent === "build-carousel") {
+    const productId = String(formData.get("productId"));
+    const contentItemId = String(formData.get("contentItemId"));
+    const creativeAngle = String(formData.get("creativeAngle"));
+    const format = String(formData.get("format"));
+
+    const result = await buildCarousel({
+      shopId: shop.id,
+      productId,
+      contentItemId,
+      creativeAngle,
+      format,
+    });
+
+    return { intent: "build-carousel" as const, result };
+  }
+
+  if (intent === "assess-image-quality") {
+    const productId = String(formData.get("productId"));
+
+    const product = await prisma.productCache.findUnique({
+      where: { id: productId },
+    });
+    if (!product?.imageUrl) {
+      return {
+        intent: "assess-image-quality" as const,
+        assessment: null,
+        error: "This product has no reference photo to assess.",
+      };
+    }
+
+    const assessment = await assessProductImageQuality(
+      product.imageUrl,
+      product.title,
+    );
+
+    return { intent: "assess-image-quality" as const, assessment, error: null };
   }
 
   const productId = String(formData.get("productId"));
@@ -149,12 +193,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function CreateContent() {
-  const { products, hasBrandVoice } = useLoaderData<typeof loader>();
+  const { products, hasBrandVoice, usageStats } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
+  const qualityFetcher = useFetcher<typeof action>();
+  const carouselFetcher = useFetcher<typeof action>();
 
   const isGenerating = fetcher.state !== "idle";
   const isGeneratingImage = imageFetcher.state !== "idle";
+  const isAssessingQuality = qualityFetcher.state !== "idle";
+  const isBuildingCarousel = carouselFetcher.state !== "idle";
 
   const contentResult =
     fetcher.data?.intent === "generate-content" ? fetcher.data : undefined;
@@ -162,19 +210,49 @@ export default function CreateContent() {
     imageFetcher.data?.intent === "generate-image"
       ? imageFetcher.data.result
       : undefined;
+  const qualityResult =
+    qualityFetcher.data?.intent === "assess-image-quality"
+      ? qualityFetcher.data
+      : undefined;
+  const carouselResult =
+    carouselFetcher.data?.intent === "build-carousel"
+      ? carouselFetcher.data.result
+      : undefined;
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [objective, setObjective] = useState("auto");
   const [language, setLanguage] = useState("en");
 
+  const usageForSelectedProduct = usageStats[productId];
+
   const runGenerate = () =>
     fetcher.submit({ productId, objective, language }, { method: "POST" });
+
+  const runAssessQuality = () =>
+    qualityFetcher.submit(
+      { intent: "assess-image-quality", productId },
+      { method: "POST" },
+    );
 
   const runGenerateImage = () => {
     if (!contentResult) return;
     imageFetcher.submit(
       {
         intent: "generate-image",
+        productId: contentResult.productId,
+        contentItemId: contentResult.contentItemId,
+        creativeAngle: contentResult.brief.creativeAngle,
+        format: contentResult.brief.format,
+      },
+      { method: "POST" },
+    );
+  };
+
+  const runBuildCarousel = () => {
+    if (!contentResult) return;
+    carouselFetcher.submit(
+      {
+        intent: "build-carousel",
         productId: contentResult.productId,
         contentItemId: contentResult.contentItemId,
         creativeAngle: contentResult.brief.creativeAngle,
@@ -209,6 +287,34 @@ export default function CreateContent() {
               </option>
             ))}
           </select>
+
+          {usageForSelectedProduct && (
+            <s-paragraph>
+              You&apos;ve created {usageForSelectedProduct.timesUsed} post(s)
+              for this product before, most recently on{" "}
+              {new Date(usageForSelectedProduct.lastUsedAt).toLocaleDateString()}.
+            </s-paragraph>
+          )}
+
+          <s-stack direction="inline" gap="base">
+            <s-button
+              onClick={runAssessQuality}
+              variant="tertiary"
+              {...(isAssessingQuality ? { loading: true } : {})}
+            >
+              Is this product's existing photo good enough?
+            </s-button>
+          </s-stack>
+          {qualityResult?.assessment && (
+            <s-paragraph>
+              <strong>{qualityResult.assessment.quality.toUpperCase()}</strong>
+              {" — "}
+              {qualityResult.assessment.recommendation}
+            </s-paragraph>
+          )}
+          {qualityResult?.error && (
+            <s-paragraph>{qualityResult.error}</s-paragraph>
+          )}
 
           <select
             value={objective}
@@ -309,6 +415,53 @@ export default function CreateContent() {
 
           {imageResult?.status === "fallback" && (
             <s-paragraph>{imageResult.reason}</s-paragraph>
+          )}
+        </s-section>
+      )}
+
+      {contentResult && (
+        <s-section heading="5. Carousel">
+          <s-paragraph>
+            Builds the full post sequence: a fresh editorial image first
+            (never reused from a previous post for this product), followed
+            by the product&apos;s existing Shopify still photos in order.
+          </s-paragraph>
+
+          <s-button
+            onClick={runBuildCarousel}
+            variant="tertiary"
+            {...(isBuildingCarousel ? { loading: true } : {})}
+          >
+            Build carousel
+          </s-button>
+
+          {carouselResult?.status === "success" && (
+            <>
+              <s-paragraph>
+                {carouselResult.heroWasReused
+                  ? "Reused an existing unused editorial image as the cover."
+                  : "Generated a new editorial image as the cover."}
+              </s-paragraph>
+              <s-stack direction="inline" gap="base">
+                {carouselResult.images.map((image) => (
+                  <s-stack key={image.position} direction="block" gap="small">
+                    <img
+                      src={image.url}
+                      alt={`Carousel position ${image.position}`}
+                      style={{ width: 160, height: 160, objectFit: "cover" }}
+                    />
+                    <s-paragraph>
+                      {image.position}.{" "}
+                      {image.source === "ai_generated" ? "Editorial" : "Still"}
+                    </s-paragraph>
+                  </s-stack>
+                ))}
+              </s-stack>
+            </>
+          )}
+
+          {carouselResult?.status === "fallback" && (
+            <s-paragraph>{carouselResult.reason}</s-paragraph>
           )}
         </s-section>
       )}

@@ -96,9 +96,31 @@ model ProductCache {
   commerceSignal CommerceSignal?
   contentItems   ContentItem[]
   creativeAssets CreativeAsset[]
+  images         ProductImage[]
 
   @@unique([shopId, shopifyProductId])
   @@index([shopId])
+}
+
+// Galeria completa do produto na Shopify (não só a featured image que
+// products_cache.imageUrl guarda). Toda ProductImage é sempre "still" —
+// nunca geramos still por IA (decisão de Patricia, 09/09/2026, mesma regra
+// já usada no projeto da Mangará): a única fonte de imagem "editorial" é o
+// CreativeAsset gerado (ver ContentItemImage), então não precisa de
+// classificação por IA aqui.
+model ProductImage {
+  id             String   @id @default(cuid())
+  productId      String
+  product        ProductCache @relation(fields: [productId], references: [id])
+  shopifyImageId String
+  url            String
+  position       Int // ordem na galeria da Shopify (1 = primeira)
+  createdAt      DateTime @default(now())
+
+  contentItemImages ContentItemImage[]
+
+  @@unique([productId, shopifyImageId])
+  @@index([productId])
 }
 
 // Materializado por job periódico — nunca calculado on-the-fly a cada decisão
@@ -141,9 +163,30 @@ model ContentItem {
   trackedLink        TrackedLink?
   performanceSignals PerformanceSignal[]
   generationLogs     GenerationLog[]
+  images             ContentItemImage[]
 
   @@index([shopId])
   @@index([status])
+}
+
+// Sequência ordenada de imagens de um post/carrossel — position=1 é a capa
+// (a imagem editorial, que nunca deve se repetir entre posts do mesmo
+// produto), as seguintes são stills de apoio (podem se repetir). Cada linha
+// referencia OU uma foto já existente na Shopify (productImage) OU uma
+// gerada por IA (creativeAsset), nunca as duas.
+model ContentItemImage {
+  id              String        @id @default(cuid())
+  contentItemId   String
+  contentItem     ContentItem   @relation(fields: [contentItemId], references: [id])
+  position        Int
+  productImageId  String?
+  productImage    ProductImage? @relation(fields: [productImageId], references: [id])
+  creativeAssetId String?
+  creativeAsset   CreativeAsset? @relation(fields: [creativeAssetId], references: [id])
+
+  @@index([contentItemId])
+  @@index([productImageId])
+  @@index([creativeAssetId])
 }
 
 model TrackedLink {
@@ -205,7 +248,8 @@ model CreativeAsset {
   generationLog   GenerationLog? @relation(fields: [generationLogId], references: [id])
   createdAt       DateTime       @default(now())
 
-  contentItems ContentItem[]
+  contentItems      ContentItem[]
+  contentItemImages ContentItemImage[]
 
   @@index([shopId])
 }

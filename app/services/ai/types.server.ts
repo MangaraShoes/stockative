@@ -9,6 +9,7 @@ export type AITaskType =
   | "brand_analysis"
   | "image"
   | "image_fidelity_check"
+  | "image_quality_assessment"
   | "video";
 
 export interface GenerateTextResult {
@@ -39,6 +40,7 @@ export interface AIProvider {
   generateStructured<T>(
     schema: z.ZodType<T>,
     prompt: string,
+    options?: { imageUrls?: string[] },
   ): Promise<GenerateStructuredResult<T>>;
   // Gera uma imagem a partir de uma foto de referência (fidelidade de
   // produto) — ver "Image MVP" em ARCHITECTURE.md.

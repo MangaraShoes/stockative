@@ -35,10 +35,12 @@ export async function generateStructuredForTask<T>(
   taskType: AITaskType,
   schema: z.ZodType<T>,
   prompt: string,
-  options: LogOptions = {},
+  options: LogOptions & { imageUrls?: string[] } = {},
 ): Promise<T> {
   const provider = getProviderForTask(taskType);
-  const result = await provider.generateStructured(schema, prompt);
+  const result = await provider.generateStructured(schema, prompt, {
+    imageUrls: options.imageUrls,
+  });
 
   await prisma.generationLog.create({
     data: {

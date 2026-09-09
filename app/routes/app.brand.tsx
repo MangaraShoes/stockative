@@ -217,8 +217,7 @@ export default function Brand() {
             <s-paragraph>
               Upload your logo to optionally add it to the corner of
               AI-generated product images. Must be a PNG with a transparent
-              background — logos with a solid or photo background won&apos;t
-              be accepted.
+              background.
             </s-paragraph>
             {logoError && (
               <s-paragraph>

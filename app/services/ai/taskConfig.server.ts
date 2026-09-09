@@ -10,12 +10,16 @@ import { OpenRouterProvider } from "./openRouterProvider.server";
 // a OPENROUTER_API_KEY que já existe (decisão de 09/09/2026). Trocar pra
 // Anthropic direto no futuro é só mudar este arquivo, não quem usa a IA.
 const TASK_MODEL_CONFIG: Record<
-  Extract<AITaskType, "decision_engine" | "creative_copy" | "translation">,
+  Extract<
+    AITaskType,
+    "decision_engine" | "creative_copy" | "translation" | "brand_analysis"
+  >,
   { model: string }
 > = {
   decision_engine: { model: "anthropic/claude-haiku-4.5" }, // barato, forte em structured output
   creative_copy: { model: "anthropic/claude-sonnet-5" }, // forte em linguagem/branding
   translation: { model: "anthropic/claude-haiku-4.5" },
+  brand_analysis: { model: "anthropic/claude-sonnet-5" }, // precisa de bom julgamento, não é tarefa frequente
 };
 
 export function getProviderForTask(taskType: AITaskType): AIProvider {

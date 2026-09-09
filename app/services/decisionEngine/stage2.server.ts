@@ -11,16 +11,29 @@ const stage2Schema = z.object({
 
 export type Stage2Output = z.infer<typeof stage2Schema>;
 
+export interface BrandVoice {
+  brandDescription: string | null;
+  brandTone: string | null;
+  brandAvoid: string | null;
+}
+
+const DEFAULT_BRAND_TONE =
+  "quiet, confident, warm, never pushy or full of exclamation marks (placeholder — this shop hasn't filled in its brand voice yet)";
+
 // Estágio 2 — só recebe a decisão já pronta do Estágio 1, nunca decide
-// estratégia sozinho. Brand Intelligence real (tom/vocabulário da marca)
-// ainda não existe (onboarding não construído) — usa um tom neutro por
-// enquanto, documentado explicitamente como placeholder.
+// estratégia sozinho. Se a loja não preencheu Brand Intelligence ainda
+// (onboarding em /app/brand), cai num tom neutro documentado como placeholder.
 export async function generateCreativeCopy(
   brief: Stage1Output,
   language: ContentLanguageCode,
+  brand: BrandVoice,
 ): Promise<Stage2Output> {
   const languageLabel =
     CONTENT_LANGUAGES.find((l) => l.code === language)?.label ?? "English";
+
+  const brandVoiceText = brand.brandTone?.trim()
+    ? brand.brandTone
+    : DEFAULT_BRAND_TONE;
 
   const prompt = `Write the final social media post copy based on this content strategy brief. Follow the brief exactly — do not change the strategy, only execute it in writing.
 
@@ -35,7 +48,9 @@ Brief:
 - Narrative framework: ${brief.narrativeFramework}
 - CTA: ${brief.cta}
 
-Brand voice (placeholder — real brand onboarding not built yet): quiet, confident, warm, never pushy or full of exclamation marks.
+Brand voice: ${brandVoiceText}
+${brand.brandDescription?.trim() ? `Brand description: ${brand.brandDescription}` : ""}
+${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}
 
 Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}) explicitly.`;
 

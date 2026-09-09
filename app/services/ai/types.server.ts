@@ -6,6 +6,7 @@ export type AITaskType =
   | "decision_engine"
   | "creative_copy"
   | "translation"
+  | "brand_analysis"
   | "image"
   | "video";
 

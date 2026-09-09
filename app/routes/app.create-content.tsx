@@ -28,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : [];
 
-  return { products };
+  return { products, hasBrandVoice: Boolean(shop?.brandTone?.trim()) };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -76,7 +76,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     objective,
   });
 
-  const copy = await generateCreativeCopy(brief, language);
+  const copy = await generateCreativeCopy(brief, language, {
+    brandDescription: shop.brandDescription,
+    brandTone: shop.brandTone,
+    brandAvoid: shop.brandAvoid,
+  });
 
   const contentItem = await prisma.contentItem.create({
     data: {
@@ -96,7 +100,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function CreateContent() {
-  const { products } = useLoaderData<typeof loader>();
+  const { products, hasBrandVoice } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
 
   const isGenerating = fetcher.state !== "idle";
@@ -110,6 +114,16 @@ export default function CreateContent() {
 
   return (
     <s-page heading="Create content">
+      {!hasBrandVoice && (
+        <s-section heading="Brand voice not set up yet">
+          <s-paragraph>
+            Content is being generated with a generic placeholder tone.{" "}
+            <s-link href="/app/brand">Set up your brand voice</s-link> for
+            copy that actually sounds like your brand.
+          </s-paragraph>
+        </s-section>
+      )}
+
       <s-section heading="1. Choose product, objective and language">
         <s-stack direction="block" gap="base">
           <select

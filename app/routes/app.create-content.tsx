@@ -12,6 +12,7 @@ import {
 import { inferObjective } from "../services/decisionEngine/archetypes.server";
 import { decideContentBrief } from "../services/decisionEngine/stage1.server";
 import { generateCreativeCopy } from "../services/decisionEngine/stage2.server";
+import { generateProductImage } from "../services/imageMvp/generateProductImage.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -34,15 +35,56 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
-
-  const productId = String(formData.get("productId"));
-  const objectiveInput = String(formData.get("objective"));
-  const language = String(formData.get("language")) as ContentLanguageCode;
+  const intent = formData.get("intent");
 
   const shop = await prisma.shop.findUnique({
     where: { shopifyDomain: session.shop },
   });
   if (!shop) throw new Response("Shop not found", { status: 404 });
+
+  if (intent === "generate-image") {
+    const productId = String(formData.get("productId"));
+    const contentItemId = String(formData.get("contentItemId"));
+    const creativeAngle = String(formData.get("creativeAngle"));
+    const format = String(formData.get("format"));
+
+    const product = await prisma.productCache.findUnique({
+      where: { id: productId },
+    });
+    if (!product?.imageUrl) {
+      return {
+        intent: "generate-image" as const,
+        result: {
+          status: "fallback" as const,
+          reason: "This product has no reference photo to generate from.",
+          attempts: 0,
+        },
+      };
+    }
+
+    const result = await generateProductImage({
+      shopId: shop.id,
+      productId: product.id,
+      contentItemId,
+      referenceImageUrl: product.imageUrl,
+      productTitle: product.title,
+      creativeAngle,
+      format,
+    });
+
+    if (result.status === "success") {
+      await prisma.contentItem.update({
+        where: { id: contentItemId },
+        data: { creativeAssetId: result.creativeAssetId },
+      });
+    }
+
+    return { intent: "generate-image" as const, result };
+  }
+
+  const productId = String(formData.get("productId"));
+  const objectiveInput = String(formData.get("objective"));
+  const language = String(formData.get("language")) as ContentLanguageCode;
 
   const product = await prisma.productCache.findUnique({
     where: { id: productId },
@@ -96,14 +138,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     },
   });
 
-  return { brief, copy, contentItemId: contentItem.id, wasAutoObjective: objectiveInput === "auto" };
+  return {
+    intent: "generate-content" as const,
+    productId: product.id,
+    brief,
+    copy,
+    contentItemId: contentItem.id,
+    wasAutoObjective: objectiveInput === "auto",
+  };
 };
 
 export default function CreateContent() {
   const { products, hasBrandVoice } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const imageFetcher = useFetcher<typeof action>();
 
   const isGenerating = fetcher.state !== "idle";
+  const isGeneratingImage = imageFetcher.state !== "idle";
+
+  const contentResult =
+    fetcher.data?.intent === "generate-content" ? fetcher.data : undefined;
+  const imageResult =
+    imageFetcher.data?.intent === "generate-image"
+      ? imageFetcher.data.result
+      : undefined;
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [objective, setObjective] = useState("auto");
@@ -111,6 +169,20 @@ export default function CreateContent() {
 
   const runGenerate = () =>
     fetcher.submit({ productId, objective, language }, { method: "POST" });
+
+  const runGenerateImage = () => {
+    if (!contentResult) return;
+    imageFetcher.submit(
+      {
+        intent: "generate-image",
+        productId: contentResult.productId,
+        contentItemId: contentResult.contentItemId,
+        creativeAngle: contentResult.brief.creativeAngle,
+        format: contentResult.brief.format,
+      },
+      { method: "POST" },
+    );
+  };
 
   return (
     <s-page heading="Create content">
@@ -172,11 +244,11 @@ export default function CreateContent() {
         </s-stack>
       </s-section>
 
-      {fetcher.data && (
+      {contentResult && (
         <s-section heading="2. Decision brief (Stage 1)">
-          {fetcher.data.wasAutoObjective && (
+          {contentResult.wasAutoObjective && (
             <s-paragraph>
-              Objective was inferred automatically: {fetcher.data.brief.objective}
+              Objective was inferred automatically: {contentResult.brief.objective}
             </s-paragraph>
           )}
           <s-box
@@ -186,22 +258,58 @@ export default function CreateContent() {
             background="subdued"
           >
             <pre style={{ margin: 0 }}>
-              <code>{JSON.stringify(fetcher.data.brief, null, 2)}</code>
+              <code>{JSON.stringify(contentResult.brief, null, 2)}</code>
             </pre>
           </s-box>
         </s-section>
       )}
 
-      {fetcher.data && (
+      {contentResult && (
         <s-section heading="3. Generated post (Stage 2)">
-          <s-paragraph>{fetcher.data.copy.captionText}</s-paragraph>
+          <s-paragraph>{contentResult.copy.captionText}</s-paragraph>
           <s-paragraph>
-            {fetcher.data.copy.hashtags.map((tag) => `#${tag}`).join(" ")}
+            {contentResult.copy.hashtags.map((tag) => `#${tag}`).join(" ")}
           </s-paragraph>
           <s-paragraph>
-            <strong>CTA:</strong> {fetcher.data.copy.cta}
+            <strong>CTA:</strong> {contentResult.copy.cta}
           </s-paragraph>
           <s-paragraph>Saved as draft content item.</s-paragraph>
+        </s-section>
+      )}
+
+      {contentResult && (
+        <s-section heading="4. Product image">
+          <s-paragraph>
+            {contentResult.brief.usesAiImage
+              ? "The Decision Engine flagged this post for an AI-generated image."
+              : "The Decision Engine didn't flag this post for an AI image, but you can still generate one."}
+          </s-paragraph>
+
+          <s-button
+            onClick={runGenerateImage}
+            variant="tertiary"
+            {...(isGeneratingImage ? { loading: true } : {})}
+          >
+            {imageResult ? "Regenerate image" : "Generate product image"}
+          </s-button>
+
+          {imageResult?.status === "success" && (
+            <>
+              <img
+                src={imageResult.imageUrl}
+                alt="AI-generated product creative"
+                style={{ maxWidth: "100%", marginTop: 12 }}
+              />
+              <s-paragraph>
+                Passed the fidelity check on attempt {imageResult.attempts}.
+                Saved as a creative asset.
+              </s-paragraph>
+            </>
+          )}
+
+          {imageResult?.status === "fallback" && (
+            <s-paragraph>{imageResult.reason}</s-paragraph>
+          )}
         </s-section>
       )}
     </s-page>

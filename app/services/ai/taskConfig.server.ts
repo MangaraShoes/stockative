@@ -5,14 +5,18 @@ import { OpenRouterProvider } from "./openRouterProvider.server";
 // configuração, não código hardcoded — trocar de modelo não deveria exigir
 // reescrever quem chama a IA (ver "AI Provider Layer" em ARCHITECTURE.md).
 //
-// Hoje só texto está ligado (image/video ficam para o Image MVP, Phase 2+).
-// Todas as tarefas de texto passam pelo OpenRouter por enquanto — reaproveita
-// a OPENROUTER_API_KEY que já existe (decisão de 09/09/2026). Trocar pra
-// Anthropic direto no futuro é só mudar este arquivo, não quem usa a IA.
+// Todas as tarefas passam pelo OpenRouter por enquanto — reaproveita a
+// OPENROUTER_API_KEY que já existe (decisão de 09/09/2026). Trocar pra outro
+// provedor no futuro é só mudar este arquivo, não quem usa a IA.
 const TASK_MODEL_CONFIG: Record<
   Extract<
     AITaskType,
-    "decision_engine" | "creative_copy" | "translation" | "brand_analysis"
+    | "decision_engine"
+    | "creative_copy"
+    | "translation"
+    | "brand_analysis"
+    | "image"
+    | "image_fidelity_check"
   >,
   { model: string }
 > = {
@@ -20,6 +24,8 @@ const TASK_MODEL_CONFIG: Record<
   creative_copy: { model: "anthropic/claude-sonnet-5" }, // forte em linguagem/branding
   translation: { model: "anthropic/claude-haiku-4.5" },
   brand_analysis: { model: "anthropic/claude-sonnet-5" }, // precisa de bom julgamento, não é tarefa frequente
+  image: { model: "google/gemini-2.5-flash-image" }, // Nano Banana — mesmo modelo do projeto da Mangará
+  image_fidelity_check: { model: "anthropic/claude-sonnet-5" }, // modelo de geração não é o ideal pra julgar a própria imagem
 };
 
 export function getProviderForTask(taskType: AITaskType): AIProvider {
@@ -30,9 +36,9 @@ export function getProviderForTask(taskType: AITaskType): AIProvider {
     );
   }
 
-  if (taskType === "image" || taskType === "video") {
+  if (taskType === "video") {
     throw new Error(
-      `Tarefa "${taskType}" ainda não tem provedor configurado — fora do escopo do MVP de texto.`,
+      `Tarefa "${taskType}" ainda não tem provedor configurado — fora do escopo do MVP.`,
     );
   }
 

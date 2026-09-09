@@ -8,6 +8,7 @@ export type AITaskType =
   | "translation"
   | "brand_analysis"
   | "image"
+  | "image_fidelity_check"
   | "video";
 
 export interface GenerateTextResult {
@@ -22,13 +23,33 @@ export interface GenerateStructuredResult<T> {
   tokensUsed: number | null;
 }
 
+export interface GenerateImageResult {
+  imageDataUrl: string; // data:image/...;base64,...
+  model: string;
+}
+
+export interface FidelityCheckResult {
+  passed: boolean;
+  issues: string[];
+}
+
 // Interface comum que todo adaptador de provedor de IA precisa implementar.
-// generateImage fica de fora por enquanto — só texto está no escopo do MVP
-// (ver "AI Provider Layer" em ARCHITECTURE.md).
 export interface AIProvider {
   generateText(prompt: string): Promise<GenerateTextResult>;
   generateStructured<T>(
     schema: z.ZodType<T>,
     prompt: string,
   ): Promise<GenerateStructuredResult<T>>;
+  // Gera uma imagem a partir de uma foto de referência (fidelidade de
+  // produto) — ver "Image MVP" em ARCHITECTURE.md.
+  generateImage(
+    prompt: string,
+    referenceImageUrl: string,
+  ): Promise<GenerateImageResult>;
+  // Guardrail de fidelidade: compara a imagem gerada com a original.
+  checkImageFidelity(
+    referenceImageUrl: string,
+    generatedImageDataUrl: string,
+    productDescription: string,
+  ): Promise<FidelityCheckResult>;
 }

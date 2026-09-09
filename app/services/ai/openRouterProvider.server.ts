@@ -81,14 +81,24 @@ export class OpenRouterProvider implements AIProvider {
   async generateStructured<T>(
     schema: z.ZodType<T>,
     prompt: string,
+    options?: { imageUrls?: string[] },
   ): Promise<GenerateStructuredResult<T>> {
     const jsonSchema = z.toJSONSchema(schema);
 
     const systemPrompt = `You must respond with a single JSON object that conforms exactly to this JSON Schema, and nothing else (no prose, no markdown fences):\n\n${JSON.stringify(jsonSchema)}`;
 
+    const userContent: MessageContent = options?.imageUrls?.length
+      ? [
+          { type: "text", text: prompt },
+          ...options.imageUrls.map(
+            (url) => ({ type: "image_url" as const, image_url: { url } }),
+          ),
+        ]
+      : prompt;
+
     const json = await this.chat([
       { role: "system", content: systemPrompt },
-      { role: "user", content: prompt },
+      { role: "user", content: userContent },
     ]);
 
     const data = parseJsonResponse(json.choices[0]?.message.content ?? "{}", schema);

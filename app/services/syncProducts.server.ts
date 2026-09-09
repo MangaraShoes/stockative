@@ -16,6 +16,7 @@ interface ShopifyProductNode {
   totalInventory: number;
   collections: { edges: { node: { title: string } }[] };
   variants: { edges: { node: { price: string; compareAtPrice: string | null } }[] };
+  images: { edges: { node: { id: string; url: string } }[] };
 }
 
 const PRODUCTS_QUERY = `#graphql
@@ -37,6 +38,14 @@ const PRODUCTS_QUERY = `#graphql
           totalInventory
           featuredImage {
             url
+          }
+          images(first: 10) {
+            edges {
+              node {
+                id
+                url
+              }
+            }
           }
           collections(first: 5) {
             edges {
@@ -88,7 +97,7 @@ export async function syncProducts(admin: AdminGraphqlClient, shopId: string): P
       const firstVariant = node.variants.edges[0]?.node;
       const collections = node.collections.edges.map((e) => e.node.title).join(", ");
 
-      await prisma.productCache.upsert({
+      const product = await prisma.productCache.upsert({
         where: {
           shopId_shopifyProductId: {
             shopId,
@@ -127,6 +136,26 @@ export async function syncProducts(admin: AdminGraphqlClient, shopId: string): P
           shopifyCreatedAt: new Date(node.createdAt),
         },
       });
+
+      // Galeria completa (não só a featured image) — toda ProductImage é
+      // sempre "still" (nunca geramos still por IA, ver ProductImage no schema).
+      for (const [index, imageEdge] of node.images.edges.entries()) {
+        await prisma.productImage.upsert({
+          where: {
+            productId_shopifyImageId: {
+              productId: product.id,
+              shopifyImageId: imageEdge.node.id,
+            },
+          },
+          update: { url: imageEdge.node.url, position: index + 1 },
+          create: {
+            productId: product.id,
+            shopifyImageId: imageEdge.node.id,
+            url: imageEdge.node.url,
+            position: index + 1,
+          },
+        });
+      }
 
       syncedCount += 1;
     }

@@ -129,12 +129,14 @@ Custo variável a monitorar desde o dia 1: geração de imagem (agora dentro do 
 | Instagram + Facebook, Content Decision Engine, calendário comercial, scheduling, brand profile, performance tracking | ✓ |
 | Imagens extras além das 5 | compradas separadamente, cobrança pontual |
 
-**Esses números são hipótese, não preço fechado.** A lógica de 12 posts/3 por semana é o equilíbrio entre "o merchant sente que o app está cuidando de verdade das redes" e "não incentivar conteúdo ruim só pra preencher calendário". As 5 imagens de IA por ~12 posts partem da ideia de que nem todo post precisa de imagem gerada — só o de maior prioridade da semana (ver alocação semanal em [ARCHITECTURE.md](ARCHITECTURE.md)), o resto usa fotografia já existente da loja. Os números exatos (5? 8? 3?) só devem ser fixados depois de medir o custo real por imagem via `generation_logs` durante o piloto.
+**Esses números são hipótese, não preço fechado.** A lógica de 12 posts/3 por semana é o equilíbrio entre "o merchant sente que o app está cuidando de verdade das redes" e "não incentivar conteúdo ruim só pra preencher calendário". Os números exatos (5? 8? 3?) só devem ser fixados depois de medir o custo real por imagem via `generation_logs` durante o piloto.
+
+**Regra de ouro sobre imagem, mudou em 09/09/2026: nunca postar só a foto still isolada — fica pobre (Patricia).** Todo post sempre tem uma imagem editorial (com ambiente/modelo, gerada por IA) na posição 1; as fotos still do Shopify, quando existem, entram depois dela, nunca sozinhas. Isso NÃO significa gerar uma imagem nova a cada post: a editorial pode ser **reaproveitada** de uma geração anterior do mesmo produto, desde que ainda não tenha sido usada como capa de nenhum post daquele produto — só gera uma nova quando todas as existentes já foram usadas (ver "Alocação de crédito de imagem" em [ARCHITECTURE.md](ARCHITECTURE.md), atualizado com a mesma data). As 5 imagens de IA por ~12 posts/mês ainda partem da ideia de nem todo post exigir uma **geração nova** — mas todo post exige *ter* uma editorial, nova ou reaproveitada.
 
 **Posicionamento de venda**: não vender como "12 posts", vender como plano de conteúdo pronto. Exemplo de semana que o app monta sozinho:
-- Segunda: produto estratégico (prioridade por Commerce Intelligence) + foto existente da loja
-- Quarta: conteúdo de engagement/storytelling (arquétipo Behind the Scenes/Founder Story) + foto existente
-- Sexta: conteúdo comercial (arquétipo Urgency/Social Proof) + imagem de IA (o "hero" da semana, dentro do orçamento de crédito)
+- Segunda: produto estratégico (prioridade por Commerce Intelligence) + editorial reaproveitada de uma geração anterior + stills existentes
+- Quarta: conteúdo de engagement/storytelling (arquétipo Behind the Scenes/Founder Story) + editorial reaproveitada
+- Sexta: conteúdo comercial (arquétipo Urgency/Social Proof) + imagem de IA **nova** (o "hero" da semana, dentro do orçamento de crédito)
 
 Na semana seguinte a estratégia muda conforme estoque, calendário, objetivo e resultados anteriores. Linha de venda: **"€9.90/month — AI decides what to promote, creates your posts and includes 5 AI product creatives every month."**
 

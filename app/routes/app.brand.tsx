@@ -4,6 +4,7 @@ import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { draftBrandVoice } from "../services/decisionEngine/draftBrandVoice.server";
+import { prepareLogo, LogoNotTransparentError } from "../services/imageMvp/logoOverlay.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -20,6 +21,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     brandDescription: shop?.brandDescription ?? "",
     brandTone: shop?.brandTone ?? "",
     brandAvoid: shop?.brandAvoid ?? "",
+    logoUrl: shop?.logoUrl ?? null,
+    applyLogoOverlay: shop?.applyLogoOverlay ?? false,
     productCount,
   };
 };
@@ -43,26 +46,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { intent, draft };
   }
 
+  if (intent === "upload-logo") {
+    const rawLogo = String(formData.get("logo") ?? "");
+
+    try {
+      const preparedLogo = await prepareLogo(rawLogo);
+
+      await prisma.shop.update({
+        where: { shopifyDomain: session.shop },
+        data: { logoUrl: preparedLogo },
+      });
+
+      return { intent: "upload-logo" as const, logoUrl: preparedLogo, error: null };
+    } catch (error) {
+      if (error instanceof LogoNotTransparentError) {
+        return { intent: "upload-logo" as const, logoUrl: null, error: error.message };
+      }
+      throw error;
+    }
+  }
+
   const brandDescription = String(formData.get("brandDescription") ?? "");
   const brandTone = String(formData.get("brandTone") ?? "");
   const brandAvoid = String(formData.get("brandAvoid") ?? "");
+  const applyLogoOverlay = formData.get("applyLogoOverlay") === "true";
 
   await prisma.shop.update({
     where: { shopifyDomain: session.shop },
-    data: { brandDescription, brandTone, brandAvoid },
+    data: { brandDescription, brandTone, brandAvoid, applyLogoOverlay },
   });
 
-  return { intent: "save", saved: true };
+  return { intent: "save" as const, saved: true };
 };
 
 export default function Brand() {
   const data = useLoaderData<typeof loader>();
   const draftFetcher = useFetcher<typeof action>();
   const saveFetcher = useFetcher<typeof action>();
+  const logoFetcher = useFetcher<typeof action>();
 
   const [brandDescription, setBrandDescription] = useState(data.brandDescription);
   const [brandTone, setBrandTone] = useState(data.brandTone);
   const [brandAvoid, setBrandAvoid] = useState(data.brandAvoid);
+  const [applyLogoOverlay, setApplyLogoOverlay] = useState(data.applyLogoOverlay);
 
   useEffect(() => {
     if (draftFetcher.data?.intent === "draft" && draftFetcher.data.draft) {
@@ -84,9 +110,33 @@ export default function Brand() {
 
   const save = () =>
     saveFetcher.submit(
-      { brandDescription, brandTone, brandAvoid },
+      {
+        brandDescription,
+        brandTone,
+        brandAvoid,
+        applyLogoOverlay: String(applyLogoOverlay),
+      },
       { method: "POST" },
     );
+
+  const uploadLogo = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      logoFetcher.submit(
+        { intent: "upload-logo", logo: String(reader.result) },
+        { method: "POST" },
+      );
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const currentLogoUrl =
+    logoFetcher.data?.intent === "upload-logo" && logoFetcher.data.logoUrl
+      ? logoFetcher.data.logoUrl
+      : data.logoUrl;
+  const logoError =
+    logoFetcher.data?.intent === "upload-logo" ? logoFetcher.data.error : null;
+  const isUploadingLogo = logoFetcher.state !== "idle";
 
   const sectionHeading = hasDraft
     ? "Review the AI's draft — edit anything you'd like, then approve"
@@ -160,6 +210,56 @@ export default function Brand() {
               rows={2}
               style={{ width: "100%", padding: 8 }}
             />
+          </div>
+
+          <div>
+            <s-paragraph>Logo (optional)</s-paragraph>
+            <s-paragraph>
+              Upload your logo to optionally add it to the corner of
+              AI-generated product images. Must be a PNG with a transparent
+              background — logos with a solid or photo background won&apos;t
+              be accepted.
+            </s-paragraph>
+            {logoError && (
+              <s-paragraph>
+                <strong>{logoError}</strong>
+              </s-paragraph>
+            )}
+            {currentLogoUrl && (
+              <img
+                src={currentLogoUrl}
+                alt="Your logo"
+                style={{
+                  maxWidth: 120,
+                  maxHeight: 80,
+                  marginTop: 8,
+                  marginBottom: 8,
+                  background:
+                    "repeating-conic-gradient(#ccc 0% 25%, transparent 0% 50%) 50% / 16px 16px",
+                }}
+              />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) uploadLogo(file);
+              }}
+            />
+            {isUploadingLogo && <s-paragraph>Processing logo…</s-paragraph>}
+
+            <div style={{ marginTop: 8 }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={applyLogoOverlay}
+                  disabled={!currentLogoUrl}
+                  onChange={(e) => setApplyLogoOverlay(e.target.checked)}
+                />{" "}
+                Add my logo to the corner of AI-generated product images
+              </label>
+            </div>
           </div>
 
           <s-button onClick={save} {...(isSaving ? { loading: true } : {})}>

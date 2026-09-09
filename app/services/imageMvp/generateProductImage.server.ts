@@ -1,5 +1,6 @@
 import prisma from "../../db.server";
 import { getProviderForTask } from "../ai/taskConfig.server";
+import { applyLogoOverlay } from "./logoOverlay.server";
 
 interface GenerateProductImageParams {
   shopId: string;
@@ -61,11 +62,18 @@ export async function generateProductImage(
     });
 
     if (fidelity.passed) {
+      const shop = await prisma.shop.findUnique({ where: { id: params.shopId } });
+
+      const finalImageUrl =
+        shop?.applyLogoOverlay && shop.logoUrl
+          ? await applyLogoOverlay(generated.imageDataUrl, shop.logoUrl)
+          : generated.imageDataUrl;
+
       const creativeAsset = await prisma.creativeAsset.create({
         data: {
           shopId: params.shopId,
           productId: params.productId,
-          imageUrl: generated.imageDataUrl,
+          imageUrl: finalImageUrl,
           source: "ai_generated",
         },
       });
@@ -73,7 +81,7 @@ export async function generateProductImage(
       return {
         status: "success",
         creativeAssetId: creativeAsset.id,
-        imageUrl: generated.imageDataUrl,
+        imageUrl: finalImageUrl,
         attempts: attempt,
       };
     }

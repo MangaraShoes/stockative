@@ -53,6 +53,12 @@ model Shop {
   brandTone        String? // tom de voz, ex.: "warm, confident, never pushy"
   brandAvoid       String? // palavras/tom que a marca nunca deve usar
 
+  // Logo opcional (data URI, fundo já tratado pra ficar transparente quando
+  // possível — ver logoOverlay.server.ts). applyLogoOverlay é opt-in: a
+  // lojista decide se quer o logo aplicado no canto das imagens geradas.
+  logoUrl          String?
+  applyLogoOverlay Boolean @default(false)
+
   socialAccounts       SocialAccount[]
   products             ProductCache[]
   contentItems         ContentItem[]

@@ -13,6 +13,7 @@ datasource db {
   url      = "file:dev.sqlite"
 }
 
+// Gerenciado automaticamente pelo pacote @shopify/shopify-app-react-router — não editar.
 model Session {
   id            String    @id
   shop          String
@@ -31,4 +32,215 @@ model Session {
   emailVerified Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+// A partir daqui: modelo de dados do produto (ver ARCHITECTURE.md).
+// Campos documentados lá como "enum" (ex.: status [draft|scheduled|...]) viram
+// String aqui — SQLite não tem tipo enum nativo, essa validação fica por conta
+// do código da aplicação (TypeScript/Zod), não do banco.
+
+model Shop {
+  id            String    @id @default(cuid())
+  shopifyDomain String    @unique
+  accessToken   String
+  plan          String    @default("starter")
+  installedAt   DateTime  @default(now())
+  uninstalledAt DateTime?
+
+  socialAccounts       SocialAccount[]
+  products             ProductCache[]
+  contentItems         ContentItem[]
+  creativeAssets       CreativeAsset[]
+  imageCreditPurchases ImageCreditPurchase[]
+  competitorAccounts   CompetitorAccount[]
+}
+
+model SocialAccount {
+  id                  String    @id @default(cuid())
+  shopId              String
+  shop                Shop      @relation(fields: [shopId], references: [id])
+  platform            String // instagram | facebook
+  accessToken         String
+  expiresAt           DateTime?
+  igBusinessAccountId String?
+  fbPageId            String?
+
+  @@index([shopId])
+}
+
+model ProductCache {
+  id                String    @id @default(cuid())
+  shopId            String
+  shop              Shop      @relation(fields: [shopId], references: [id])
+  shopifyProductId  String
+  shopifyVariantId  String? // nullable — decisão de conteúdo opera por padrão no nível de produto
+  title             String
+  description       String?
+  price             Float
+  compareAtPrice    Float?
+  inventoryQuantity Int       @default(0)
+  productType       String?
+  tags              String? // lista separada por vírgula
+  collections       String? // lista separada por vírgula
+  imageUrl          String?
+  status            String // active | draft | archived
+  shopifyCreatedAt  DateTime?
+  updatedAt         DateTime  @updatedAt
+
+  commerceSignal CommerceSignal?
+  contentItems   ContentItem[]
+  creativeAssets CreativeAsset[]
+
+  @@unique([shopId, shopifyProductId])
+  @@index([shopId])
+}
+
+// Materializado por job periódico — nunca calculado on-the-fly a cada decisão
+// do Decision Engine (estouraria rate limit da Admin API num catálogo grande).
+model CommerceSignal {
+  id                String       @id @default(cuid())
+  productId         String       @unique
+  product           ProductCache @relation(fields: [productId], references: [id])
+  unitsSold7d       Int          @default(0)
+  unitsSold30d      Int          @default(0)
+  revenue30d        Float        @default(0)
+  salesVelocity     Float        @default(0)
+  daysSinceLastSale Int?
+  inventoryAgeDays  Int?
+  margin            Float? // nullable no MVP — Shopify não expõe custo de forma uniforme
+  computedAt        DateTime     @default(now())
+}
+
+model ContentItem {
+  id                  String        @id @default(cuid())
+  shopId              String
+  shop                Shop          @relation(fields: [shopId], references: [id])
+  productId           String?
+  product             ProductCache? @relation(fields: [productId], references: [id])
+  platform            String // instagram | facebook
+  commercialObjective String // awareness | engagement | traffic | conversion | inventory
+  decisionBrief       Json? // saída estruturada do Estágio 1 (arquétipo, ângulo, framework, etc.)
+  captionText         String?
+  hashtags            String?
+  cta                 String?
+  creativeAssetId     String?
+  creativeAsset       CreativeAsset? @relation(fields: [creativeAssetId], references: [id])
+  status              String        @default("draft") // draft | approved | scheduled | published | failed
+  scheduledAt         DateTime?
+  publishedAt         DateTime?
+  externalPostId      String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  trackedLink        TrackedLink?
+  performanceSignals PerformanceSignal[]
+  generationLogs     GenerationLog[]
+
+  @@index([shopId])
+  @@index([status])
+}
+
+model TrackedLink {
+  id            String      @id @default(cuid())
+  contentItemId String      @unique
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id])
+  shortCode     String      @unique
+  utmParams     Json?
+  clickCount    Int         @default(0)
+  createdAt     DateTime    @default(now())
+}
+
+model PerformanceSignal {
+  id                String      @id @default(cuid())
+  contentItemId     String
+  contentItem       ContentItem @relation(fields: [contentItemId], references: [id])
+  platform          String
+  reach             Int?
+  likes             Int?
+  comments          Int?
+  saves             Int?
+  shares            Int?
+  clicks            Int?
+  productPageVisits Int?
+  addToCart         Int?
+  orders            Int?
+  revenue           Float?
+  capturedAt        DateTime    @default(now())
+
+  @@index([contentItemId])
+}
+
+model GenerationLog {
+  id                  String       @id @default(cuid())
+  contentItemId       String?
+  contentItem         ContentItem? @relation(fields: [contentItemId], references: [id])
+  taskType            String // decision_engine | creative_copy | translation | image | video
+  model               String
+  tokensUsed          Int?
+  costEstimate        Float?
+  passedFidelityCheck Boolean? // só relevante para taskType = image
+  countsAsCredit      Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+
+  creativeAsset CreativeAsset?
+
+  @@index([contentItemId])
+}
+
+model CreativeAsset {
+  id              String         @id @default(cuid())
+  shopId          String
+  shop            Shop           @relation(fields: [shopId], references: [id])
+  productId       String?
+  product         ProductCache?  @relation(fields: [productId], references: [id])
+  imageUrl        String
+  source          String // shopify_existing | ai_generated
+  generationLogId String?        @unique
+  generationLog   GenerationLog? @relation(fields: [generationLogId], references: [id])
+  createdAt       DateTime       @default(now())
+
+  contentItems ContentItem[]
+
+  @@index([shopId])
+}
+
+model ImageCreditPurchase {
+  id               String   @id @default(cuid())
+  shopId           String
+  shop             Shop     @relation(fields: [shopId], references: [id])
+  creditsPurchased Int
+  pricePaid        Float
+  purchasedAt      DateTime @default(now())
+
+  @@index([shopId])
+}
+
+model CompetitorAccount {
+  id                String   @id @default(cuid())
+  shopId            String
+  shop              Shop     @relation(fields: [shopId], references: [id])
+  instagramUsername String
+  addedAt           DateTime @default(now())
+
+  posts CompetitorPost[]
+
+  @@index([shopId])
+}
+
+// Sincronizado periodicamente via Instagram Graph API (Business Discovery) —
+// só dados públicos (likes/comentários/legenda), nunca reach/conversão.
+model CompetitorPost {
+  id                  String            @id @default(cuid())
+  competitorAccountId String
+  competitorAccount   CompetitorAccount @relation(fields: [competitorAccountId], references: [id])
+  igMediaId           String
+  caption             String?
+  mediaType           String?
+  likeCount           Int?
+  commentCount        Int?
+  postedAt            DateTime?
+  permalink           String?
+  syncedAt            DateTime          @default(now())
+
+  @@index([competitorAccountId])
 }

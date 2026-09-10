@@ -108,3 +108,65 @@ Ver `content_items.decision_brief` em [ARCHITECTURE.md](ARCHITECTURE.md):
 }
 ```
 O Estágio 2 recebe isso como restrição estrutural explícita, não como sugestão vaga — a instrução de geração passa a ser algo como "siga Hook→Value→Proof→CTA usando o arquétipo Social Proof: abra com um momento de transformação específico, sustente com uma prova concreta (número de reviews, alegação de conforto), feche com CTA" em vez de "escreva um post sobre o EVA Black".
+
+## Framework de posicionamento e funil de crescimento — "Social Media de Elite" (Patricia, 10/09/2026)
+
+Pedido de Patricia depois de ver o primeiro rascunho de Brand Voice sair "básico, genérico-IA": o app não deveria só gerar posts a partir de um objetivo escolhido — deveria se comportar como uma estrategista de social media sênior, que **diagnostica antes de prescrever**. Isso adiciona uma camada de diagnóstico e auditoria por cima do que já existe (Brand/Commerce/Customer/Calendar Intelligence + este documento), não substitui nada.
+
+### O funil próprio do produto
+
+```
+ATENÇÃO → RETENÇÃO → VISITA AO PERFIL → SEGUIDOR → LEAD → VENDA
+```
+
+Mais granular que o `funnel_stage` já existente no schema (`awareness | consideration | conversion | retention`) — este funil descreve especificamente a jornada de crescimento no Instagram, não só o estágio de decisão de compra. Os dois convivem: `funnel_stage` continua sendo campo do `decision_brief` de cada post (pra que estágio de compra aquele post específico empurra); o funil de crescimento acima é o contexto maior em que a estratégia da semana/mês se posiciona (estamos numa fase de ganhar atenção, ou de converter seguidor em lead?).
+
+### 1. Diagnóstico de posicionamento (roda antes de qualquer estratégia de conteúdo)
+
+Antes do Estágio 1 decidir o que postar, um novo passo de diagnóstico responde, com base no catálogo Shopify + vendas reais + Brand Intelligence já preenchida:
+
+- **Quem eu ajudo** (público ideal — não é o público amplo do nicho, é quem essa marca especificamente atende)
+- **Qual problema resolvo**
+- **Qual resultado entrego**
+- **Por que deveria me seguir** (diferencial)
+- **Produto/ticket médio** (já derivável de `products_cache.price` agregado)
+- **Formato principal** (reels/carrossel/stories — hoje o produto só publica imagem/carrossel estático, reels e stories ficam fora do MVP de publicação, ver limitações abaixo)
+- **Seguidores / views médias** — vêm da própria conta Instagram conectada (ver "De onde vem o dado" abaixo), não são inseridos manualmente pelo merchant
+
+**Saída principal deste passo: o gargalo.** Não é uma lista de diagnósticos soltos — é apontar **qual é o principal gargalo do perfil agora** (ex.: "atenção não é o problema, o perfil tem alcance; o gargalo é conversão de visita em seguidor, porque a bio não deixa claro o que a marca vende nem tem CTA") e é isso que deveria pesar mais na escolha de arquétipo/papel da semana, não só o objetivo comercial isolado por post.
+
+### 2. Auditoria de conteúdo
+
+Categoriza o histórico de posts (próprios e de concorrentes, ver "De onde vem o dado") em:
+- **Temas saturados** — o que já foi postado demais, sem gerar resultado novo
+- **Conteúdos genéricos** — o que poderia ser de qualquer marca do nicho, sem trazer características autorais
+- **Conteúdos com maior potencial de alcance** — pelos dados públicos disponíveis (curtidas/comentários), o que performou acima da média
+- **Conteúdos que geram autoridade** — tipicamente educational/founder story/behind the scenes (ver papéis em "Content Mix" acima)
+- **Conteúdos que atraem compradores** — tipicamente os de papel comercial (product benefit, social proof) que empurram para o produto
+
+Essa auditoria entra no Estágio 1 como mais um contexto de decisão — evita repetir um tema saturado, prioriza formatos que já provaram funcionar pra aquela marca especificamente.
+
+### 3. Análise de conversão
+
+```
+POST → PERFIL → BIO → CTA → OFERTA
+```
+
+Audita cada elo: um post gera visita ao perfil (dado de alcance/impressão do post), o perfil converte visita em decisão de seguir (depende de bio, destaque, feed como vitrine), a bio direciona pra uma oferta clara, o CTA do post e da bio mandam pra onde. Hoje só o elo POST→PERFIL tem dado público (via curtidas/comentários como proxy); PERFIL→BIO→CTA→OFERTA depende de `instagram_manage_insights` (visitas ao perfil, cliques no link) e do link rastreado (`tracked_links`), nenhum dos dois construído ainda — ver "O que roda hoje vs. o que ainda não" abaixo.
+
+### Tudo ancorado em Commerce Intelligence, sempre
+
+Nenhuma recomendação de conteúdo (que produto empurrar, que tema evitar) pode ignorar `commerce_signals` (velocidade de venda) e `products_cache.inventory_quantity` (estoque disponível) — a auditoria de conteúdo e o diagnóstico de posicionamento informam **como** comunicar, mas **o que** promover continua vindo de Commerce + Calendar Intelligence, como já documentado desde o início do projeto. Isso não muda; só ganha uma camada de diagnóstico estratégico por cima.
+
+### De onde vem o dado — o que roda hoje vs. o que ainda não
+
+Correção importante feita nesta mesma conversa: inicialmente eu (Claude) assumi que auditoria de conteúdo e análise de concorrentes precisariam esperar `performance_signals` se acumular a partir dos posts que o próprio Stockative publica — Patricia corrigiu: a API do Instagram já dá acesso a dado real **agora**, sem esperar:
+
+| Dado | Fonte | Precisa de quê | Status |
+|---|---|---|---|
+| Posts já publicados da própria conta (legenda, tipo de mídia, curtidas, comentários, data) — inclusive de antes do Stockative existir | `GET /{ig-user-id}/media` + campos do media | Só os escopos já concedidos (`instagram_basic`) | **Buildável agora** |
+| Posts públicos de até 2 concorrentes indicados pelo merchant (legenda, curtidas, comentários, tipo, data) | Business Discovery (`business_discovery.username(...)`) — já documentado desde o início do projeto, nunca construído | Só os escopos já concedidos (`instagram_basic`, conta IG Business própria já conectada) | **Buildável agora** |
+| Alcance, impressões, visitas ao perfil, cliques no link da própria conta | Instagram Insights API | Escopo `instagram_manage_insights`, **ainda não pedido no app da Meta** | Precisa reconfigurar o app na Meta primeiro |
+| Visita → lead → venda atribuída a um post específico | `tracked_links` (redirecionador próprio com UTM) | Construir o redirecionador (documentado, não implementado) | Não buildável ainda |
+
+Ou seja: diagnóstico de posicionamento + auditoria de conteúdo (própria conta + concorrentes) dá pra construir com dado real imediatamente, usando exatamente o mesmo fluxo Facebook Login já conectado. Análise de conversão completa (PERFIL→BIO→CTA→OFERTA) e o funil até LEAD/VENDA precisam das duas peças da tabela acima ainda não construídas — até lá, ficam como estrutura pronta que passa a preencher com dado real assim que essas peças existirem, mesmo padrão de handoff regra→aprendizado já usado pra Camada 3.

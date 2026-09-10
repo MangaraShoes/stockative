@@ -151,6 +151,10 @@ competitor_accounts
 competitor_posts   (sync periódico via Instagram Graph API — Business Discovery)
   id, competitor_account_id, ig_media_id, caption, media_type,
   like_count, comment_count, posted_at, permalink, synced_at
+
+own_account_posts   (sync via GET /{ig-user-id}/media — inclusive posts de antes do Stockative)
+  id, social_account_id, ig_media_id, caption, media_type,
+  like_count, comment_count, posted_at, permalink, synced_at
 ```
 
 `competitor_accounts`/`competitor_posts` mitigam o cold start da Camada 3 desde o primeiro cliente: no onboarding, o merchant indica 2 contas do Instagram que considera fortes no nicho, e um job periódico consulta a **Business Discovery API** (endpoint do Instagram Graph API que expõe dados públicos de qualquer conta Business/Creator pública, sem precisar de autorização dela — requer só que a conta IG Business da própria marca já esteja conectada). Retorna likes, comentários, legenda, tipo de mídia, data — nunca reach, saves, cliques ou conversão, que são privados do dono. Os agregados (formato mais comum, taxa média de engajamento por tipo de post, tom/cadência) entram no Estágio 1 do Decision Engine como "referência de estilo do nicho", **separados** de `performance_signals` (dados reais da própria marca) para nunca confundir proxy público de engajamento com sinal de conversão real na hora de aprender. Referência silenciosa, nunca exposta como placar no dashboard (decisão de 09/09/2026, ver [CLAUDE.md](CLAUDE.md)).
@@ -164,6 +168,10 @@ weight_competitor = 1 - weight_own
 ```
 
 Enquanto `weight_own` é baixo (marca recém-instalada), a referência de concorrente pesa mais no contexto do Estágio 1. Conforme `own_data_points` cresce (ordem de grandeza: 15-20 posts com sinal capturado, tipicamente 60-90 dias de uso), `weight_competitor` tende a zero e a decisão passa a se apoiar no histórico real da própria marca — a referência de concorrente vira só contexto de estilo secundário, nunca mais proxy de engajamento.
+
+**`own_account_posts` — auditoria de conteúdo com dado real, ver "Framework de posicionamento e funil de crescimento" em [MARKETING-KNOWLEDGE.md](MARKETING-KNOWLEDGE.md) (Patricia, 10/09/2026).** Mesmo mecanismo do Business Discovery usado pra `competitor_posts`, mas sincronizando a própria conta Instagram já conectada (`GET /{ig-user-id}/media`, campos `caption,media_type,like_count,comments_count,timestamp,permalink` — só precisa do escopo `instagram_basic`, já concedido) — não precisa esperar posts publicados pelo Stockative, traz o histórico inteiro da conta desde sempre. Job periódico, mesmo padrão do sync de `competitor_posts`. Alimenta a auditoria de conteúdo (temas saturados, o que já performou bem, o que é genérico) com dado real desde o primeiro dia, mesmo sem nenhum post publicado ainda pelo app.
+
+**Limitação real a reconhecer**: `like_count`/`comments_count` são proxy de engajamento público, não de alcance nem de conversão — não dá pra saber quantas pessoas viram o post nem quantas visitaram o perfil a partir dele sem a **Instagram Insights API**, que exige o escopo `instagram_manage_insights` (não solicitado no app da Meta ainda — precisa voltar em "API setup with Facebook login" e adicionar). Enquanto isso não existe, a análise de conversão PERFIL→BIO→CTA→OFERTA (ver MARKETING-KNOWLEDGE.md) fica sem dado real pros elos depois de POST→PERFIL.
 
 `generation_logs` existe desde o MVP para calcular custo real de IA por cliente antes de fixar preço definitivo, e depois virar base de limite de créditos por plano.
 

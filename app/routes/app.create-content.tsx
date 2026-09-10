@@ -166,6 +166,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     unitsSold30d: product.commerceSignal?.unitsSold30d ?? 0,
     salesVelocity: product.commerceSignal?.salesVelocity ?? 0,
     daysSinceLastSale: product.commerceSignal?.daysSinceLastSale ?? null,
+    daysSinceCreated: product.shopifyCreatedAt
+      ? Math.floor((Date.now() - product.shopifyCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
+      : null,
+    brandDescription: shop.brandDescription,
     objective,
   });
 

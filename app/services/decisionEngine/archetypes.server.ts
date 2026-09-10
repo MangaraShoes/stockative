@@ -18,10 +18,43 @@ const ELIGIBLE_ARCHETYPES_BY_OBJECTIVE: Record<
   inventory: ["urgency", "comparison", "product_benefit", "lifestyle_aspiration"],
 };
 
+// Sinais reais que sustentam cada arquétipo (Patricia, 10/09/2026, depois de
+// ver "Behind the Scenes" inventar um artesão tecendo o produto à mão sem
+// nenhuma fonte real por trás — ver MARKETING-KNOWLEDGE.md seção 4 "Regras
+// de evidência e alegações permitidas"). Um arquétipo só entra no shortlist
+// elegível quando o dado que o sustenta existe de verdade; não é o texto do
+// prompt sozinho que garante isso, é a lista de opções em si.
+export interface ArchetypeEvidence {
+  hasFounderFact: boolean; // Brand Voice preenchido — única fonte real de história de fundadora
+  hasVerifiableSales: boolean; // unitsSold30d > 0 — número real, citável
+  isLowStock: boolean; // escassez real (não "estoque parado", que é o oposto)
+  isRecentProduct: boolean; // dentro da janela de recência real
+}
+
+const ARCHETYPE_EVIDENCE_REQUIREMENT: Partial<
+  Record<CreativeArchetype, keyof ArchetypeEvidence>
+> = {
+  founder_story: "hasFounderFact",
+  social_proof: "hasVerifiableSales",
+  urgency: "isLowStock",
+  newness: "isRecentProduct",
+};
+
 export function getEligibleArchetypes(
   objective: CommercialObjective,
+  evidence: ArchetypeEvidence,
 ): CreativeArchetype[] {
-  return ELIGIBLE_ARCHETYPES_BY_OBJECTIVE[objective];
+  const base = ELIGIBLE_ARCHETYPES_BY_OBJECTIVE[objective];
+  const filtered = base.filter((archetype) => {
+    const requirementKey = ARCHETYPE_EVIDENCE_REQUIREMENT[archetype];
+    return requirementKey === undefined || evidence[requirementKey];
+  });
+
+  // Nunca fica vazio: product_benefit exige só um atributo real do produto,
+  // sempre disponível via o próprio cadastro (ver MARKETING-KNOWLEDGE.md
+  // seção 4) — fallback de segurança, não deveria disparar na prática com a
+  // tabela atual (todo objetivo tem pelo menos um arquétipo sem requisito).
+  return filtered.length > 0 ? filtered : ["product_benefit"];
 }
 
 // Regra v0 pra inferir objetivo quando o merchant escolhe "Let AI decide" —

@@ -170,3 +170,71 @@ Correção importante feita nesta mesma conversa: inicialmente eu (Claude) assum
 | Visita → lead → venda atribuída a um post específico | `tracked_links` (redirecionador próprio com UTM) | Construir o redirecionador (documentado, não implementado) | Não buildável ainda |
 
 Ou seja: diagnóstico de posicionamento + auditoria de conteúdo (própria conta + concorrentes) dá pra construir com dado real imediatamente, usando exatamente o mesmo fluxo Facebook Login já conectado. Análise de conversão completa (PERFIL→BIO→CTA→OFERTA) e o funil até LEAD/VENDA precisam das duas peças da tabela acima ainda não construídas — até lá, ficam como estrutura pronta que passa a preencher com dado real assim que essas peças existirem, mesmo padrão de handoff regra→aprendizado já usado pra Camada 3.
+
+## Sistema de crescimento completo: pilares, motores de ideia, estrutura de hook e ciclo de decisão (Patricia, 10/09/2026)
+
+Especificação completa de Patricia, em cima do framework de diagnóstico acima — transforma o Decision Engine de "escolhe arquétipo + gera copy" (2 estágios) num pipeline de 5 fases. Cada fase abaixo é nova; nenhuma substitui o que já existe (arquétipos, ângulo, narrative framework continuam existindo, só passam a operar **dentro** de um pilar em vez de soltos).
+
+### Fase 0 — Diagnóstico (já documentado acima, é a entrada obrigatória)
+
+Nada do que segue roda sem primeiro identificar o gargalo principal do perfil (ver seção anterior). **Regra final de Patricia, vale pra todo o sistema**: nunca entregar estratégia genérica; toda decisão precisa de porquê; se o dado contradisser a hipótese do sistema, o dado vence — nunca o contrário. Isso é literalmente o mesmo princípio já usado em todo hipótese marcada como "validar antes de fixar" no resto dos documentos, só que agora é regra explícita de operação, não só de precificação.
+
+### Fase 1 — Pilares de conteúdo (novo conceito, acima do Creative Archetype)
+
+4 a 6 pilares por marca, gerados uma vez (mesmo padrão do Brand Voice: IA rascunha a partir do diagnóstico + catálogo, merchant aprova/edita, nunca autossalva). **Proibido pilar genérico** ("educação", "inspiração") — cada pilar precisa ser específico da marca, nascido do diagnóstico de posicionamento, não de uma lista universal de social media.
+
+Cada pilar tem:
+
+| Campo | O que define |
+|---|---|
+| Nome | Específico da marca, não genérico |
+| Função | Por que esse pilar existe na estratégia |
+| Público que atrai | Qual fatia do público ideal (Fase 0) esse pilar fala |
+| Problema que explora | Qual dor/necessidade específica |
+| Promessa | O que o público ganha ao consumir esse pilar |
+| Formato ideal | Carrossel/imagem única (reels/stories ficam fora do MVP de publicação atual, ver limitações) |
+| CTA | Ação que esse pilar tipicamente pede |
+
+**Os pilares substituem/refinam o modelo de papéis do "Content Mix" acima**: em vez de 3 papéis (comercial/valor/marca), a distribuição passa a ser em 4 categorias — **Atração, Autoridade, Relacionamento, Conversão** — com porcentagem ideal definida pela IA a partir do diagnóstico (não fixa 25/25/25/25; depende do gargalo identificado na Fase 0 — ex.: gargalo é atenção → mais peso em Atração; gargalo é conversão → mais peso em Conversão). Cada pilar existente é então classificado numa dessas 4 categorias, e a distribuição semanal (Weekly Plan já construído) passa a alocar por essa proporção em vez do 1-1-1 solto anterior.
+
+Além disso, cada pilar recebe uma anotação de papel na máquina de crescimento:
+- Qual pilar deve gerar mais **alcance**
+- Qual deve gerar mais **seguidores**
+- Qual deve aproximar o público da **compra**
+- Qual deve **publicar menos** (não todo pilar merece frequência igual)
+
+### Fase 2 — Geração de ideias com os 5 motores
+
+Pra cada pilar, gerar ideias de conteúdo usando 5 gatilhos psicológicos explícitos (diferente de/complementar ao Creative Archetype — os motores geram a ideia bruta, o arquétipo already-existente continua decidindo a categoria estratégica do post final):
+
+| Motor | O que explora |
+|---|---|
+| **Dor** | O que o público quer eliminar |
+| **Desejo** | O resultado que ele quer alcançar |
+| **Curiosidade** | Algo que ele ainda não sabe |
+| **Contradição** | Uma crença comum que merece ser questionada |
+| **Prova** | Casos, exemplos, dados, experiências reais (produto/cliente) |
+
+Gera 20 ideias (não uma por pilar — distribuídas pelos pilares conforme a proporção da Fase 1). Cada ideia tem: `hook`, `ideia_central`, `formato`, `promessa`, `cta`, `objetivo`. Cada ideia recebe nota de 0 a 10 em 5 eixos — curiosidade, relevância, compartilhamento, potencial de seguir, potencial de venda — e só as **12 melhores** (maior nota agregada, respeitando a distribuição de pilares/categorias da Fase 1, não só as 12 notas mais altas isoladas) avançam pra próxima fase.
+
+### Fase 3 — Otimização de hook e estrutura
+
+Pra cada uma das 12 ideias selecionadas:
+1. Gerar 3 variações de hook, usando tipos diferentes dentre: curiosidade, erro, resultado, contradição, urgência, segredo, prova. Escolher o melhor.
+2. Estruturar o conteúdo em 7 partes: `HOOK → PROBLEMA → TENSÃO → DESCOBERTA → SOLUÇÃO → PAYOFF → CTA`. Isso é uma versão mais granular do `narrative_framework` já existente (`hook_value_proof_cta | pas | aida | before_after`) — na prática, vira um **quinto framework**, mais longo e mais explícito, reservado pra quando o formato do post (carrossel de várias telas) comporta essa granularidade toda; pra legenda de imagem única, os frameworks mais curtos já existentes continuam fazendo mais sentido. **Regra de edição**: cada parte precisa dar um motivo pra continuar lendo — se alguma parte puder ser cortada sem prejudicar o conteúdo, cortar. Copy longa não é o objetivo; copy que sustenta atenção é.
+3. Gerar 3 CTAs por ideia — pra seguir, pra comentar, pra comprar/virar lead — e escolher o mais coerente com o conteúdo específico daquele post (não sempre o de venda; um post de Atração provavelmente usa o CTA de seguir/comentar, não o de compra).
+
+### Fase 4 — Execução (calendário) e Fase 5 — Análise (métricas viram decisão)
+
+**Calendário**: mesma função que o Weekly Plan já construído (`app/services/decisionEngine/planWeek.server.ts`) — a mudança é o que cada slot carrega: além de produto/objetivo já decididos hoje, passa a levar `tema` (o pilar), `hook` escolhido (Fase 3), `formato`, `objetivo`, `cta` e **`métrica principal`** — qual número aquele post específico deveria mover, definido antes de publicar, não escolhido depois pra justificar o resultado.
+
+**Análise — transformar número em decisão, nunca só descrever**: quando `performance_signals` tiver dado (mesma limitação de cold start documentada em CLAUDE.md/ARCHITECTURE.md pra Camada 3 — hoje ainda não tem post publicado com métrica capturada), a saída da análise nunca é "o post teve X curtidas" — é sempre uma de 4 decisões:
+
+| Decisão | Significa |
+|---|---|
+| **Parar** | O que eliminar — pilar/formato/ângulo que não está performando |
+| **Manter** | O que já funciona, sem mudar |
+| **Dobrar** | O que merece mais frequência/investimento |
+| **Testar** | Que hipótese testar na semana seguinte |
+
+Essa é a instanciação concreta da Camada 3 (Customer Intelligence) já documentada desde o início do projeto — antes só dizia "o sistema aprende com o tempo", agora tem vocabulário de saída explícito. Métricas relevantes pro ciclo: alcance, views, retenção, compartilhamentos, salvamentos, visitas ao perfil, seguidores, leads, vendas — a maioria depende das peças ainda não construídas na tabela "De onde vem o dado" acima (`instagram_manage_insights`, `tracked_links`); enquanto isso, o ciclo Parar/Manter/Dobrar/Testar roda com o que já é público (curtidas, comentários) como proxy parcial, sinalizado como tal, nunca apresentado como se fosse o dado completo.

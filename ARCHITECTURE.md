@@ -74,6 +74,8 @@ Estágio 2 — Geração (texto/criativo)
 
 Vantagem prática: já é diferenciador no Phase 1, mesmo sem histórico de performance (Camada 3) — decidir com base em Commerce + Calendar Intelligence já é muito melhor que "escreva um post para X". Custo extra é baixo (uma chamada de LLM a mais, a primeira com output estruturado).
 
+**Isso vira um pipeline de 5 fases, não só 2 estágios (Patricia, 10/09/2026).** Ver "Sistema de crescimento completo" em [MARKETING-KNOWLEDGE.md](MARKETING-KNOWLEDGE.md) para a especificação completa: Fase 0 (diagnóstico de posicionamento → identifica o gargalo, roda antes de tudo), Fase 1 (4-6 pilares de conteúdo por marca, gerados uma vez, mesmo padrão de aprovação do Brand Voice — novo modelo `content_pillars`, ver schema abaixo), Fase 2 (geração de ideias via 5 motores — dor/desejo/curiosidade/contradição/prova — com scoring e corte pras 12 melhores), Fase 3 (otimização de hook + estrutura de 7 partes + 3 variações de CTA), Fase 4 (calendário — já é o Weekly Plan existente, ganha campos novos por slot), Fase 5 (métricas viram decisão: Parar/Manter/Dobrar/Testar, é a instanciação concreta da Camada 3). Os Estágios 1 e 2 descritos acima continuam existindo **dentro** da Fase 2/3 — arquétipo, ângulo e narrative_framework não somem, passam a operar dentro de um pilar já escolhido em vez de soltos.
+
 ### Planejamento semanal como portfólio, não posts isolados
 
 Ponto de Patricia (09/09/2026): decidir cada post isoladamente, mesmo que cada decisão seja individualmente defensável, pode produzir uma semana desequilibrada (ex.: Product Benefit / Product Benefit / Urgency, todos vendendo, nada de marca ou engajamento). O planejamento semanal precisa pensar no conjunto antes de decidir cada slot. Ver "Content Mix" em [MARKETING-KNOWLEDGE.md](MARKETING-KNOWLEDGE.md) para o mapeamento de arquétipos em papéis (comercial / valor-engajamento / marca-lifestyle) e a regra de portfólio (~1 de cada papel nos 3 posts da semana, soft constraint, não regra fixa). O Estágio 1 roda em dois níveis: primeiro aloca papéis aos slots da semana, depois escolhe produto/arquétipo/ângulo dentro de cada papel.
@@ -114,6 +116,17 @@ commerce_signals   (materializado por job periódico, não calculado
   revenue_30d, sales_velocity, days_since_last_sale,
   inventory_age_days, margin (nullable — Phase posterior, Shopify
   não expõe custo de forma uniforme pra todo catálogo), computed_at
+
+content_pillars   (Fase 1 do sistema de crescimento, ver MARKETING-KNOWLEDGE.md —
+  gerado por IA a partir do diagnóstico + catálogo, merchant aprova/edita,
+  mesmo padrão do Brand Voice; 4-6 por shop)
+  id, shop_id, name, function, attracts_audience, problem_explored,
+  promise, ideal_format, cta,
+  growth_category [atração|autoridade|relacionamento|conversão],
+  target_share_pct (percentual ideal da distribuição semanal),
+  drives_reach (bool), drives_followers (bool), drives_purchase (bool),
+  post_less (bool — sinaliza pilar que merece frequência menor),
+  created_at, updated_at
 
 content_items
   id, shop_id, product_id, platform,

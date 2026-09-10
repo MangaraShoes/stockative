@@ -1,16 +1,55 @@
 # Marketing Knowledge Layer
 
-Ponto levantado por Patricia em 09/09/2026: sem uma camada explícita de conhecimento de copywriting/narrativa, o Content Decision Engine sabe o quê promover e quando (Brand + Commerce + Customer + Calendar + Competitor Intelligence), mas não como estruturar um argumento persuasivo — e regride pra copy genérica ("Discover our beautiful EVA Black. Shop now!") mesmo com dados excelentes por trás.
+Reorganizado em 10/09/2026 a partir da avaliação crítica de Patricia sobre a primeira versão deste documento. A versão anterior registrava decisões na ordem em que foram tomadas; esta reorganiza por função, resolve as inconsistências apontadas na avaliação e adiciona as regras de evidência que faltavam. Nenhuma decisão de conteúdo foi perdida — o que mudou de lugar ou de forma está listado na seção 10 (Histórico).
 
-Esta camada define **três dimensões separadas** que juntas formam a instrução criativa passada pro Estágio 2 do Decision Engine (ver [ARCHITECTURE.md](ARCHITECTURE.md)):
+Ponto original que segue valendo (Patricia, 09/09/2026): sem uma camada explícita de conhecimento de copywriting/narrativa, o Content Decision Engine sabe o quê promover e quando (Brand + Commerce + Customer + Calendar + Competitor Intelligence), mas não como estruturar um argumento persuasivo — e regride pra copy genérica mesmo com ótimos dados por trás. Este documento continua sendo essa camada. O que mudou é que agora ela também define **quando o sistema não tem base suficiente pra agir com confiança**, e o que fazer nesse caso.
 
-1. **Creative Archetype** — qual argumento estratégico (a categoria psicológica/persuasiva)
-2. **Creative Angle** — qual mensagem específica para aquele produto/momento
-3. **Narrative Framework** — como estruturar esse argumento no texto
+---
 
-Esta é uma primeira versão pra Patricia revisar/ajustar. É a peça de expertise de marketing mais importante do produto — vale tratar como documento vivo, não só config técnico.
+## 1. Objetivo, escopo do MVP e exclusões
 
-## Arquétipos criativos
+**Objetivo do documento**: dar ao Decision Engine (ver [ARCHITECTURE.md](ARCHITECTURE.md)) critério verificável de escolha, produção e avaliação de conteúdo — não só um repertório de técnicas persuasivas. Toda regra aqui precisa responder "como o sistema sabe que isso é o certo a fazer", não só "o que é uma boa prática de social media".
+
+**Está dentro do MVP:**
+- A hierarquia de decisão da seção 2 (objetivo → categoria → pilar → ideia/ângulo → arquétipo → framework → execução).
+- Diagnóstico de posicionamento, inclusive em modo provisório quando falta dado (seção 5).
+- Regras de evidência por arquétipo — o que pode e não pode ser alegado sem fonte (seção 4).
+- Pilares de conteúdo aprovados pelo lojista (já implementado, ver [ARCHITECTURE.md](ARCHITECTURE.md) `content_pillars`).
+- Planejamento semanal como portfólio, não posts isolados (seção 6).
+- Geração de ideias com os 5 motores e seleção com critério editorial explícito, não nota de "potencial de venda" (seção 6).
+- Alocação de crédito de imagem por prioridade semanal (cross-ref [ARCHITECTURE.md](ARCHITECTURE.md), não duplicado aqui).
+
+**Fica fora do MVP, propositalmente:**
+- Reels e stories — o produto hoje só publica imagem única e carrossel estático (ver publicação real em [ARCHITECTURE.md](ARCHITECTURE.md)). Qualquer menção a formato de vídeo neste documento é aspiracional, não uma capacidade atual.
+- Funil de conversão completo PERFIL→BIO→CTA→OFERTA com dado real — depende de `instagram_manage_insights`, escopo ainda não solicitado no app da Meta (seção 3).
+- Atribuição de lead/venda a um post específico — depende do redirecionador com UTM (`tracked_links`), ainda não construído, e de decisões de desenho ainda em aberto (janela de atribuição, o que fazer com um link compartilhado por vários posts — seção 7).
+- Aprendizado automático de arquétipo/categoria a partir de performance — só acontece quando `performance_signals` tiver volume suficiente (mesmo limiar de handoff da Camada 3, ver [CLAUDE.md](CLAUDE.md) e seção 8).
+
+As regras específicas de estética visual (composição, luz, fidelidade de produto na imagem gerada) não vivem aqui — ficam em `/Users/patriciacossettin/Mangara-Nano-Banana/CLAUDE.md`. Este documento cobre estratégia e texto; aquele cobre a geração de imagem em si.
+
+---
+
+## 2. Glossário e hierarquia dos conceitos
+
+Consolidação pedida na avaliação — a versão anterior tinha dois modelos concorrentes (3 "papéis" do Content Mix e depois 4 "categorias" que supostamente os substituíam, os dois descritos como regra ativa). A partir de agora existe uma hierarquia só:
+
+```
+Objetivo comercial → Categoria estratégica → Pilar temático → Ideia/ângulo → Arquétipo → Framework → Execução
+```
+
+| Nível | O que é | Cardinalidade |
+|---|---|---|
+| **Objetivo comercial** | `awareness \| engagement \| traffic \| conversion \| inventory` — já existe em `content_items.commercial_objective` | 1 por post |
+| **Categoria estratégica** | `Atração \| Autoridade \| Relacionamento \| Conversão` — que papel esse post específico cumpre na máquina de crescimento | 1 por post — **não é propriedade fixa do pilar**, ver nota abaixo |
+| **Pilar temático** | Território editorial específico da marca (4-6 por loja), nascido do diagnóstico (seção 5), aprovado pelo lojista | 1 por post, N pilares por loja |
+| **Ideia/ângulo** | A mensagem específica gerada dentro do pilar, pra aquele produto/momento (texto livre) | 1 por post |
+| **Arquétipo** | Categoria estratégica do argumento persuasivo (enum fechado, ver tabela abaixo) | 1 por post |
+| **Framework** | Esqueleto estrutural do texto | 1 por post |
+| **Execução** | Legenda, hashtags, CTA final — saída do Estágio 2 | 1 por post |
+
+**Correção central desta reorganização: um pilar não fica preso a uma categoria estratégica única.** A versão anterior classificava cada pilar numa das 4 categorias de forma permanente. Na prática um pilar como "cuidados com o calçado" pode virar um post de Atração (dica solta, alcance), Autoridade (conteúdo mais técnico) ou Conversão (dica + CTA de compra de um produto específico), dependendo do ângulo escolhido naquela semana. O pilar carrega uma **categoria típica** (a que ele mais naturalmente serve, usada como prior no planejamento), mas a categoria real de cada post é decidida na hora do ângulo, não herdada automaticamente do pilar. Isso está refletido no schema consolidado (seção 7) e ainda **não** está refletido no código já implementado — ver seção 7 e a nota de decisão pendente no fim deste documento.
+
+### Arquétipos (11 — `UGC-style` reclassificado, ver abaixo)
 
 | Arquétipo | O que é | Estágio de funil | Objetivo comercial mais forte |
 |---|---|---|---|
@@ -21,214 +60,216 @@ Esta é uma primeira versão pra Patricia revisar/ajustar. É a peça de experti
 | **Lifestyle/Aspiration** | Produto dentro de uma vida/identidade desejada, venda mínima direta | Awareness | Awareness, Engagement |
 | **Founder Story** | A criadora por trás do produto, autenticidade | Awareness | Engagement |
 | **Behind the Scenes** | Processo, artesania, origem do material | Awareness / Consideration | Engagement |
-| **Comparison** | Contraste implícito ou explícito com alternativa (não precisa nomear concorrente — pode ser "vs. salto desconfortável o dia todo") | Consideration | Conversion |
-| **Urgency** | Escassez, estoque limitado, promoção acabando | Conversion | Conversion, Inventory |
+| **Comparison** | Contraste implícito ou explícito com alternativa (não precisa nomear concorrente) | Consideration | Conversion |
+| **Urgency** | Escassez ou prazo reais | Conversion | Conversion, Inventory |
 | **Newness** | Lançamento, "acabou de chegar", primeira olhada | Awareness / Consideration | Awareness, Traffic |
-| **UGC-style** | Conteúdo com sensação de gerado por usuário, mesmo sendo produzido pela marca — alta confiança | Consideration | Engagement, Conversion |
 | **Objection Handling** | Endereça uma hesitação direta (medo de tamanho, justificativa de preço, política de troca) | Conversion | Conversion |
 
-## Creative Angle — a terceira dimensão (Patricia, 09/09/2026)
+**`UGC-style` deixou de ser um arquétipo.** Ele descrevia um *tom de apresentação* (parece gerado por usuário), não um argumento — categoria de natureza diferente dos outros 11. Vira um atributo ortogonal, `presentation_style: ugc | editorial`, que pode se combinar com qualquer arquétipo acima (ex.: Product Benefit + tom UGC). Regra de evidência específica na seção 4: nunca simular um depoimento atribuído a uma pessoa real que não existe.
 
-Arquétipo, ângulo e framework são três decisões diferentes, não uma. Sem separar isso, dois posts do mesmo produto com o mesmo arquétipo saem parecidos demais, ou o sistema esconde a mensagem específica dentro do "arquétipo" e perde granularidade.
+### Categorias estratégicas (substituem os "3 papéis" da versão anterior)
 
-- **Arquétipo** = categoria estratégica (enum fechado, os 12 acima).
-- **Ângulo** = a mensagem específica gerada dentro daquele arquétipo, pra aquele produto, naquele momento (texto livre, não enum).
-- **Framework** = o esqueleto estrutural que organiza o texto.
-
-Exemplo — mesmo produto (EVA Black), dois posts diferentes:
-```
-Post A:
-  Objective: Move inventory
-  Archetype: Product Benefit
-  Angle: All-day comfort without sacrificing style
-  Framework: Hook → Value → Proof → CTA
-
-Post B (mesmo produto, semana diferente):
-  Objective: Move inventory
-  Archetype: Comparison
-  Angle: Flat comfort vs. spending the day in uncomfortable heels
-  Framework: PAS
-```
-`creative_angle` é gerado pelo Estágio 1 a partir de: a definição do arquétipo escolhido + atributos reais do produto (Commerce Intelligence) + vocabulário/tom da marca (Brand Intelligence). Não vem de uma tabela fixa de ângulos — é a parte mais "criativa" da decisão estruturada, mas ainda assim decidida antes do texto final (Estágio 2), não inventada solta pelo Estágio 2.
-
-## Frameworks narrativos (o esqueleto estrutural)
-
-- **Hook → Value → Proof → CTA** — uso geral, bom default para legenda de Instagram.
-- **PAS (Problem → Agitate → Solve)** — combina bem com Problem/Solution e Objection Handling.
-- **AIDA (Attention → Interest → Desire → Action)** — combina bem com Lifestyle/Aspiration e Newness.
-- **Before/After (transformação)** — combina bem com Product Benefit e Social Proof.
-
-Arquétipo e framework são escolhidos juntos, mas são perguntas diferentes: arquétipo = qual argumento; framework = como esse argumento é sequenciado no texto.
-
-## Como o Estágio 1 escolhe (regra, não aprendizado, na v0)
-
-Sem dados de performance suficientes (cold start, ver [CLAUDE.md](CLAUDE.md)), a escolha não pode ser livre — precisa ser restrita por regra, senão vira loteria de qualidade. Lógica:
-
-1. `commercial_objective` (declarado pelo merchant ou decidido pela IA) + situação do produto via Commerce Intelligence (novo / bestseller / parado / com desconto) + contexto de calendário reduzem a lista de 12 arquétipos a um **shortlist de 2-4 elegíveis**.
-2. A chamada de IA do Estágio 1 escolhe um arquétipo dentro desse shortlist (não dos 12 livremente) e o framework compatível.
-3. **Regra de anti-repetição**: guardar os últimos N arquétipos usados por loja (ou por produto) e penalizar repetição recente. Mesmo princípio já usado nas regras visuais da Mangará — "duas imagens seguidas não podem parecer a mesma campanha" — aplicado agora à estrutura do texto.
-
-Exemplo de mapeamento inicial (ajustar com uso real):
-```
-objective = inventory (estoque parado)     → [Urgency, Comparison, Product Benefit, Lifestyle]
-objective = conversion + novo lançamento   → [Newness, Social Proof, Lifestyle/Aspiration]
-objective = engagement                     → [Behind the Scenes, Founder Story, Educational, UGC-style]
-objective = awareness                      → [Lifestyle/Aspiration, Founder Story, Newness]
-```
-
-## Content Mix — a semana como portfólio, não posts isolados (Patricia, 09/09/2026)
-
-A regra de anti-repetição acima evita repetir o mesmo arquétipo, mas é uma restrição negativa ("não faça igual ao último"). Falta uma restrição positiva: o feed da semana precisa ter variedade de **papel**, não só de arquétipo individual — senão o sistema pode produzir Product Benefit / Product Benefit / Urgency, todos vendendo, sem nada de marca ou engajamento, mesmo que cada decisão isolada seja defensável.
-
-Os 12 arquétipos se agrupam em 3 papéis:
-
-| Papel | Arquétipos | Função na semana |
+| Categoria | Função na semana | Arquétipos que tipicamente servem essa categoria |
 |---|---|---|
-| **Comercial/venda** | Product Benefit, Urgency, Comparison, Newness, Objection Handling | Empurra ação direta |
-| **Valor/engajamento** | Educational, Social Proof, UGC-style | Constrói confiança/interação sem venda dura |
-| **Marca/lifestyle/storytelling** | Lifestyle/Aspiration, Founder Story, Behind the Scenes | Constrói identidade/afinidade de marca |
+| **Atração** | Ganhar alcance/atenção nova | Newness, Lifestyle/Aspiration, Comparison |
+| **Autoridade** | Construir confiança/expertise | Educational, Behind the Scenes, Founder Story |
+| **Relacionamento** | Aproximar/engajar quem já segue | Social Proof, Behind the Scenes, Founder Story |
+| **Conversão** | Empurrar ação direta de compra | Product Benefit, Problem/Solution, Urgency, Objection Handling, Comparison |
 
-**Regra de portfólio (soft constraint, não fixa)**: nos ~3 posts de uma semana do plano Starter, mirar pelo menos 1 de cada papel — não travar 100% em "comercial" nem 100% em "lifestyle". Não precisa ser exatamente 1-1-1 toda semana (calendário comercial forte, tipo Black Friday, pode justificar mais peso comercial temporariamente), mas o planejamento semanal deveria notar e sinalizar quando o mix está desbalanceado, não só otimizar post a post.
+Essa tabela é **referência de afinidade**, não regra de amarração 1:1 — o mesmo arquétipo pode servir categorias diferentes dependendo do ângulo (Comparison aparece em Atração e Conversão de propósito).
 
-**Como isso muda o Estágio 1**: o planejamento roda em dois níveis (ver [ARCHITECTURE.md](ARCHITECTURE.md)) — primeiro aloca papéis aos slots da semana (considerando calendário, prioridade de Commerce Intelligence, e o mix das últimas semanas), depois, dentro de cada papel já definido, escolhe produto + arquétipo específico + ângulo + framework. Isso é o que começa a fazer o sistema parecer um gestor de marketing pensando a semana como conjunto, não uma máquina escolhendo o melhor post isolado 12 vezes por mês.
+### Frameworks narrativos
 
-## Fase 2: quando isso vira aprendido, não só regra
+| Framework | Uso |
+|---|---|
+| **Hook → Value → Proof → CTA** | Default geral, legenda de Instagram |
+| **PAS (Problem → Agitate → Solve)** | Problem/Solution, Objection Handling |
+| **AIDA (Attention → Interest → Desire → Action)** | Lifestyle/Aspiration, Newness |
+| **Before/After (transformação)** | Product Benefit, Social Proof |
+| **HOOK→PROBLEMA→TENSÃO→DESCOBERTA→SOLUÇÃO→PAYOFF→CTA** | Formato longo, reservado pra carrossel de várias telas onde há espaço pra granularidade — pra legenda de imagem única, um dos 4 frameworks curtos acima continua sendo a escolha certa. Este framework precisa ser adicionado ao enum de `narrative_framework` no schema (seção 7) — ainda não estava lá. |
 
-Uma vez que `performance_signals` por objetivo tem volume suficiente por loja (mesmo limiar de handoff da Camada 3, ver CLAUDE.md), o arquétipo escolhido passa a ser mais uma variável testável — o sistema pode aprender que, por exemplo, "Social Proof converte melhor que Urgency para esta marca especificamente", em vez de seguir só o mapeamento fixo acima. Isso conecta Marketing Knowledge Layer com Customer Intelligence (Camada 3): arquétipo vira um "braço" no sistema de ranking/aprendizado, não permanece regra estática pra sempre.
+**Motores de ideia (Dor, Desejo, Curiosidade, Contradição, Prova)**: não fazem parte da hierarquia acima. São técnicas opcionais de geração usadas na Fase 2 (seção 6) pra produzir o banco de ideias dentro de um pilar já escolhido — o motor gera a ideia bruta, a hierarquia acima decide a categoria/arquétipo/framework do post final.
 
-## Schema (campos que isso adiciona ao Decision Engine)
-
-Ver `content_items.decision_brief` em [ARCHITECTURE.md](ARCHITECTURE.md):
-```
-{
-  ...campos já existentes (objective, product, audience, reason, channel, funnel_stage, format, cta),
-  creative_archetype: <um dos arquétipos acima>,
-  creative_angle: <texto livre, gerado dentro do arquétipo escolhido — ver seção "Creative Angle" acima>,
-  narrative_framework: <hook_value_proof_cta | pas | aida | before_after>
-}
-```
-O Estágio 2 recebe isso como restrição estrutural explícita, não como sugestão vaga — a instrução de geração passa a ser algo como "siga Hook→Value→Proof→CTA usando o arquétipo Social Proof: abra com um momento de transformação específico, sustente com uma prova concreta (número de reviews, alegação de conforto), feche com CTA" em vez de "escreva um post sobre o EVA Black".
-
-## Framework de posicionamento e funil de crescimento — "Social Media de Elite" (Patricia, 10/09/2026)
-
-Pedido de Patricia depois de ver o primeiro rascunho de Brand Voice sair "básico, genérico-IA": o app não deveria só gerar posts a partir de um objetivo escolhido — deveria se comportar como uma estrategista de social media sênior, que **diagnostica antes de prescrever**. Isso adiciona uma camada de diagnóstico e auditoria por cima do que já existe (Brand/Commerce/Customer/Calendar Intelligence + este documento), não substitui nada.
-
-### O funil próprio do produto
-
+**Funil de crescimento — caminhos possíveis, não sequência obrigatória:**
 ```
 ATENÇÃO → RETENÇÃO → VISITA AO PERFIL → SEGUIDOR → LEAD → VENDA
 ```
+Descreve trajetórias típicas de crescimento no Instagram, não um funil que todo visitante precisa atravessar em ordem — alguém pode comprar sem nunca seguir a conta, ou virar lead sem antes ser "seguidor". É contexto de estratégia (em que fase o mês está focado), não uma condição que cada post precisa satisfazer. Convive com o `funnel_stage` já existente no schema (awareness/consideration/conversion/retention), que descreve o estágio de decisão de compra de um post específico — os dois campos respondem perguntas diferentes.
 
-Mais granular que o `funnel_stage` já existente no schema (`awareness | consideration | conversion | retention`) — este funil descreve especificamente a jornada de crescimento no Instagram, não só o estágio de decisão de compra. Os dois convivem: `funnel_stage` continua sendo campo do `decision_brief` de cada post (pra que estágio de compra aquele post específico empurra); o funil de crescimento acima é o contexto maior em que a estratégia da semana/mês se posiciona (estamos numa fase de ganhar atenção, ou de converter seguidor em lead?).
+**Duas retenções diferentes, nunca confundir:**
+- **Retenção de atenção**: quanto tempo/quão fundo alguém consome um post específico (relevante sobretudo pra vídeo/carrossel — hoje sem dado direto, curtidas/comentários são proxy fraco).
+- **Retenção de clientes**: recompra, LTV — métrica de negócio, vem de pedidos Shopify, não de engajamento social.
 
-### 1. Diagnóstico de posicionamento (roda antes de qualquer estratégia de conteúdo)
+---
 
-Antes do Estágio 1 decidir o que postar, um novo passo de diagnóstico responde, com base no catálogo Shopify + vendas reais + Brand Intelligence já preenchida:
+## 3. Fontes de dados, disponibilidade e limitações
 
-- **Quem eu ajudo** (público ideal — não é o público amplo do nicho, é quem essa marca especificamente atende)
-- **Qual problema resolvo**
-- **Qual resultado entrego**
-- **Por que deveria me seguir** (diferencial)
-- **Produto/ticket médio** (já derivável de `products_cache.price` agregado)
-- **Formato principal** (reels/carrossel/stories — hoje o produto só publica imagem/carrossel estático, reels e stories ficam fora do MVP de publicação, ver limitações abaixo)
-- **Seguidores / views médias** — vêm da própria conta Instagram conectada (ver "De onde vem o dado" abaixo), não são inseridos manualmente pelo merchant
+Correção da avaliação: a tabela anterior só distinguia "buildável agora" vs. "não buildável", o que não prova que o acesso está de fato disponível nem testado. A partir de agora, cada fonte carrega um dos 4 estágios: **documentado → validado na conta de teste → implementado → funcionando em produção.**
 
-**Saída principal deste passo: o gargalo.** Não é uma lista de diagnósticos soltos — é apontar **qual é o principal gargalo do perfil agora** (ex.: "atenção não é o problema, o perfil tem alcance; o gargalo é conversão de visita em seguidor, porque a bio não deixa claro o que a marca vende nem tem CTA") e é isso que deveria pesar mais na escolha de arquétipo/papel da semana, não só o objetivo comercial isolado por post.
-
-### 2. Auditoria de conteúdo
-
-Categoriza o histórico de posts (próprios e de concorrentes, ver "De onde vem o dado") em:
-- **Temas saturados** — o que já foi postado demais, sem gerar resultado novo
-- **Conteúdos genéricos** — o que poderia ser de qualquer marca do nicho, sem trazer características autorais
-- **Conteúdos com maior potencial de alcance** — pelos dados públicos disponíveis (curtidas/comentários), o que performou acima da média
-- **Conteúdos que geram autoridade** — tipicamente educational/founder story/behind the scenes (ver papéis em "Content Mix" acima)
-- **Conteúdos que atraem compradores** — tipicamente os de papel comercial (product benefit, social proof) que empurram para o produto
-
-Essa auditoria entra no Estágio 1 como mais um contexto de decisão — evita repetir um tema saturado, prioriza formatos que já provaram funcionar pra aquela marca especificamente.
-
-### 3. Análise de conversão
-
-```
-POST → PERFIL → BIO → CTA → OFERTA
-```
-
-Audita cada elo: um post gera visita ao perfil (dado de alcance/impressão do post), o perfil converte visita em decisão de seguir (depende de bio, destaque, feed como vitrine), a bio direciona pra uma oferta clara, o CTA do post e da bio mandam pra onde. Hoje só o elo POST→PERFIL tem dado público (via curtidas/comentários como proxy); PERFIL→BIO→CTA→OFERTA depende de `instagram_manage_insights` (visitas ao perfil, cliques no link) e do link rastreado (`tracked_links`), nenhum dos dois construído ainda — ver "O que roda hoje vs. o que ainda não" abaixo.
-
-### Tudo ancorado em Commerce Intelligence, sempre
-
-Nenhuma recomendação de conteúdo (que produto empurrar, que tema evitar) pode ignorar `commerce_signals` (velocidade de venda) e `products_cache.inventory_quantity` (estoque disponível) — a auditoria de conteúdo e o diagnóstico de posicionamento informam **como** comunicar, mas **o que** promover continua vindo de Commerce + Calendar Intelligence, como já documentado desde o início do projeto. Isso não muda; só ganha uma camada de diagnóstico estratégico por cima.
-
-### De onde vem o dado — o que roda hoje vs. o que ainda não
-
-Correção importante feita nesta mesma conversa: inicialmente eu (Claude) assumi que auditoria de conteúdo e análise de concorrentes precisariam esperar `performance_signals` se acumular a partir dos posts que o próprio Stockative publica — Patricia corrigiu: a API do Instagram já dá acesso a dado real **agora**, sem esperar:
-
-| Dado | Fonte | Precisa de quê | Status |
+| Dado | Fonte | Requisito de escopo | Estágio atual |
 |---|---|---|---|
-| Posts já publicados da própria conta (legenda, tipo de mídia, curtidas, comentários, data) — inclusive de antes do Stockative existir | `GET /{ig-user-id}/media` + campos do media | Só os escopos já concedidos (`instagram_basic`) | **Buildável agora** |
-| Posts públicos de até 2 concorrentes indicados pelo merchant (legenda, curtidas, comentários, tipo, data) | Business Discovery (`business_discovery.username(...)`) — já documentado desde o início do projeto, nunca construído | Só os escopos já concedidos (`instagram_basic`, conta IG Business própria já conectada) | **Buildável agora** |
-| Alcance, impressões, visitas ao perfil, cliques no link da própria conta | Instagram Insights API | Escopo `instagram_manage_insights`, **ainda não pedido no app da Meta** | Precisa reconfigurar o app na Meta primeiro |
-| Visita → lead → venda atribuída a um post específico | `tracked_links` (redirecionador próprio com UTM) | Construir o redirecionador (documentado, não implementado) | Não buildável ainda |
+| Conexão da conta Instagram Business própria (Mangará, `@mangara.official`) | Facebook Login for Business, `/me/accounts` | `pages_show_list`, `pages_read_engagement`, `business_management`, `instagram_basic`, `instagram_content_publishing` | **Funcionando em produção** — conexão real confirmada, `igBusinessAccountId` real obtido, publicação real testada (ver [ARCHITECTURE.md](ARCHITECTURE.md)) |
+| Posts já publicados da própria conta (legenda, tipo, likes, comentários, data — inclusive de antes do Stockative) | `GET /{ig-user-id}/media` | Só `instagram_basic`, já concedido | **Funcionando em produção** — implementado e confirmado ao vivo em 10/09/2026 contra a conta real da Mangará (`fetchOwnAccountPosts`, ver `app/services/meta/businessDiscovery.server.ts`), traz legenda/likes/comentários reais dos posts já publicados |
+| Posts públicos de até 2 concorrentes indicados pelo lojista | Business Discovery (`business_discovery.username(...)`) | `instagram_basic` + conta própria já conectada | **Bloqueado** — implementado e testado ao vivo em 10/09/2026 contra a conta real da Mangará: a Meta recusa com `(#10) Application does not have permission for this action`. O app só tem Standard Access; ler dado de conta de terceiro via Business Discovery exige Advanced Access via App Review — mesma pendência da linha abaixo, correção do que a versão anterior deste documento chamava de "buildável agora" |
+| Alcance, impressões, visitas ao perfil, cliques no link | Instagram Insights API | Escopo `instagram_manage_insights`, **não solicitado no app da Meta** | **Bloqueado** — precisa voltar em "API setup with Facebook login" na Meta e pedir o escopo antes de qualquer teste ser possível |
+| Visita → lead → venda atribuída a um post específico | `tracked_links` (redirecionador próprio com UTM) | Construir o redirecionador + decidir destino do CTA, janela de atribuição, tratamento de link compartilhado (seção 7) | **Não implementado**, desenho incompleto |
 
-Ou seja: diagnóstico de posicionamento + auditoria de conteúdo (própria conta + concorrentes) dá pra construir com dado real imediatamente, usando exatamente o mesmo fluxo Facebook Login já conectado. Análise de conversão completa (PERFIL→BIO→CTA→OFERTA) e o funil até LEAD/VENDA precisam das duas peças da tabela acima ainda não construídas — até lá, ficam como estrutura pronta que passa a preencher com dado real assim que essas peças existirem, mesmo padrão de handoff regra→aprendizado já usado pra Camada 3.
+Nota de risco vinda da avaliação: o Facebook Login for Business exige conta Instagram Professional (Business/Creator) vinculada a uma Página do Facebook — confirmado no fluxo real da Mangará, mas isso é um requisito da **conta do lojista**, não só do app. Quando outro merchant conectar, o app precisa lidar com o caso de conta pessoal/sem Página vinculada (mensagem de erro clara, não falha silenciosa) — não implementado ainda, registrar como item de v0 antes de abrir pra outros merchants.
 
-## Sistema de crescimento completo: pilares, motores de ideia, estrutura de hook e ciclo de decisão (Patricia, 10/09/2026)
+---
 
-Especificação completa de Patricia, em cima do framework de diagnóstico acima — transforma o Decision Engine de "escolhe arquétipo + gera copy" (2 estágios) num pipeline de 5 fases. Cada fase abaixo é nova; nenhuma substitui o que já existe (arquétipos, ângulo, narrative framework continuam existindo, só passam a operar **dentro** de um pilar em vez de soltos).
+## 4. Regras de evidência e alegações permitidas
 
-### Fase 0 — Diagnóstico (já documentado acima, é a entrada obrigatória)
+Seção nova — era a lacuna mais crítica apontada na avaliação. Regra geral primeiro, depois o requisito por arquétipo.
 
-Nada do que segue roda sem primeiro identificar o gargalo principal do perfil (ver seção anterior). **Regra final de Patricia, vale pra todo o sistema**: nunca entregar estratégia genérica; toda decisão precisa de porquê; se o dado contradisser a hipótese do sistema, o dado vence — nunca o contrário. Isso é literalmente o mesmo princípio já usado em todo hipótese marcada como "validar antes de fixar" no resto dos documentos, só que agora é regra explícita de operação, não só de precificação.
+### Regra geral
 
-### Fase 1 — Pilares de conteúdo (novo conceito, acima do Creative Archetype)
+> Toda alegação factual precisa de fonte identificável. Reviews, resultados, prazos, escassez e histórias não podem ser inventados pelo Estágio 2. Se a evidência não existir, o arquétipo é trocado por outro elegível, ou o dado é solicitado ao lojista antes de gerar — o sistema nunca preenche a lacuna criativamente.
 
-4 a 6 pilares por marca, gerados uma vez (mesmo padrão do Brand Voice: IA rascunha a partir do diagnóstico + catálogo, merchant aprova/edita, nunca autossalva). **Proibido pilar genérico** ("educação", "inspiração") — cada pilar precisa ser específico da marca, nascido do diagnóstico de posicionamento, não de uma lista universal de social media.
+Toda saída do Decision Engine (diagnóstico, seleção de ideia, geração de copy) classifica cada afirmação em um de três estados, nunca deixando implícito qual é qual:
 
-Cada pilar tem:
+- **`evidencia_observada`** — vem direto de um dado real (catálogo, pedido, review cadastrado, brand voice aprovado, post histórico).
+- **`hipotese`** — inferência plausível mas não confirmada (ex.: "provavelmente o gargalo é X" quando não há dado de Insights pra confirmar).
+- **`dado_ausente`** — o sistema reconhece que não tem a informação, em vez de inventar uma.
 
-| Campo | O que define |
-|---|---|
-| Nome | Específico da marca, não genérico |
-| Função | Por que esse pilar existe na estratégia |
-| Público que atrai | Qual fatia do público ideal (Fase 0) esse pilar fala |
-| Problema que explora | Qual dor/necessidade específica |
-| Promessa | O que o público ganha ao consumir esse pilar |
-| Formato ideal | Carrossel/imagem única (reels/stories ficam fora do MVP de publicação atual, ver limitações) |
-| CTA | Ação que esse pilar tipicamente pede |
+Curtidas e comentários são sempre **observação de interação pública** — nunca podem sustentar uma afirmação sobre alcance, visita ao perfil, lead ou venda sem virar explicitamente `hipotese` rotulada como tal.
 
-**Os pilares substituem/refinam o modelo de papéis do "Content Mix" acima**: em vez de 3 papéis (comercial/valor/marca), a distribuição passa a ser em 4 categorias — **Atração, Autoridade, Relacionamento, Conversão** — com porcentagem ideal definida pela IA a partir do diagnóstico (não fixa 25/25/25/25; depende do gargalo identificado na Fase 0 — ex.: gargalo é atenção → mais peso em Atração; gargalo é conversão → mais peso em Conversão). Cada pilar existente é então classificado numa dessas 4 categorias, e a distribuição semanal (Weekly Plan já construído) passa a alocar por essa proporção em vez do 1-1-1 solto anterior.
+### Pré-requisito de evidência por arquétipo
 
-Além disso, cada pilar recebe uma anotação de papel na máquina de crescimento:
-- Qual pilar deve gerar mais **alcance**
-- Qual deve gerar mais **seguidores**
-- Qual deve aproximar o público da **compra**
-- Qual deve **publicar menos** (não todo pilar merece frequência igual)
+| Arquétipo | Precisa de | Se faltar |
+|---|---|---|
+| **Product Benefit** | Atributo real do produto (material, característica do cadastro Shopify) | Não pode inventar benefício não documentado |
+| **Urgency** | Prazo real (promoção com data de fim) **ou** escassez real (`commerce_signals.inventory_quantity` abaixo de um limiar definido, nunca "estoque parado" — estoque parado pode ser excesso, o oposto de escassez) | Arquétipo fica inelegível pro produto/momento |
+| **Social Proof** | Review/depoimento real cadastrado, ou número de vendas verificável (`units_sold`) | Lançamento sem review não é elegível — usar Newness ou Product Benefit |
+| **Comparison** | Contraste pode ser implícito e genérico ("vs. salto desconfortável o dia todo"); alegação específica sobre concorrente nomeado exige fonte pública | Sem fonte, manter o contraste genérico, nunca alegar fato específico do concorrente |
+| **Founder Story** | Fato real da fundadora (Brand Voice / onboarding) | Não pode inventar biografia |
+| **Behind the Scenes** | Informação real de processo/material (cadastro do produto ou brand voice) | Não pode inventar detalhe de produção |
+| **Educational** | Pode ser conhecimento geral do nicho, mas afirmação técnica específica precisa ser correta | Sem dado técnico confiável, manter a dica genérica, não inventar número/fato |
+| **Objection Handling** | Objeção real e conhecida (política de troca/tamanho do cadastro real) | Não pode inventar política |
+| **Newness** | Produto de fato recente (`shopify_created_at` dentro de uma janela definida) | Fora da janela, não é elegível como Newness |
+| **Lifestyle/Aspiration** | Menor exigência factual (é sobre imagem/aspiração), mas não pode alegar fato específico não verificável | — |
+| **Problem/Solution** | Frustração real e reconhecível do público-alvo (Fase 0/Brand Voice), não uma dor genérica de banco de imagem | Sem uma dor específica identificada, usar Product Benefit |
+| **`presentation_style: ugc`** | Nunca simula depoimento atribuído a uma pessoa real inexistente — tom UGC, não citação forjada | — |
+
+---
+
+## 5. Diagnóstico, incluindo ausência de dados
+
+### Duas coisas diferentes, que a versão anterior tratava como uma só
+
+- **Posicionamento**: quem a marca ajuda, que problema resolve, que resultado entrega, diferencial. Deriva de catálogo + Brand Voice já aprovado — **pode ser trabalhado desde o primeiro dia**, sem precisar de histórico de performance.
+- **Diagnóstico de desempenho** (o "gargalo"): qual elo do funil está travando agora. Depende de dado de comportamento real (`own_account_posts`, e melhor ainda com Insights) — **pode não existir ainda** numa conta nova ou recém-conectada, e não deve ser forçado.
+
+### Saída do diagnóstico (schema)
+
+```
+diagnosis = {
+  quem_ajudo: string,
+  problema_que_resolvo: string,
+  resultado_que_entrego: string,
+  diferencial: string,
+  gargalo_principal: string | null,      // null quando não há evidência suficiente pra apontar um
+  confianca: "alta" | "media" | "baixa",
+  evidencias: [{ afirmacao: string, fonte: string, tipo: "evidencia_observada" | "hipotese" }],
+  dados_ausentes: string[],
+  proximo_teste: string | null,
+  is_provisional: boolean,
+}
+```
+
+### Regra pra ausência de dado
+
+Nada trava esperando dado perfeito. Quando não há histórico suficiente (conta nova, sem `own_account_posts` sincronizado, catálogo com poucas vendas), o diagnóstico sai com `is_provisional: true`, `confianca: "baixa"`, `gargalo_principal` pode ficar `null` em vez de forçado, e a estratégia inicial se apoia só no posicionamento (catálogo + Brand Voice aprovado) — nunca inventa um gargalo específico ("a bio não converte") sem ter como observar isso. Assim que houver dado suficiente (ver limiar de handoff da Camada 3, seção 8), o diagnóstico é recalculado e `is_provisional` vira `false`.
+
+Isso também restringe quais arquétipos ficam elegíveis num diagnóstico provisório: nenhum arquétipo que dependa de prova de comportamento (ex.: Social Proof com número específico) deveria aparecer no shortlist até existir dado — o shortlist inicial tende a Educational, Founder Story, Behind the Scenes, Lifestyle/Aspiration, Product Benefit, que só dependem de posicionamento + catálogo.
+
+---
+
+## 6. Planejamento, seleção e produção
+
+### Fase 1 — Pilares de conteúdo
+
+4 a 6 pilares por marca, gerados uma vez a partir do diagnóstico + catálogo, lojista aprova/edita (já implementado, ver [ARCHITECTURE.md](ARCHITECTURE.md) `content_pillars`). Proibido pilar genérico ("educação", "inspiração") — precisa ser específico da marca.
+
+Cada pilar tem: nome, função, público que atrai, problema explorado, promessa, formato ideal, CTA, **categoria típica** (a categoria estratégica que ele mais naturalmente serve — prior de planejamento, não amarração fixa, ver seção 2), e as anotações de papel na máquina de crescimento (gera mais alcance / gera mais seguidores / aproxima da compra / deve publicar menos).
 
 ### Fase 2 — Geração de ideias com os 5 motores
 
-Pra cada pilar, gerar ideias de conteúdo usando 5 gatilhos psicológicos explícitos (diferente de/complementar ao Creative Archetype — os motores geram a ideia bruta, o arquétipo already-existente continua decidindo a categoria estratégica do post final):
+Pra cada pilar, os 5 motores (Dor, Desejo, Curiosidade, Contradição, Prova) geram um banco de ideias — 20 no total, distribuídas conforme a proporção de categorias definida na Fase 1/diagnóstico. Cada ideia: `hook`, `ideia_central`, `formato`, `promessa`, `cta`, `objetivo`.
 
-| Motor | O que explora |
-|---|---|
-| **Dor** | O que o público quer eliminar |
-| **Desejo** | O resultado que ele quer alcançar |
-| **Curiosidade** | Algo que ele ainda não sabe |
-| **Contradição** | Uma crença comum que merece ser questionada |
-| **Prova** | Casos, exemplos, dados, experiências reais (produto/cliente) |
+**Seleção reformulada** (a versão anterior usava notas 0-10 em eixos como "potencial de venda", que lidas como estão parecem previsão de desempenho sem calibração nenhuma pra sustentar isso):
 
-Gera 20 ideias (não uma por pilar — distribuídas pelos pilares conforme a proporção da Fase 1). Cada ideia tem: `hook`, `ideia_central`, `formato`, `promessa`, `cta`, `objetivo`. Cada ideia recebe nota de 0 a 10 em 5 eixos — curiosidade, relevância, compartilhamento, potencial de seguir, potencial de venda — e só as **12 melhores** (maior nota agregada, respeitando a distribuição de pilares/categorias da Fase 1, não só as 12 notas mais altas isoladas) avançam pra próxima fase.
+1. **Eliminar primeiro**: ideias sem evidência suficiente pro arquétipo pretendido (seção 4), incompatíveis com a marca, ou inexequíveis no formato atual do produto (reels/stories, por exemplo, saem aqui).
+2. **Avaliar o que sobrou** em 5 eixos editoriais: especificidade, relevância, clareza, originalidade, adequação ao objetivo declarado. Isso é **julgamento editorial**, não previsão de resultado — nunca é apresentado como "essa ideia vai vender mais".
+3. **Pesar pelo objetivo**: uma ideia de Autoridade não precisa ganhar por "potencial de venda" pra ser boa — os pesos dos 5 eixos variam pela categoria estratégica do slot.
+4. **Guardar justificativa curta** pra cada seleção — auditoria de por que essa ideia entrou e outra não.
+5. **Checar repetição** de mensagem, promessa e proposta visual — não só de arquétipo, que já tinha regra de anti-repetição.
+6. Das ideias que sobrevivem à eliminação e à avaliação, as **12 melhores** avançam, respeitando a distribuição de categorias, não só a nota agregada mais alta isolada.
 
 ### Fase 3 — Otimização de hook e estrutura
 
-Pra cada uma das 12 ideias selecionadas:
-1. Gerar 3 variações de hook, usando tipos diferentes dentre: curiosidade, erro, resultado, contradição, urgência, segredo, prova. Escolher o melhor.
-2. Estruturar o conteúdo em 7 partes: `HOOK → PROBLEMA → TENSÃO → DESCOBERTA → SOLUÇÃO → PAYOFF → CTA`. Isso é uma versão mais granular do `narrative_framework` já existente (`hook_value_proof_cta | pas | aida | before_after`) — na prática, vira um **quinto framework**, mais longo e mais explícito, reservado pra quando o formato do post (carrossel de várias telas) comporta essa granularidade toda; pra legenda de imagem única, os frameworks mais curtos já existentes continuam fazendo mais sentido. **Regra de edição**: cada parte precisa dar um motivo pra continuar lendo — se alguma parte puder ser cortada sem prejudicar o conteúdo, cortar. Copy longa não é o objetivo; copy que sustenta atenção é.
-3. Gerar 3 CTAs por ideia — pra seguir, pra comentar, pra comprar/virar lead — e escolher o mais coerente com o conteúdo específico daquele post (não sempre o de venda; um post de Atração provavelmente usa o CTA de seguir/comentar, não o de compra).
+Pra cada uma das 12 ideias: 3 variações de hook (curiosidade, erro, resultado, contradição, urgência, segredo, prova) → escolher a melhor; estruturar em 7 partes (HOOK→PROBLEMA→TENSÃO→DESCOBERTA→SOLUÇÃO→PAYOFF→CTA) quando o formato comportar (carrossel — pra imagem única, um framework curto da seção 2 continua sendo a escolha certa); 3 CTAs (seguir/comentar/comprar) → escolher o coerente com a categoria do post, não sempre o de venda. Regra de edição: se uma parte pode ser cortada sem prejudicar o conteúdo, corta — copy longa não é o objetivo, copy que sustenta atenção é.
 
-### Fase 4 — Execução (calendário) e Fase 5 — Análise (métricas viram decisão)
+### Cadência (pergunta que a versão anterior deixava em aberto)
 
-**Calendário**: mesma função que o Weekly Plan já construído (`app/services/decisionEngine/planWeek.server.ts`) — a mudança é o que cada slot carrega: além de produto/objetivo já decididos hoje, passa a levar `tema` (o pilar), `hook` escolhido (Fase 3), `formato`, `objetivo`, `cta` e **`métrica principal`** — qual número aquele post específico deveria mover, definido antes de publicar, não escolhido depois pra justificar o resultado.
+- **Pilares**: gerados uma vez, revisados só quando a marca muda de direção (mesmo padrão do Brand Voice).
+- **Banco de ideias (Fase 2/3)**: gerado em lote periódico — proposta v0: mensal, 20→12 ideias que alimentam várias semanas, não uma corrida por semana.
+- **Plano semanal (Fase 4)**: puxa do banco já pontuado, mas **revalida estoque, promoções ativas e calendário na hora de agendar**, não confia no banco como verdade congelada — um produto que ficou sem estoque entre a geração da ideia e o agendamento não pode ser publicado com uma alegação de disponibilidade desatualizada.
+- **Distribuição de categorias**: avaliada numa janela maior que uma semana (mensal, alinhado com o lote de ideias) — com 4 categorias e ~3 posts por semana, não é toda semana que as 4 aparecem, e isso é esperado, não um desbalanceamento a corrigir. A regra de portfólio da versão anterior ("~1 de cada papel por semana") vira soft constraint mensal, não semanal.
 
-**Análise — transformar número em decisão, nunca só descrever**: quando `performance_signals` tiver dado (mesma limitação de cold start documentada em CLAUDE.md/ARCHITECTURE.md pra Camada 3 — hoje ainda não tem post publicado com métrica capturada), a saída da análise nunca é "o post teve X curtidas" — é sempre uma de 4 decisões:
+### Commerce restringe o quê, não obriga tudo
+
+Correção da avaliação: `commerce_signals`/`products_cache.inventory_quantity` continuam sendo obrigatórios pra decidir **que produto e que alegação são válidos** (não posso dizer "últimas unidades" sem estoque baixo real, seção 4) — mas isso não significa que todo post precisa girar em torno de um SKU. Conteúdo de marca, serviço ou comunidade (ex.: Founder Story, Behind the Scenes, uma dica de cuidado sem produto específico) pode existir sem produto principal — o schema de `content_items` precisa permitir `product_id` nulo pra esses casos (ver seção 7, item pendente).
+
+---
+
+## 7. Schema consolidado
+
+Mudanças em relação ao schema já documentado em [ARCHITECTURE.md](ARCHITECTURE.md), decorrentes desta reorganização:
+
+```
+content_pillars
+  ...campos já existentes...
+  typical_category [atração|autoridade|relacionamento|conversão]
+    — renomeado de growth_category: é prior de planejamento, não categoria fixa do pilar (ver seção 2).
+    PENDENTE: o código já implementado (Prisma schema + app/routes/app.content-pillars.tsx)
+    ainda trata isso como growth_category único e definitivo por pilar. Migrar o nome/semântica
+    do campo é decisão em aberto, não fiz essa mudança de código ainda — ver nota no fim do documento.
+
+content_items
+  ...campos já existentes...
+  product_id            — passa a ser NULLABLE (conteúdo de marca/serviço sem produto principal, ver seção 6)
+  strategic_category     [atração|autoridade|relacionamento|conversão]  — decidida por post, não herdada do pilar
+  presentation_style     [ugc|editorial]  — novo, substitui UGC-style como arquétipo (seção 2)
+  diagnosis_confidence_ref — referência à versão do diagnóstico usada nessa decisão (rastreabilidade)
+  decision_brief.evidencias  — array { afirmacao, fonte, tipo: evidencia_observada|hipotese } (seção 4)
+  cta_destination         — pra onde o CTA manda de fato (perfil, link, DM) — necessário antes de tracked_links
+                            conseguir atribuir venda a um post (seção 3, item não implementado)
+
+narrative_framework enum
+  + 'hook_problema_tensao_descoberta_solucao_payoff_cta'   — o 5º framework (seção 2), faltava no enum
+
+diagnosis   (novo, ver schema completo na seção 5)
+  id, shop_id, quem_ajudo, problema_que_resolvo, resultado_que_entrego, diferencial,
+  gargalo_principal (nullable), confianca [alta|media|baixa],
+  evidencias (JSON array), dados_ausentes (JSON array), proximo_teste (nullable),
+  is_provisional (bool), computed_at
+
+tracked_links
+  ...campos já existentes (id, content_item_id, short_code, utm_params, click_count)...
+  PENDENTE DE DESENHO (seção 3): destino do CTA, vínculo com sessão/pedido Shopify,
+  janela de atribuição, e tratamento de um link reaproveitado por mais de um post —
+  nenhuma dessas quatro decisões está tomada ainda, registrado aqui pra não ficar implícito
+  que tracked_links "resolve atribuição" só por existir.
+```
+
+**Correção de fato apontada na avaliação**: em nenhum lugar do código atual existe cálculo de ticket médio/AOV — a menção anterior neste documento ("ticket médio já derivável de `products_cache.price` agregado") estava errada e foi removida. Quando esse campo for construído, a definição correta é receita bruta de pedidos (menos descontos) dividida pelo número de pedidos, **derivada de pedidos reais** (`commerce_signals`/dados agregados de `orders`), nunca da média dos preços de tabela do catálogo — um catálogo com produtos parados e caros infla a média de preço sem refletir o que a cliente de fato paga.
+
+---
+
+## 8. Métricas e critérios para mudar a estratégia
+
+Fase 5, reformulada: a saída nunca é "o post teve X curtidas" — é sempre uma de **5** decisões (a versão anterior tinha 4, faltava a opção de não decidir ainda):
 
 | Decisão | Significa |
 |---|---|
@@ -236,5 +277,44 @@ Pra cada uma das 12 ideias selecionadas:
 | **Manter** | O que já funciona, sem mudar |
 | **Dobrar** | O que merece mais frequência/investimento |
 | **Testar** | Que hipótese testar na semana seguinte |
+| **Aguardar mais dados** | Evidência insuficiente pra qualquer uma das 4 decisões acima — nunca forçar uma conclusão só porque "é hora de decidir" |
 
-Essa é a instanciação concreta da Camada 3 (Customer Intelligence) já documentada desde o início do projeto — antes só dizia "o sistema aprende com o tempo", agora tem vocabulário de saída explícito. Métricas relevantes pro ciclo: alcance, views, retenção, compartilhamentos, salvamentos, visitas ao perfil, seguidores, leads, vendas — a maioria depende das peças ainda não construídas na tabela "De onde vem o dado" acima (`instagram_manage_insights`, `tracked_links`); enquanto isso, o ciclo Parar/Manter/Dobrar/Testar roda com o que já é público (curtidas, comentários) como proxy parcial, sinalizado como tal, nunca apresentado como se fosse o dado completo.
+**Limiar mínimo de evidência**: reaproveita o mesmo limiar de handoff já documentado pra Camada 3 (~15-20 `content_items` com `performance_signals` capturado, ver [ARCHITECTURE.md](ARCHITECTURE.md)). Abaixo disso, por pilar/formato/ângulo específico, a decisão é sempre "Aguardar mais dados" — com ~12 posts/mês divididos entre 4-6 pilares, um pilar isolado pode legitimamente levar meses pra acumular evidência própria suficiente.
+
+**Comparações justas**: ao comparar desempenho entre posts/pilares, considerar idade do post, se houve promoção/desconto ativo, formato, e distribuição paga quando conhecida — nunca comparar um post de 2 dias com um de 2 meses como se fossem equivalentes.
+
+**Enquanto os dados de Insights/tracked_links não existirem**: o ciclo Parar/Manter/Dobrar/Testar/Aguardar roda só com o que é público (curtidas, comentários) como proxy parcial — sempre sinalizado como proxy, nunca apresentado como o dado completo (mesma regra da seção 4 sobre interação pública vs. alcance/conversão).
+
+---
+
+## 9. Exemplos completos e critérios de aceitação
+
+Quatro cenários que o sistema precisa saber responder explicitamente, incluindo quando a resposta é "não sei ainda":
+
+**1. Loja sem histórico** (conta nova, sem `own_account_posts` sincronizado, poucas vendas registradas): diagnóstico sai `is_provisional: true`, `confianca: "baixa"`, `gargalo_principal: null`. A estratégia inicial usa só posicionamento (catálogo + Brand Voice aprovado). Pilares são gerados normalmente (não dependem de dado de desempenho). Arquétipos elegíveis no shortlist inicial ficam restritos aos que não exigem prova de comportamento (Educational, Founder Story, Behind the Scenes, Lifestyle/Aspiration, Product Benefit) — Social Proof e Urgency ficam de fora até haver dado real.
+
+**2. Lançamento sem reviews**: `Newness` é elegível (produto dentro da janela de recência). `Social Proof` fica inelegível por falta de evidência (seção 4) — o sistema não inventa um número de vendas nem um depoimento. A ideia usa `Newness` ou `Product Benefit` no lugar.
+
+**3. Estoque parado sem promoção ativa**: `Urgency` fica inelegível — estoque parado é o oposto de escassez, e não há prazo real de promoção. O sistema usa `Comparison`, `Product Benefit` ou `Lifestyle/Aspiration` em vez de fingir urgência. Se a intenção comercial for de fato escoar estoque, a ação correta é o lojista criar uma promoção real (com prazo) — só então `Urgency` fica elegível de novo, com evidência.
+
+**4. Conteúdo de marca sem produto principal**: um post de Founder Story ou Behind the Scenes pode ser gerado com `content_items.product_id = null` (schema precisa permitir isso, seção 7). `commerce_signals` não entra na decisão desse post porque não há SKU envolvido — a restrição de "Commerce decide o quê promover" (seção 6) só se aplica quando o post de fato promove um produto.
+
+Um exemplo passa no critério de aceitação deste documento quando, pros 4 cenários acima, alguém consegue prever exatamente o que o sistema produz e por quê — inclusive nos casos em que a resposta certa é reconhecer que falta dado.
+
+---
+
+## 10. Histórico de decisões substituídas
+
+Preservado pra rastreabilidade, não como regra ativa — o que vale hoje é o resto do documento.
+
+- **Content Mix original (Patricia, 09/09/2026)**: 3 "papéis" (Comercial/venda, Valor/engajamento, Marca/lifestyle/storytelling), com regra de portfólio "~1 de cada papel por semana". Substituído pelas 4 categorias estratégicas (seção 2) — que por sua vez deixaram de ser propriedade fixa do pilar nesta reorganização (10/09/2026).
+- **4 categorias como propriedade fixa do pilar (Patricia, 10/09/2026, especificação original da Fase 1)**: cada pilar tinha uma `growth_category` única e definitiva. Substituído por `typical_category` como prior, com a categoria real decidida por post (seção 2) — **mudança de schema/código ainda pendente**, ver nota abaixo.
+- **Tabela "de onde vem o dado" com 2 estágios (buildável agora / não buildável)**: substituída pela tabela de 4 estágios da seção 3 (documentado → validado → implementado → produção).
+- **"Ticket médio já derivável de `products_cache.price` agregado"**: impreciso — ticket médio precisa vir de pedidos reais, não de preço de tabela. Corrigido na seção 7.
+- **Notas 0-10 em "curiosidade, relevância, compartilhamento, potencial de seguir, potencial de venda"**: liam como previsão de performance sem calibração. Substituídas pelo processo de eliminação + avaliação editorial da seção 6.
+- **Fase 5 com 4 decisões (Parar/Manter/Dobrar/Testar)**: sem opção de reconhecer evidência insuficiente. Substituída pelas 5 decisões da seção 8 (acrescenta "Aguardar mais dados").
+- **"5 fases" descritas mas 6 enumeradas (Fase 0 a 5)**: era inconsistência de contagem, não de conteúdo — a numeração 0-5 (6 fases) é a que vale, mantida nas seções 5-8.
+
+### Decisão em aberto, não resolvida nesta reorganização
+
+O código já implementado (`prisma/schema.prisma` → `ContentPillar.growthCategory`, e a tela `app/routes/app.content-pillars.tsx`) ainda trata categoria como campo único e fixo por pilar — o modelo antigo, não o `typical_category` desta versão. Migrar isso é uma mudança real de schema (nova migration) e de UI, em cima de uma feature que acabou de ser implementada e ainda está em teste. Não fiz essa migração sozinho porque é uma decisão de custo/benefício que cabe à Patricia: manter o campo único como simplificação aceita do MVP (a categoria "típica" já é uma aproximação razoável na maioria dos posts), ou migrar agora para `typical_category` + categoria decidida por post antes de destravar a Fase 2.

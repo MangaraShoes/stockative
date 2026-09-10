@@ -4,6 +4,7 @@ import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { draftBrandVoice } from "../services/decisionEngine/draftBrandVoice.server";
+import { fetchBrandSources } from "../services/brandSources.server";
 import { prepareLogo, LogoNotTransparentError } from "../services/imageMvp/logoOverlay.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -17,6 +18,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? await prisma.productCache.count({ where: { shopId: shop.id } })
     : 0;
 
+  const socialAccount = shop
+    ? await prisma.socialAccount.findUnique({
+        where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
+      })
+    : null;
+
   return {
     brandDescription: shop?.brandDescription ?? "",
     brandTone: shop?.brandTone ?? "",
@@ -24,11 +31,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     logoUrl: shop?.logoUrl ?? null,
     applyLogoOverlay: shop?.applyLogoOverlay ?? false,
     productCount,
+    isInstagramConnected: Boolean(socialAccount?.igBusinessAccountId),
   };
 };
 
+// Instagram conectado é obrigatório antes de gerar o rascunho de Brand Voice
+// (Patricia, 10/09/2026 — ver nota em app.plan-week.tsx, mesma regra).
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -38,12 +48,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
   if (intent === "draft") {
+    const socialAccount = await prisma.socialAccount.findUnique({
+      where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
+    });
+    if (!socialAccount?.igBusinessAccountId) {
+      throw new Response("Connect Instagram first — see Social accounts.", { status: 400 });
+    }
+
     const products = await prisma.productCache.findMany({
       where: { shopId: shop.id },
       select: { title: true, description: true, productType: true, price: true },
     });
-    const draft = await draftBrandVoice(products);
-    return { intent, draft };
+    const sources = await fetchBrandSources(admin, shop.id);
+    const draft = await draftBrandVoice(products, sources);
+    return {
+      intent,
+      draft,
+      sourcesFound: {
+        aboutPage: Boolean(sources.aboutPageText),
+        shopDescription: Boolean(sources.shopDescription),
+        instagramBio: Boolean(sources.instagramBio),
+        ownPosts: sources.ownRecentPosts.length > 0,
+        competitors: sources.competitorSnapshots.length,
+        competitorDataStatus: sources.competitorDataStatus,
+      },
+    };
   }
 
   if (intent === "upload-logo") {
@@ -101,6 +130,7 @@ export default function Brand() {
   const isDrafting = draftFetcher.state !== "idle";
   const isSaving = saveFetcher.state !== "idle";
   const hasDraft = draftFetcher.data?.intent === "draft";
+  const canDraft = data.productCount > 0 && data.isInstagramConnected;
   const hasSavedBefore = Boolean(
     data.brandDescription || data.brandTone || data.brandAvoid,
   );
@@ -156,11 +186,22 @@ export default function Brand() {
         </s-paragraph>
 
         <s-stack direction="block" gap="base">
+          {data.productCount > 0 && !data.isInstagramConnected && (
+            <s-paragraph>
+              <strong>
+                Connect Instagram first (Social accounts) — the draft is
+                built from your real Instagram bio and post history together
+                with your Shopify data, not just your product catalog.
+              </strong>
+            </s-paragraph>
+          )}
+
           {data.productCount > 0 && (
             <s-button
               onClick={generateDraft}
               variant="tertiary"
               {...(isDrafting ? { loading: true } : {})}
+              {...(!canDraft ? { disabled: true } : {})}
             >
               Generate draft with AI (based on your {data.productCount}{" "}
               synced products)
@@ -174,8 +215,26 @@ export default function Brand() {
               </strong>{" "}
               Edit any of the three fields below freely, then click
               &quot;Approve &amp; save&quot; when you&apos;re happy with it.
-              It also doesn&apos;t look at your competitors yet — that needs
-              Instagram integration, which isn&apos;t built yet.
+            </s-paragraph>
+          )}
+
+          {hasDraft && draftFetcher.data?.sourcesFound && (
+            <s-paragraph>
+              Grounded in: About Us page{" "}
+              {draftFetcher.data.sourcesFound.aboutPage ? "✓ found" : "— not found"}
+              , Shopify store description{" "}
+              {draftFetcher.data.sourcesFound.shopDescription ? "✓ found" : "— not set"}
+              , Instagram bio{" "}
+              {draftFetcher.data.sourcesFound.instagramBio ? "✓ found" : "— empty"}
+              , own post history{" "}
+              {draftFetcher.data.sourcesFound.ownPosts ? "✓ found" : "— none yet"}
+              , competitor reference:{" "}
+              {draftFetcher.data.sourcesFound.competitorDataStatus === "ok"
+                ? `✓ ${draftFetcher.data.sourcesFound.competitors} account(s)`
+                : draftFetcher.data.sourcesFound.competitorDataStatus === "blocked"
+                  ? "— added, but blocked pending Meta App Review"
+                  : "— none added"}
+              .
             </s-paragraph>
           )}
 

@@ -23,9 +23,16 @@ export const META_SCOPES = [
 ].join(",");
 
 export class MetaGraphApiError extends Error {
-  constructor(message: string) {
+  // Código numérico do erro da Meta (ex.: 10 = "Application does not have
+  // permission for this action", geralmente falta de Advanced Access via
+  // App Review, não conta inválida — precisa ser distinguido de "não
+  // encontrado" nos callers, ver businessDiscovery.server.ts).
+  code: number | null;
+
+  constructor(message: string, code: number | null = null) {
     super(message);
     this.name = "MetaGraphApiError";
+    this.code = code;
   }
 }
 
@@ -48,6 +55,7 @@ export async function graphApiRequest<T>(
   if (!response.ok || json.error) {
     throw new MetaGraphApiError(
       json.error?.message ?? `Meta Graph API request failed (${response.status})`,
+      typeof json.error?.code === "number" ? json.error.code : null,
     );
   }
   return json as T;

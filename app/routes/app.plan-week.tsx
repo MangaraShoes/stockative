@@ -11,9 +11,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where: { shopifyDomain: session.shop },
   });
 
-  return { hasShop: Boolean(shop) };
+  const socialAccount = shop
+    ? await prisma.socialAccount.findUnique({
+        where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
+      })
+    : null;
+
+  return { hasShop: Boolean(shop), isInstagramConnected: Boolean(socialAccount?.igBusinessAccountId) };
 };
 
+// Instagram conectado é obrigatório antes de gerar o plano semanal (Patricia,
+// 10/09/2026: "este step deve vir como obrigatório... ele precisa buscar os
+// dados da conta do IG para construir tudo isso junto com as informações do
+// Shopify") — checado aqui também, não só desabilitando o botão na UI, pra
+// nunca deixar passar uma chamada direta ao endpoint sem a conta conectada.
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
@@ -22,16 +33,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
+  const socialAccount = await prisma.socialAccount.findUnique({
+    where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
+  });
+  if (!socialAccount?.igBusinessAccountId) {
+    throw new Response("Connect Instagram first — see Social accounts.", { status: 400 });
+  }
+
   const slots = await planWeeklyContent(shop.id);
   return { slots };
 };
 
 export default function PlanWeek() {
-  const { hasShop } = useLoaderData<typeof loader>();
+  const { hasShop, isInstagramConnected } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
 
   const isGenerating = fetcher.state !== "idle";
   const slots = fetcher.data?.slots;
+  const canGenerate = hasShop && isInstagramConnected;
 
   const generateWeek = () => fetcher.submit({}, { method: "POST" });
 
@@ -50,10 +69,20 @@ export default function PlanWeek() {
           <s-paragraph>Sync your products first before generating a weekly plan.</s-paragraph>
         )}
 
+        {hasShop && !isInstagramConnected && (
+          <s-paragraph>
+            <strong>
+              Connect Instagram first (Social accounts) — the plan is built
+              from your real Instagram history together with your Shopify
+              data, not just your product catalog.
+            </strong>
+          </s-paragraph>
+        )}
+
         <s-button
           onClick={generateWeek}
           {...(isGenerating ? { loading: true } : {})}
-          {...(!hasShop ? { disabled: true } : {})}
+          {...(!canGenerate ? { disabled: true } : {})}
         >
           Generate this week&apos;s plan
         </s-button>

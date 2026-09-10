@@ -203,8 +203,9 @@ export default function Brand() {
               {...(isDrafting ? { loading: true } : {})}
               {...(!canDraft ? { disabled: true } : {})}
             >
-              Generate draft with AI (based on your {data.productCount}{" "}
-              synced products)
+              Generate draft with AI (based on your About Us page, Shopify
+              store profile, Instagram account and competitors, plus your{" "}
+              {data.productCount} synced products)
             </s-button>
           )}
           {hasDraft && (

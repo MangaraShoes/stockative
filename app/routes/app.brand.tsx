@@ -6,6 +6,7 @@ import prisma from "../db.server";
 import { draftBrandVoice } from "../services/decisionEngine/draftBrandVoice.server";
 import { fetchBrandSources } from "../services/brandSources.server";
 import { prepareLogo, LogoNotTransparentError } from "../services/imageMvp/logoOverlay.server";
+import { CONTENT_LANGUAGES } from "../services/decisionEngine/constants";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -32,6 +33,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     applyLogoOverlay: shop?.applyLogoOverlay ?? false,
     productCount,
     isInstagramConnected: Boolean(socialAccount?.igBusinessAccountId),
+    contentLanguagePrimary: shop?.contentLanguagePrimary ?? "en",
+    contentLanguageSecondary: shop?.contentLanguageSecondary ?? "",
   };
 };
 
@@ -75,6 +78,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     };
   }
 
+  // Idioma(s) de publicação (Patricia, 10/09/2026: "precisamos criar um
+  // step onde a cliente escolhe o idioma... até 2 idiomas... aparece o
+  // primeiro e na sequência o segundo, em todos os posts") — vale pra
+  // Weekly Plan e Create Content, ver translateCaption.server.ts.
+  if (intent === "save-language") {
+    const primary = String(formData.get("contentLanguagePrimary") ?? "en");
+    const secondaryRaw = String(formData.get("contentLanguageSecondary") ?? "");
+    const secondary = secondaryRaw && secondaryRaw !== primary ? secondaryRaw : null;
+
+    await prisma.shop.update({
+      where: { shopifyDomain: session.shop },
+      data: { contentLanguagePrimary: primary, contentLanguageSecondary: secondary },
+    });
+
+    return { intent, saved: true };
+  }
+
   if (intent === "upload-logo") {
     const rawLogo = String(formData.get("logo") ?? "");
 
@@ -113,11 +133,14 @@ export default function Brand() {
   const draftFetcher = useFetcher<typeof action>();
   const saveFetcher = useFetcher<typeof action>();
   const logoFetcher = useFetcher<typeof action>();
+  const languageFetcher = useFetcher<typeof action>();
 
   const [brandDescription, setBrandDescription] = useState(data.brandDescription);
   const [brandTone, setBrandTone] = useState(data.brandTone);
   const [brandAvoid, setBrandAvoid] = useState(data.brandAvoid);
   const [applyLogoOverlay, setApplyLogoOverlay] = useState(data.applyLogoOverlay);
+  const [contentLanguagePrimary, setContentLanguagePrimary] = useState(data.contentLanguagePrimary);
+  const [contentLanguageSecondary, setContentLanguageSecondary] = useState(data.contentLanguageSecondary);
 
   useEffect(() => {
     if (draftFetcher.data?.intent === "draft" && draftFetcher.data.draft) {
@@ -145,6 +168,17 @@ export default function Brand() {
         brandTone,
         brandAvoid,
         applyLogoOverlay: String(applyLogoOverlay),
+      },
+      { method: "POST" },
+    );
+
+  const isSavingLanguage = languageFetcher.state !== "idle";
+  const saveLanguage = () =>
+    languageFetcher.submit(
+      {
+        intent: "save-language",
+        contentLanguagePrimary,
+        contentLanguageSecondary,
       },
       { method: "POST" },
     );
@@ -179,6 +213,62 @@ export default function Brand() {
 
   return (
     <s-page heading="Brand voice">
+      <s-section heading="Publishing language">
+        <s-paragraph>
+          Every post is generated in your primary language. Add a second
+          language and every post publishes with the full caption in your
+          primary language, followed by the same caption translated into the
+          second — in one post, same as how Mangará already posts today
+          (e.g. French then Dutch).
+        </s-paragraph>
+
+        <s-stack direction="inline" gap="base">
+          <div>
+            <s-paragraph>Primary language</s-paragraph>
+            <select
+              value={contentLanguagePrimary}
+              onChange={(e) => setContentLanguagePrimary(e.target.value)}
+              style={{ padding: 8 }}
+            >
+              {CONTENT_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <s-paragraph>Second language (optional)</s-paragraph>
+            <select
+              value={contentLanguageSecondary}
+              onChange={(e) => setContentLanguageSecondary(e.target.value)}
+              style={{ padding: 8 }}
+            >
+              <option value="">None</option>
+              {CONTENT_LANGUAGES.filter((lang) => lang.code !== contentLanguagePrimary).map(
+                (lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ),
+              )}
+            </select>
+          </div>
+        </s-stack>
+
+        <s-button
+          onClick={saveLanguage}
+          {...(isSavingLanguage ? { loading: true } : {})}
+        >
+          Save publishing language
+        </s-button>
+
+        {languageFetcher.data?.intent === "save-language" && (
+          <s-paragraph>Saved.</s-paragraph>
+        )}
+      </s-section>
+
       <s-section heading={sectionHeading}>
         <s-paragraph>
           This shapes how the AI writes for you — used every time content is

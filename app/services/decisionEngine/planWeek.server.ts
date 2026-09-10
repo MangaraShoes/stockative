@@ -4,6 +4,8 @@ import { decideContentBrief } from "./stage1.server";
 import { generateCreativeCopy } from "./stage2.server";
 import { buildCarousel } from "../imageMvp/buildCarousel.server";
 import { getProductUsageStats } from "./contentHistory.server";
+import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
+import type { ContentLanguageCode } from "./constants";
 
 const POSTS_PER_WEEK = 3;
 const AVOID_REUSE_WITHIN_DAYS = 7;
@@ -83,11 +85,20 @@ async function planOneSlot(
     objective,
   });
 
-  const copy = await generateCreativeCopy(brief, "en", {
-    brandDescription: shop.brandDescription,
-    brandTone: shop.brandTone,
-    brandAvoid: shop.brandAvoid,
-  });
+  const copy = await generateCreativeCopy(
+    brief,
+    shop.contentLanguagePrimary as ContentLanguageCode,
+    {
+      brandDescription: shop.brandDescription,
+      brandTone: shop.brandTone,
+      brandAvoid: shop.brandAvoid,
+    },
+  );
+
+  const secondaryCaption = shop.contentLanguageSecondary
+    ? await translateCaption(copy.captionText, shop.contentLanguageSecondary as ContentLanguageCode)
+    : null;
+  const captionText = buildBilingualCaption(copy.captionText, secondaryCaption);
 
   const contentItem = await prisma.contentItem.create({
     data: {
@@ -96,7 +107,7 @@ async function planOneSlot(
       platform: brief.channel,
       commercialObjective: objective,
       decisionBrief: brief,
-      captionText: copy.captionText,
+      captionText,
       hashtags: copy.hashtags.join(", "),
       cta: copy.cta,
       status: "draft",

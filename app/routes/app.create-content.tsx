@@ -12,6 +12,7 @@ import {
 import { inferObjective } from "../services/decisionEngine/archetypes.server";
 import { decideContentBrief } from "../services/decisionEngine/stage1.server";
 import { generateCreativeCopy } from "../services/decisionEngine/stage2.server";
+import { translateCaption, buildBilingualCaption } from "../services/decisionEngine/translateCaption.server";
 import { generateProductImage } from "../services/imageMvp/generateProductImage.server";
 import { assessProductImageQuality } from "../services/imageMvp/assessProductImageQuality.server";
 import { getProductUsageStats } from "../services/decisionEngine/contentHistory.server";
@@ -35,7 +36,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const usageStats = shop ? await getProductUsageStats(shop.id) : {};
 
-  return { products, hasBrandVoice: Boolean(shop?.brandTone?.trim()), usageStats };
+  return {
+    products,
+    hasBrandVoice: Boolean(shop?.brandTone?.trim()),
+    usageStats,
+    contentLanguagePrimary: shop?.contentLanguagePrimary ?? "en",
+    contentLanguageSecondary: shop?.contentLanguageSecondary ?? null,
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -135,7 +142,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const productId = String(formData.get("productId"));
   const objectiveInput = String(formData.get("objective"));
-  const language = String(formData.get("language")) as ContentLanguageCode;
 
   const product = await prisma.productCache.findUnique({
     where: { id: productId },
@@ -173,11 +179,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     objective,
   });
 
-  const copy = await generateCreativeCopy(brief, language, {
-    brandDescription: shop.brandDescription,
-    brandTone: shop.brandTone,
-    brandAvoid: shop.brandAvoid,
-  });
+  const copy = await generateCreativeCopy(
+    brief,
+    shop.contentLanguagePrimary as ContentLanguageCode,
+    {
+      brandDescription: shop.brandDescription,
+      brandTone: shop.brandTone,
+      brandAvoid: shop.brandAvoid,
+    },
+  );
+
+  const secondaryCaption = shop.contentLanguageSecondary
+    ? await translateCaption(copy.captionText, shop.contentLanguageSecondary as ContentLanguageCode)
+    : null;
+  const captionText = buildBilingualCaption(copy.captionText, secondaryCaption);
 
   const contentItem = await prisma.contentItem.create({
     data: {
@@ -186,7 +201,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       platform: brief.channel,
       commercialObjective: objective,
       decisionBrief: brief,
-      captionText: copy.captionText,
+      captionText,
       hashtags: copy.hashtags.join(", "),
       cta: copy.cta,
       status: "draft",
@@ -197,14 +212,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     intent: "generate-content" as const,
     productId: product.id,
     brief,
-    copy,
+    copy: { ...copy, captionText },
     contentItemId: contentItem.id,
     wasAutoObjective: objectiveInput === "auto",
   };
 };
 
 export default function CreateContent() {
-  const { products, hasBrandVoice, usageStats } = useLoaderData<typeof loader>();
+  const {
+    products,
+    hasBrandVoice,
+    usageStats,
+    contentLanguagePrimary,
+    contentLanguageSecondary,
+  } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
   const qualityFetcher = useFetcher<typeof action>();
@@ -238,12 +259,11 @@ export default function CreateContent() {
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
   const [objective, setObjective] = useState("auto");
-  const [language, setLanguage] = useState("en");
 
   const usageForSelectedProduct = usageStats[productId];
 
   const runGenerate = () =>
-    fetcher.submit({ productId, objective, language }, { method: "POST" });
+    fetcher.submit({ productId, objective }, { method: "POST" });
 
   const runAssessQuality = () =>
     qualityFetcher.submit(
@@ -299,7 +319,7 @@ export default function CreateContent() {
         </s-section>
       )}
 
-      <s-section heading="1. Choose product, objective and language">
+      <s-section heading="1. Choose product and objective">
         <s-stack direction="block" gap="base">
           <select
             value={productId}
@@ -327,7 +347,7 @@ export default function CreateContent() {
               variant="tertiary"
               {...(isAssessingQuality ? { loading: true } : {})}
             >
-              Is this product's existing photo good enough?
+              Is this product&apos;s existing photo good enough?
             </s-button>
           </s-stack>
           {qualityResult?.assessment && (
@@ -354,17 +374,16 @@ export default function CreateContent() {
             ))}
           </select>
 
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            style={{ padding: 8 }}
-          >
-            {CONTENT_LANGUAGES.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.label}
-              </option>
-            ))}
-          </select>
+          <s-paragraph>
+            Publishing in:{" "}
+            <strong>
+              {CONTENT_LANGUAGES.find((l) => l.code === contentLanguagePrimary)?.label ??
+                contentLanguagePrimary}
+              {contentLanguageSecondary &&
+                ` + ${CONTENT_LANGUAGES.find((l) => l.code === contentLanguageSecondary)?.label ?? contentLanguageSecondary}`}
+            </strong>
+            . <s-link href="/app/brand">Change in Brand voice</s-link>.
+          </s-paragraph>
 
           <s-button
             onClick={runGenerate}

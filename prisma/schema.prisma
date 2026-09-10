@@ -59,6 +59,17 @@ model Shop {
   logoUrl          String?
   applyLogoOverlay Boolean @default(false)
 
+  // Idioma(s) de publicação (Patricia, 10/09/2026: "a cliente escolhe o
+  // idioma... até 2 idiomas, aparece o primeiro e na sequência o segundo,
+  // em todos os posts") — contentLanguagePrimary sempre presente (default
+  // inglês pra loja que ainda não configurou), Secondary é opcional. Quando
+  // os dois estão setados, todo post publica com a legenda completa no
+  // idioma principal seguida da legenda completa traduzida no secundário,
+  // no mesmo post — mesmo padrão que a Mangará já usa de verdade no
+  // Instagram (FR seguido de NL).
+  contentLanguagePrimary   String  @default("en")
+  contentLanguageSecondary String?
+
   socialAccounts       SocialAccount[]
   products             ProductCache[]
   contentItems         ContentItem[]

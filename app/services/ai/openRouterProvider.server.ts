@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
   AIProvider,
+  CompositionCheckResult,
   FidelityCheckResult,
   GenerateImageResult,
   GenerateStructuredResult,
@@ -157,6 +158,46 @@ Set passed=false if there is a real product mismatch, and list the specific issu
         content: [
           { type: "text", text: prompt },
           { type: "image_url", image_url: { url: referenceImageUrl } },
+          { type: "image_url", image_url: { url: generatedImageDataUrl } },
+        ],
+      },
+    ]);
+
+    return parseJsonResponse(
+      json.choices[0]?.message.content ?? "{}",
+      fidelityCheckSchema,
+    );
+  }
+
+  // Guardrail de composição/estilo — roda em toda loja que usa o app, não só
+  // a Mangará (Patricia, 10/09/2026, depois de ver uma imagem tecnicamente
+  // correta mas "básica e sem graça"). O checkImageFidelity acima só garante
+  // que o PRODUTO bate com o original; este garante que a CENA parece uma
+  // campanha editorial de verdade, não uma foto de banco de imagens genérica
+  // — os critérios espelham as regras de estilo em generateProductImage.server.ts.
+  async checkImageComposition(
+    generatedImageDataUrl: string,
+    productDescription: string,
+  ): Promise<CompositionCheckResult> {
+    const systemPrompt = `You must respond with a single JSON object that conforms exactly to this JSON Schema, and nothing else (no prose, no markdown fences):\n\n${JSON.stringify(z.toJSONSchema(fidelityCheckSchema))}`;
+
+    const prompt = `Assess this AI-generated product photo of "${productDescription}" against the editorial fashion-photography standard used for this brand's campaigns:
+
+1. Light: warm, natural/soft golden light falling directly on the product — not flat, generic studio lighting.
+2. Contrast: strong, clear contrast between the product and its immediate background/surface, so its silhouette reads clearly.
+3. Styling: the outfit/setting reads as one deliberate, elevated idea (an interesting layer, texture, or structure) — not generic basics, and not a flat/boring composition.
+4. Presence: if a model is shown, their pose and expression are confident and composed, not stiff, vacant, or slouched.
+5. Product visibility: the product is the clear hero, fully visible, not obscured by hands, props, or awkward cropping.
+6. Never a workshop/craftsman/behind-the-scenes shot showing hands assembling or crafting the product.
+
+Set passed=false if the image reads as generic, flat, "stock photo" boring, or fails any of the above — even when nothing is technically wrong with the product itself. List the specific issues (e.g. "flat lighting", "outfit reads as generic basics", "background doesn't contrast with product").`;
+
+    const json = await this.chat([
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
           { type: "image_url", image_url: { url: generatedImageDataUrl } },
         ],
       },

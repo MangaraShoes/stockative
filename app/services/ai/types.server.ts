@@ -10,6 +10,7 @@ export type AITaskType =
   | "content_pillars"
   | "image"
   | "image_fidelity_check"
+  | "image_composition_check"
   | "image_quality_assessment"
   | "video";
 
@@ -35,6 +36,10 @@ export interface FidelityCheckResult {
   issues: string[];
 }
 
+// Mesma forma do fidelity check, mas julga outra coisa — composição/estilo
+// editorial, não se o produto bate com o original (ver checkImageComposition).
+export type CompositionCheckResult = FidelityCheckResult;
+
 // Interface comum que todo adaptador de provedor de IA precisa implementar.
 export interface AIProvider {
   generateText(prompt: string): Promise<GenerateTextResult>;
@@ -55,4 +60,11 @@ export interface AIProvider {
     generatedImageDataUrl: string,
     productDescription: string,
   ): Promise<FidelityCheckResult>;
+  // Guardrail de composição/estilo editorial — roda em toda loja que usa o
+  // app, não só a Mangará (Patricia, 10/09/2026: "como vamos fazer para esta
+  // avaliação ocorrer automaticamente tanto na minha loja como em outras").
+  checkImageComposition(
+    generatedImageDataUrl: string,
+    productDescription: string,
+  ): Promise<CompositionCheckResult>;
 }

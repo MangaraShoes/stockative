@@ -255,16 +255,17 @@ model PerformanceSignal {
 }
 
 model GenerationLog {
-  id                  String       @id @default(cuid())
-  contentItemId       String?
-  contentItem         ContentItem? @relation(fields: [contentItemId], references: [id])
-  taskType            String // decision_engine | creative_copy | translation | image | video
-  model               String
-  tokensUsed          Int?
-  costEstimate        Float?
-  passedFidelityCheck Boolean? // só relevante para taskType = image
-  countsAsCredit      Boolean      @default(false)
-  createdAt           DateTime     @default(now())
+  id                     String       @id @default(cuid())
+  contentItemId          String?
+  contentItem            ContentItem? @relation(fields: [contentItemId], references: [id])
+  taskType               String // decision_engine | creative_copy | translation | image | video
+  model                  String
+  tokensUsed             Int?
+  costEstimate           Float?
+  passedFidelityCheck    Boolean? // só relevante para taskType = image — produto bate com o original?
+  passedCompositionCheck Boolean? // só relevante para taskType = image — composição é editorial, não genérica/sem graça?
+  countsAsCredit         Boolean      @default(false)
+  createdAt              DateTime     @default(now())
 
   creativeAsset CreativeAsset?
 

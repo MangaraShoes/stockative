@@ -27,26 +27,50 @@ const MAX_ATTEMPTS = 2; // 1ª tentativa + 1 retry interno (não cobrado se falh
 // a esconder o produto atrás de mãos/materiais em vez de mostrá-lo. A cena
 // fica fixa; o creativeAngle só entra como contexto de mood/ambientação, nunca
 // como literal do que aparece na foto.
+//
+// A primeira versão desse fix corrigiu a cena mas ficou genérica demais —
+// "modelo vestindo, editorial" sozinho não é suficiente pra parecer uma
+// campanha de verdade (Patricia, 10/09/2026: "ficou bem básica e sem
+// graça"). As regras de estilo abaixo são a versão condensada, pra geração
+// automática, do playbook validado ao longo de dezenas de iterações manuais
+// pra Mangará (ver /Users/patriciacossettin/Mangara-Nano-Banana/CLAUDE.md —
+// referência completa se algum produto continuar saindo fraco mesmo com
+// isso).
 function buildImagePrompt(params: GenerateProductImageParams): string {
   return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way.
 
-Scene: a model wearing/holding the product, shot in an editorial fashion-photography style — natural or soft studio light, clean uncluttered background with good contrast against the product's color, the product as the clear hero of the composition. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn by the model.
+Scene: an editorial fashion photograph in a quiet-luxury aesthetic — a model wearing/holding the product as the clear hero of the shot. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn/carried by the model.
+
+Styling and composition (this is what separates a real editorial from a generic stock photo — follow all of it):
+- Natural or soft golden-hour light, warm and flattering, falling directly ON the product itself, not just on the background.
+- A sober, neutral palette (cream, camel, black, off-white, stone) with at most one muted accent color if it helps (dusty pink, olive, khaki, dusty blue) — never a saturated or loud color that competes with the product.
+- Strong contrast between the product and the surface/background immediately behind it, so its silhouette is unmistakable — never a dark product against a dark background or a light product lost against a light one.
+- The model's outfit reads as one deliberate, elevated styling idea — an interesting layer, a structured shoulder, a cinched waist, a fabric with real drape or texture — never generic basics (plain blazer-and-jeans, plain t-shirt). Understated gold jewelry or a structured bag is welcome, never loud logos.
+- The model has a confident, composed presence: spine straight, shoulders open and back, chin level — not hunched or leaning forward. A genuine, subtle warmth in the expression, not vacant and not overly serious.
+- If the product is footwear, frame it so its side silhouette is visible (never toe pointed straight at camera, which foreshortens it) and make sure it's fully visible — no fabric or prop covering it.
+- Vary the setting rather than defaulting to the same interior every time — a garden, a café terrace, a sunlit interior with warm wood tones, a stone courtyard — whatever suits the product's season/mood.
+- Roughly an 85mm-equivalent portrait framing, camera at about hip height, natural distance from the subject — avoid wide-angle distortion that inflates the product or the pose.
 
 Product: ${params.productTitle}
-Mood/context for styling only (do NOT turn this into a literal scene description — it should only influence the model's styling, expression and setting, never override the "model wearing the product, editorial" requirement above): ${params.creativeAngle}
+Mood/context for styling only (do NOT turn this into a literal scene description — it should only influence the model's styling, expression and setting, never override the requirements above): ${params.creativeAngle}
 Format: ${params.format}
 
 The product must remain the clear focus of the composition, fully visible (not cropped out, not obscured by hands or props), well-lit, with clear contrast against its background. If the product has small connected parts (e.g. a heel attached to a sole, a handle attached to a bag), make sure they stay solidly connected — never floating or detached.`;
 }
 
-// Fluxo do Image MVP (ver ARCHITECTURE.md): gera → checa fidelidade → se
-// falhar, até 1 retry interno (não cobrado) → se passar, entrega e conta 1
-// crédito → se falhar de novo, sugere usar a foto original.
+// Fluxo do Image MVP (ver ARCHITECTURE.md): gera → checa fidelidade → checa
+// composição/estilo editorial → se qualquer um falhar, até 1 retry interno
+// (não cobrado) → se os dois passarem, entrega e conta 1 crédito → se falhar
+// de novo, sugere usar a foto original. O guardrail de composição existe
+// pra pegar imagens tecnicamente corretas mas "básicas e sem graça"
+// (Patricia, 10/09/2026) — roda em toda loja que usa o app, automaticamente,
+// não é revisão manual.
 export async function generateProductImage(
   params: GenerateProductImageParams,
 ): Promise<GenerateProductImageResult> {
   const imageProvider = getProviderForTask("image");
   const fidelityProvider = getProviderForTask("image_fidelity_check");
+  const compositionProvider = getProviderForTask("image_composition_check");
   const prompt = buildImagePrompt(params);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -59,6 +83,12 @@ export async function generateProductImage(
       generated.imageDataUrl,
       params.productTitle,
     );
+    // Só vale checar composição se o produto em si já bateu — não faz
+    // sentido avaliar estilo de uma imagem que nem é o produto certo.
+    const composition = fidelity.passed
+      ? await compositionProvider.checkImageComposition(generated.imageDataUrl, params.productTitle)
+      : { passed: false, issues: [] as string[] };
+    const passed = fidelity.passed && composition.passed;
 
     await prisma.generationLog.create({
       data: {
@@ -66,13 +96,14 @@ export async function generateProductImage(
         taskType: "image",
         model: generated.model,
         passedFidelityCheck: fidelity.passed,
+        passedCompositionCheck: fidelity.passed ? composition.passed : null,
         // 1 crédito = 1 imagem válida ENTREGUE ao merchant, nunca 1 chamada
-        // de API — tentativa rejeitada pelo guardrail não é cobrada.
-        countsAsCredit: fidelity.passed,
+        // de API — tentativa rejeitada por qualquer guardrail não é cobrada.
+        countsAsCredit: passed,
       },
     });
 
-    if (fidelity.passed) {
+    if (passed) {
       const shop = await prisma.shop.findUnique({ where: { id: params.shopId } });
 
       const finalImageUrl =
@@ -101,7 +132,7 @@ export async function generateProductImage(
   return {
     status: "fallback",
     reason:
-      "The AI couldn't generate an image faithful to your product after two attempts. Use your original product photo for this post instead.",
+      "The AI couldn't generate an image that's both faithful to your product and up to editorial quality after two attempts. Use your original product photo for this post instead.",
     attempts: MAX_ATTEMPTS,
   };
 }

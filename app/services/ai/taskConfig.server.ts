@@ -18,6 +18,7 @@ const TASK_MODEL_CONFIG: Record<
     | "content_pillars"
     | "image"
     | "image_fidelity_check"
+    | "image_composition_check"
     | "image_quality_assessment"
   >,
   { model: string }
@@ -29,6 +30,7 @@ const TASK_MODEL_CONFIG: Record<
   content_pillars: { model: "anthropic/claude-sonnet-5" }, // estratégia de marca, mesma exigência de julgamento do brand_analysis
   image: { model: "google/gemini-2.5-flash-image" }, // Nano Banana — mesmo modelo do projeto da Mangará
   image_fidelity_check: { model: "anthropic/claude-sonnet-5" }, // modelo de geração não é o ideal pra julgar a própria imagem
+  image_composition_check: { model: "anthropic/claude-sonnet-5" }, // mesmo motivo do fidelity check — julgamento visual, não geração
   image_quality_assessment: { model: "anthropic/claude-sonnet-5" }, // mesmo modelo do fidelity check, tarefa de julgamento parecida
 };
 

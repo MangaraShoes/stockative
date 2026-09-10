@@ -180,12 +180,14 @@ Enquanto `weight_own` é baixo (marca recém-instalada), a referência de concor
 
 **Shopify**: trivial com `@shopify/shopify-app-react-router`. Único trabalho extra: registrar os webhooks obrigatórios de GDPR (`customers/redact`, `shop/redact`, `customers/data_request`) — sem eles a Shopify recusa aprovação na App Store.
 
-**Meta (Instagram/Facebook)** — verificado via busca em 09/09/2026, não assumido de memória:
-- Lojista precisa ter Página do Facebook ligada a conta Instagram Business.
-- Escopos: `pages_show_list`, `instagram_basic`, `instagram_business_content_publish` (nome atualizado — a permissão mudou de `instagram_content_publish`, reconfirmar contra a doc oficial da Meta no momento de implementar, nomes de permissão mudam com frequência), `pages_manage_posts`.
+**Meta (Instagram/Facebook)** — reverificado via busca em 10/09/2026 na hora de implementar de fato (a versão de 09/09 tinha o nome de escopo errado, corrigido abaixo):
+- Lojista precisa ter Página do Facebook ligada a conta Instagram Business/Creator (Professional).
+- **Fluxo escolhido: Facebook Login for Business** (não o mais novo "Instagram API with Instagram Login", que dispensa Página do Facebook mas não dá acesso a Business Discovery) — necessário porque `competitor_accounts`/Business Discovery (ver acima) só existe nesse fluxo clássico, e não faz sentido manter dois fluxos de OAuth Meta diferentes no mesmo app.
+- Escopos confirmados pra esse fluxo: `pages_show_list`, `instagram_basic`, `instagram_content_publish`, `pages_read_engagement`. **`instagram_business_content_publish` é de outro fluxo (Instagram Login) e não se aplica aqui** — reverter qualquer menção anterior a esse nome nesta seção.
 - É permissão restrita — exige App Review da Meta (vídeo demo, política de privacidade pública, verificação de negócio). 2-4 a 2-6 semanas, múltiplas rodadas de submissão são comuns, recusa na primeira tentativa é normal.
-- Publicação no Instagram é em 2 passos: `POST /{ig-user-id}/media` (cria container) → `POST /{ig-user-id}/media_publish` (publica). Facebook Page é mais direto.
+- Publicação no Instagram é em 2 passos: `POST /{ig-user-id}/media` (cria container, só aceita `image_url` apontando pra um JPEG publicamente acessível) → `POST /{ig-user-id}/media_publish` (publica, usa o `creation_id` do passo anterior). Carrossel é 3 passos: um container por imagem com `is_carousel_item=true`, depois um container "pai" com `media_type=CAROUSEL` e `children=[ids]`, depois publicar o pai.
 - **Importante pro piloto**: publicar só na própria conta (modo desenvolvedor, dando papel de "Instagram Tester" pra conta) **não exige App Review**. A revisão só é obrigatória quando contas de terceiros (outros merchants) se conectam ao app. Ou seja, o piloto com a própria Mangará (ver [CLAUDE.md](CLAUDE.md)) pode rodar publicação real sem esperar a fila de revisão — só precisa entrar na fila quando for abrir pra outros merchants.
+- Usa o token da **Página** (obtido via `/me/accounts` depois do login), não o token de usuário — é o que a Graph API espera pra publicar em nome da conta Instagram ligada àquela Página.
 
 **Mitigação de velocidade pra quando já for multi-merchant**: enquanto o App Review de produção não sai, gerar a legenda e mostrar um botão "copiar e abrir Instagram" em vez de publicar via API — valida a demanda sem esperar semanas.
 

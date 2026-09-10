@@ -16,6 +16,7 @@ import { generateProductImage } from "../services/imageMvp/generateProductImage.
 import { assessProductImageQuality } from "../services/imageMvp/assessProductImageQuality.server";
 import { getProductUsageStats } from "../services/decisionEngine/contentHistory.server";
 import { buildCarousel } from "../services/imageMvp/buildCarousel.server";
+import { publishContentItemToInstagram } from "../services/meta/publishContentItem.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -102,6 +103,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     return { intent: "build-carousel" as const, result };
+  }
+
+  if (intent === "publish-instagram") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await publishContentItemToInstagram(contentItemId);
+    return { intent: "publish-instagram" as const, result };
   }
 
   if (intent === "assess-image-quality") {
@@ -198,11 +205,13 @@ export default function CreateContent() {
   const imageFetcher = useFetcher<typeof action>();
   const qualityFetcher = useFetcher<typeof action>();
   const carouselFetcher = useFetcher<typeof action>();
+  const publishFetcher = useFetcher<typeof action>();
 
   const isGenerating = fetcher.state !== "idle";
   const isGeneratingImage = imageFetcher.state !== "idle";
   const isAssessingQuality = qualityFetcher.state !== "idle";
   const isBuildingCarousel = carouselFetcher.state !== "idle";
+  const isPublishing = publishFetcher.state !== "idle";
 
   const contentResult =
     fetcher.data?.intent === "generate-content" ? fetcher.data : undefined;
@@ -217,6 +226,10 @@ export default function CreateContent() {
   const carouselResult =
     carouselFetcher.data?.intent === "build-carousel"
       ? carouselFetcher.data.result
+      : undefined;
+  const publishResult =
+    publishFetcher.data?.intent === "publish-instagram"
+      ? publishFetcher.data.result
       : undefined;
 
   const [productId, setProductId] = useState(products[0]?.id ?? "");
@@ -258,6 +271,14 @@ export default function CreateContent() {
         creativeAngle: contentResult.brief.creativeAngle,
         format: contentResult.brief.format,
       },
+      { method: "POST" },
+    );
+  };
+
+  const runPublishToInstagram = () => {
+    if (!contentResult) return;
+    publishFetcher.submit(
+      { intent: "publish-instagram", contentItemId: contentResult.contentItemId },
       { method: "POST" },
     );
   };
@@ -462,6 +483,33 @@ export default function CreateContent() {
 
           {carouselResult?.status === "fallback" && (
             <s-paragraph>{carouselResult.reason}</s-paragraph>
+          )}
+        </s-section>
+      )}
+
+      {contentResult && (
+        <s-section heading="6. Publish">
+          <s-paragraph>
+            Publishes this post for real on the connected Instagram account
+            (build the carousel or generate an image above first — a post
+            can&apos;t go out with no images).
+          </s-paragraph>
+
+          <s-button
+            onClick={runPublishToInstagram}
+            variant="primary"
+            {...(isPublishing ? { loading: true } : {})}
+          >
+            Publish to Instagram
+          </s-button>
+
+          {publishResult?.status === "success" && (
+            <s-paragraph>
+              Published! Instagram media ID: {publishResult.igMediaId}
+            </s-paragraph>
+          )}
+          {publishResult?.status === "error" && (
+            <s-paragraph>{publishResult.reason}</s-paragraph>
           )}
         </s-section>
       )}

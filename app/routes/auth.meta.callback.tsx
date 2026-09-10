@@ -73,6 +73,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return redirect(`${appUrl}/app/social?connected=${encodeURIComponent(igAccount.igUsername)}`);
   } catch (error) {
+    console.error("Meta OAuth callback failed:", error);
     const message = error instanceof Error ? error.message : "Unknown error connecting Instagram.";
     return redirect(`${appUrl}/app/social?error=${encodeURIComponent(message)}`);
   }

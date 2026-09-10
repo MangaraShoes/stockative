@@ -81,10 +81,18 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
   return json.access_token;
 }
 
+// Padrão documentado da Meta pra duração de um long-lived user token (~60
+// dias) — usado só como fallback quando a resposta não traz `expires_in`
+// (visto ao vivo em 10/09/2026 na conta real da Mangará: o upsert de
+// SocialAccount quebrava com "Invalid Date" porque expiresInSeconds vinha
+// undefined). Sem isso a conexão inteira falhava por causa de um campo
+// opcional que não deveria travar o fluxo.
+const DEFAULT_LONG_LIVED_TOKEN_SECONDS = 60 * 24 * 60 * 60;
+
 export async function exchangeForLongLivedToken(
   shortLivedToken: string,
 ): Promise<{ accessToken: string; expiresInSeconds: number }> {
-  const json = await graphApiRequest<{ access_token: string; expires_in: number }>(
+  const json = await graphApiRequest<{ access_token: string; expires_in?: number }>(
     "/oauth/access_token",
     {
       grant_type: "fb_exchange_token",
@@ -93,7 +101,12 @@ export async function exchangeForLongLivedToken(
       fb_exchange_token: shortLivedToken,
     },
   );
-  return { accessToken: json.access_token, expiresInSeconds: json.expires_in };
+  console.log("Meta fb_exchange_token raw response:", JSON.stringify(json));
+  const expiresInSeconds =
+    typeof json.expires_in === "number" && Number.isFinite(json.expires_in)
+      ? json.expires_in
+      : DEFAULT_LONG_LIVED_TOKEN_SECONDS;
+  return { accessToken: json.access_token, expiresInSeconds };
 }
 
 export interface ConnectedInstagramAccount {

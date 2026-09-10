@@ -7,11 +7,17 @@ export const FACEBOOK_OAUTH_DIALOG_BASE = `https://www.facebook.com/${GRAPH_API_
 // Fluxo "Facebook Login for Business" (não o mais novo "Instagram API with
 // Instagram Login") — necessário porque Business Discovery (referência de
 // concorrentes, ver ARCHITECTURE.md) só existe nesse fluxo clássico.
+// Nomes conferidos direto no painel "API setup with Facebook login" do
+// próprio app na Meta em 10/09/2026 (mais confiável que busca na web —
+// `instagram_content_publishing`, não `instagram_content_publish` nem
+// `instagram_business_content_publish`, que apareceram em fontes diferentes
+// antes disso).
 export const META_SCOPES = [
   "pages_show_list",
-  "instagram_basic",
-  "instagram_content_publish",
   "pages_read_engagement",
+  "business_management",
+  "instagram_basic",
+  "instagram_content_publishing",
 ].join(",");
 
 export class MetaGraphApiError extends Error {

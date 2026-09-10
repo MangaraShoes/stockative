@@ -83,11 +83,13 @@ const SINGLE_PRODUCT_QUERY = `#graphql
 // Garante que existe uma linha `Shop` para essa loja, criando na primeira vez
 // (ex.: primeiro sync depois da instalação) ou atualizando o access token se já existir.
 export async function getOrCreateShop(shopifyDomain: string, accessToken: string) {
-  return prisma.shop.upsert({
+  const existing = await prisma.shop.findUnique({ where: { shopifyDomain } });
+  const shop = await prisma.shop.upsert({
     where: { shopifyDomain },
     update: { accessToken },
     create: { shopifyDomain, accessToken },
   });
+  return { shop, isNew: !existing };
 }
 
 // Grava/atualiza um único produto (e sua galeria) em ProductCache — usado

@@ -28,7 +28,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = formData.get("intent");
 
-  const shop = await getOrCreateShop(session.shop, session.accessToken ?? "");
+  const { shop } = await getOrCreateShop(session.shop, session.accessToken ?? "");
 
   if (intent === "compute-signals") {
     const computedCount = await computeCommerceSignals(admin, shop.id);

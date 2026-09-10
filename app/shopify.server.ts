@@ -22,15 +22,26 @@ const shopify = shopifyApp({
     expiringOfflineAccessTokens: true,
   },
   hooks: {
-    // Roda assim que a loja autoriza o app (instalação ou reautenticação) —
-    // a lojista nunca precisa clicar em "Sync products" pra ter os dados
-    // iniciais (Patricia, 10/09/2026: "precisa ocorrer automática sem a
-    // necessidade da cliente pedir"). Depois disso, webhooks products/*
-    // e orders/paid mantêm tudo atualizado sem sync manual nenhum.
+    // Roda assim que a loja autoriza o app — a lojista nunca precisa clicar
+    // em "Sync products" pra ter os dados iniciais (Patricia, 10/09/2026:
+    // "precisa ocorrer automática sem a necessidade da cliente pedir"). Só
+    // faz o sync completo na instalação de verdade (isNew), não em toda
+    // reautenticação — reautenticações são frequentes (token expirado, dev
+    // server reiniciado) e rodar o sync pesado toda vez, às vezes em
+    // paralelo com outra reautenticação concorrente, travava o SQLite.
+    // Depois da instalação, webhooks products/* e orders/paid mantêm tudo
+    // atualizado sem sync manual nenhum. Nunca deixa a autenticação em si
+    // falhar por causa de um erro no sync — só registra e segue.
     afterAuth: async ({ session, admin }) => {
-      const shop = await getOrCreateShop(session.shop, session.accessToken ?? "");
-      await syncProducts(admin, shop.id);
-      await computeCommerceSignals(admin, shop.id);
+      const { shop, isNew } = await getOrCreateShop(session.shop, session.accessToken ?? "");
+      if (!isNew) return;
+
+      try {
+        await syncProducts(admin, shop.id);
+        await computeCommerceSignals(admin, shop.id);
+      } catch (error) {
+        console.error("Initial sync on install failed:", error);
+      }
     },
   },
   ...(process.env.SHOP_CUSTOM_DOMAIN

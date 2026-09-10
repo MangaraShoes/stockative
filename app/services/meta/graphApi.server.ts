@@ -7,17 +7,19 @@ export const FACEBOOK_OAUTH_DIALOG_BASE = `https://www.facebook.com/${GRAPH_API_
 // Fluxo "Facebook Login for Business" (não o mais novo "Instagram API with
 // Instagram Login") — necessário porque Business Discovery (referência de
 // concorrentes, ver ARCHITECTURE.md) só existe nesse fluxo clássico.
-// Nomes conferidos direto no painel "API setup with Facebook login" do
-// próprio app na Meta em 10/09/2026 (mais confiável que busca na web —
-// `instagram_content_publishing`, não `instagram_content_publish` nem
-// `instagram_business_content_publish`, que apareceram em fontes diferentes
-// antes disso).
+// O painel "API setup with Facebook login" do próprio app na Meta listava
+// `instagram_content_publishing`, mas o dialog real de OAuth rejeitou esse
+// nome ao vivo em 10/09/2026 ("Invalid Scope... check lower letter case or
+// delimiter") — só essa permissão foi rejeitada, as outras 4 passaram.
+// Tentando `instagram_content_publish` (sem "-ing") em seguida — nem o
+// painel do app nem busca na web bateram com o que o endpoint de fato
+// aceitou até agora, então isso só fica confirmado depois de testar ao vivo.
 export const META_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
   "business_management",
   "instagram_basic",
-  "instagram_content_publishing",
+  "instagram_content_publish",
 ].join(",");
 
 export class MetaGraphApiError extends Error {

@@ -6,6 +6,8 @@ import {
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { getOrCreateShop, syncProducts } from "./services/syncProducts.server";
+import { computeCommerceSignals } from "./services/computeCommerceSignals.server";
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -18,6 +20,18 @@ const shopify = shopifyApp({
   distribution: AppDistribution.AppStore,
   future: {
     expiringOfflineAccessTokens: true,
+  },
+  hooks: {
+    // Roda assim que a loja autoriza o app (instalação ou reautenticação) —
+    // a lojista nunca precisa clicar em "Sync products" pra ter os dados
+    // iniciais (Patricia, 10/09/2026: "precisa ocorrer automática sem a
+    // necessidade da cliente pedir"). Depois disso, webhooks products/*
+    // e orders/paid mantêm tudo atualizado sem sync manual nenhum.
+    afterAuth: async ({ session, admin }) => {
+      const shop = await getOrCreateShop(session.shop, session.accessToken ?? "");
+      await syncProducts(admin, shop.id);
+      await computeCommerceSignals(admin, shop.id);
+    },
   },
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }

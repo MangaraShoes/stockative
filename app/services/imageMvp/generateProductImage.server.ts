@@ -18,14 +18,25 @@ export type GenerateProductImageResult =
 
 const MAX_ATTEMPTS = 2; // 1ª tentativa + 1 retry interno (não cobrado se falhar)
 
+// A cena é sempre modelo vestindo o produto, editorial, produto em destaque
+// (Patricia, 10/09/2026, depois de ver uma imagem gerada de mãos de artesão
+// tecendo o produto — o `creativeAngle` do Estágio 1 é uma instrução de
+// ARGUMENTO PARA A LEGENDA ("the handcrafted process..."), não uma instrução
+// de cena fotográfica, e passá-lo direto como cena literal produz fotos que
+// (a) contradizem a decisão de não vender como produto artesanal e (b) tendem
+// a esconder o produto atrás de mãos/materiais em vez de mostrá-lo. A cena
+// fica fixa; o creativeAngle só entra como contexto de mood/ambientação, nunca
+// como literal do que aparece na foto.
 function buildImagePrompt(params: GenerateProductImageParams): string {
-  return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way. Only change the surrounding scene.
+  return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way.
+
+Scene: a model wearing/holding the product, shot in an editorial fashion-photography style — natural or soft studio light, clean uncluttered background with good contrast against the product's color, the product as the clear hero of the composition. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn by the model.
 
 Product: ${params.productTitle}
-Scene/creative angle: ${params.creativeAngle}
+Mood/context for styling only (do NOT turn this into a literal scene description — it should only influence the model's styling, expression and setting, never override the "model wearing the product, editorial" requirement above): ${params.creativeAngle}
 Format: ${params.format}
 
-The product must remain the clear focus of the composition, fully visible (not cropped out or obscured), well-lit, with clear contrast against its background. If the product has small connected parts (e.g. a heel attached to a sole, a handle attached to a bag), make sure they stay solidly connected — never floating or detached.`;
+The product must remain the clear focus of the composition, fully visible (not cropped out, not obscured by hands or props), well-lit, with clear contrast against its background. If the product has small connected parts (e.g. a heel attached to a sole, a handle attached to a bag), make sure they stay solidly connected — never floating or detached.`;
 }
 
 // Fluxo do Image MVP (ver ARCHITECTURE.md): gera → checa fidelidade → se

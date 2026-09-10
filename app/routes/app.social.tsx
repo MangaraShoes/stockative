@@ -68,19 +68,26 @@ export default function Social() {
         ) : (
           data.isMetaConfigured &&
           data.authorizeUrl && (
-            <a
-              href={data.authorizeUrl}
-              target="_top"
-              style={{
-                display: "inline-block",
-                padding: "8px 16px",
-                border: "1px solid #ccc",
-                borderRadius: 4,
-                textDecoration: "none",
-              }}
-            >
-              Connect Instagram
-            </a>
+            <>
+              <a
+                href={data.authorizeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-block",
+                  padding: "8px 16px",
+                  border: "1px solid #ccc",
+                  borderRadius: 4,
+                  textDecoration: "none",
+                }}
+              >
+                Connect Instagram
+              </a>
+              <s-paragraph>
+                Opens in a new tab — once connected, come back and refresh
+                this page.
+              </s-paragraph>
+            </>
           )
         )}
       </s-section>

@@ -65,6 +65,34 @@ model Shop {
   creativeAssets       CreativeAsset[]
   imageCreditPurchases ImageCreditPurchase[]
   competitorAccounts   CompetitorAccount[]
+  contentPillars       ContentPillar[]
+}
+
+// Fase 1 do "sistema de crescimento" (ver MARKETING-KNOWLEDGE.md) — 4 a 6
+// pilares de conteúdo específicos da marca (nunca genéricos tipo "educação"),
+// gerados por IA a partir do diagnóstico + catálogo, aprovados/editados pela
+// lojista, mesmo padrão do Brand Voice (rascunho, nunca autossalvo).
+model ContentPillar {
+  id                String   @id @default(cuid())
+  shopId            String
+  shop              Shop     @relation(fields: [shopId], references: [id])
+  name              String
+  function          String
+  attractsAudience  String
+  problemExplored   String
+  promise           String
+  idealFormat       String // carousel | single_image
+  cta               String
+  growthCategory    String // atração | autoridade | relacionamento | conversão
+  targetSharePct    Float // percentual ideal da distribuição semanal
+  drivesReach       Boolean @default(false)
+  drivesFollowers   Boolean @default(false)
+  drivesPurchase    Boolean @default(false)
+  postLess          Boolean @default(false) // sinaliza pilar que merece frequência menor
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([shopId])
 }
 
 model SocialAccount {

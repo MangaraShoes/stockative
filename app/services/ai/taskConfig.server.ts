@@ -15,6 +15,7 @@ const TASK_MODEL_CONFIG: Record<
     | "creative_copy"
     | "translation"
     | "brand_analysis"
+    | "content_pillars"
     | "image"
     | "image_fidelity_check"
     | "image_quality_assessment"
@@ -25,6 +26,7 @@ const TASK_MODEL_CONFIG: Record<
   creative_copy: { model: "anthropic/claude-sonnet-5" }, // forte em linguagem/branding
   translation: { model: "anthropic/claude-haiku-4.5" },
   brand_analysis: { model: "anthropic/claude-sonnet-5" }, // precisa de bom julgamento, não é tarefa frequente
+  content_pillars: { model: "anthropic/claude-sonnet-5" }, // estratégia de marca, mesma exigência de julgamento do brand_analysis
   image: { model: "google/gemini-2.5-flash-image" }, // Nano Banana — mesmo modelo do projeto da Mangará
   image_fidelity_check: { model: "anthropic/claude-sonnet-5" }, // modelo de geração não é o ideal pra julgar a própria imagem
   image_quality_assessment: { model: "anthropic/claude-sonnet-5" }, // mesmo modelo do fidelity check, tarefa de julgamento parecida

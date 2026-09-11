@@ -59,10 +59,12 @@ export default function PlanWeek() {
       <s-section heading="This week's content, picked for you">
         <s-paragraph>
           Picks up to 3 products (prioritized by sales velocity and slow-moving
-          inventory, avoiding anything posted about in the last 7 days),
-          drafts the strategy, copy and image sequence for each — ready for
-          you to review. You can still create one-off posts manually anytime
-          from &quot;Create content&quot;.
+          inventory, avoiding anything posted about in the last 7 days). If
+          you have approved content pillars, each slot is also assigned one
+          (weighted by its target share) to ground that post&apos;s angle — drafts
+          the strategy, copy and image sequence for each, ready for you to
+          review. You can still create one-off posts manually anytime from
+          &quot;Create content&quot;.
         </s-paragraph>
 
         {!hasShop && (
@@ -105,6 +107,7 @@ export default function PlanWeek() {
               >
                 <s-paragraph>
                   <strong>{slot.productTitle}</strong> — {slot.objective}
+                  {slot.pillarName && ` · pillar: ${slot.pillarName}`}
                   {slot.isHero && " · this week's hero (new AI image)"}
                 </s-paragraph>
                 {slot.needsManualImage && (

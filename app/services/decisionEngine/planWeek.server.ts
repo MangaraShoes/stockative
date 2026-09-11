@@ -1,3 +1,4 @@
+import type { ContentPillar } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective } from "./archetypes.server";
 import { decideContentBrief, describeEvidence } from "./stage1.server";
@@ -14,8 +15,53 @@ export interface WeeklyPlanSlot {
   contentItemId: string;
   productTitle: string;
   objective: string;
+  pillarName: string | null; // qual pilar (Fase 1) orientou este post, se algum
   isHero: boolean; // recebeu (ou tentou receber) uma editorial NOVA — ver "Alocação de crédito de imagem" em ARCHITECTURE.md
   needsManualImage: boolean; // produto não tinha editorial reaproveitável e não era o hero da semana
+}
+
+// Distribui os pilares salvos pelos slots da semana, ponderado por
+// targetSharePct (pilar postLess pesa metade) — sem repetir pilar dentro do
+// mesmo ciclo enquanto houver opção, reiniciando o ciclo se a semana tiver
+// mais slots que pilares (Patricia, 11/09/2026: "implementa os pilares
+// influenciando o weekly planner" — antes o planner nem olhava pra
+// content_pillars, escolhia só por sinal comercial). Loja sem pilares
+// salvos ainda recebe null em todo slot — planOneSlot já sabe lidar com
+// isso sem pilar nenhum, mesmo padrão de todo o resto do produto.
+async function allocatePillarsForWeek(
+  shopId: string,
+  slotCount: number,
+): Promise<(ContentPillar | null)[]> {
+  const pillars = await prisma.contentPillar.findMany({ where: { shopId } });
+  if (pillars.length === 0) return Array(slotCount).fill(null);
+
+  const weighted = pillars.map((pillar) => ({
+    pillar,
+    weight: Math.max(pillar.targetSharePct, 1) * (pillar.postLess ? 0.5 : 1),
+  }));
+
+  const result: (ContentPillar | null)[] = [];
+  let pool = [...weighted];
+
+  for (let i = 0; i < slotCount; i++) {
+    if (pool.length === 0) pool = [...weighted];
+
+    const totalWeight = pool.reduce((sum, w) => sum + w.weight, 0);
+    let roll = Math.random() * totalWeight;
+    let pickedIndex = pool.length - 1;
+    for (let j = 0; j < pool.length; j++) {
+      roll -= pool[j].weight;
+      if (roll <= 0) {
+        pickedIndex = j;
+        break;
+      }
+    }
+
+    result.push(pool[pickedIndex].pillar);
+    pool.splice(pickedIndex, 1);
+  }
+
+  return result;
 }
 
 // Escolhe até POSTS_PER_WEEK produtos pra semana: prioriza velocidade de
@@ -57,6 +103,7 @@ async function planOneSlot(
   shopId: string,
   productId: string,
   isHero: boolean,
+  pillar: ContentPillar | null,
 ): Promise<WeeklyPlanSlot> {
   const product = await prisma.productCache.findUniqueOrThrow({
     where: { id: productId },
@@ -86,6 +133,17 @@ async function planOneSlot(
       : null,
     brandDescription: shop.brandDescription,
     objective,
+    pillar: pillar
+      ? {
+          name: pillar.name,
+          function: pillar.function,
+          problemExplored: pillar.problemExplored,
+          promise: pillar.promise,
+          idealFormat: pillar.idealFormat,
+          cta: pillar.cta,
+          growthCategory: pillar.growthCategory,
+        }
+      : null,
   };
   const brief = await decideContentBrief(stage1Input);
 
@@ -109,6 +167,7 @@ async function planOneSlot(
     data: {
       shopId,
       productId: product.id,
+      contentPillarId: pillar?.id ?? null,
       platform: brief.channel,
       commercialObjective: objective,
       decisionBrief: brief,
@@ -150,6 +209,7 @@ async function planOneSlot(
     contentItemId: contentItem.id,
     productTitle: product.title,
     objective,
+    pillarName: pillar?.name ?? null,
     isHero,
     needsManualImage,
   };
@@ -161,10 +221,11 @@ async function planOneSlot(
 export async function planWeeklyContent(shopId: string): Promise<WeeklyPlanSlot[]> {
   const ranked = await rankProductsForWeek(shopId);
   const chosen = ranked.slice(0, POSTS_PER_WEEK);
+  const pillarsForSlots = await allocatePillarsForWeek(shopId, chosen.length);
 
   const slots: WeeklyPlanSlot[] = [];
   for (const [index, entry] of chosen.entries()) {
-    const slot = await planOneSlot(shopId, entry.product.id, index === 0);
+    const slot = await planOneSlot(shopId, entry.product.id, index === 0, pillarsForSlots[index]);
     slots.push(slot);
   }
   return slots;

@@ -103,6 +103,8 @@ model ContentPillar {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  contentItems ContentItem[]
+
   @@index([shopId])
 }
 
@@ -191,6 +193,8 @@ model ContentItem {
   shop                Shop          @relation(fields: [shopId], references: [id])
   productId           String?
   product             ProductCache? @relation(fields: [productId], references: [id])
+  contentPillarId     String? // qual pilar (Fase 1) orientou este post, se houver — ver planWeek.server.ts
+  contentPillar       ContentPillar? @relation(fields: [contentPillarId], references: [id])
   platform            String // instagram | facebook
   commercialObjective String // awareness | engagement | traffic | conversion | inventory
   decisionBrief       Json? // saída estruturada do Estágio 1 (arquétipo, ângulo, framework, etc.)

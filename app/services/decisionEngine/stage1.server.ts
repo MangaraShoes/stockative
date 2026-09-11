@@ -21,6 +21,21 @@ interface Stage1Input {
   // isso, esses arquétipos não podem citar fato nenhum, só o que já está no
   // cadastro do produto (ver regras de evidência abaixo).
   brandDescription: string | null;
+  // Pilar (Fase 1, ver MARKETING-KNOWLEDGE.md) que este post deve servir —
+  // opcional: nem toda loja tem pilares salvos ainda, nem todo post precisa
+  // vir de um (Patricia, 11/09/2026: "implementa os pilares influenciando o
+  // weekly planner"). Quando presente, ancora problema/promessa/CTA/formato
+  // do post — o Estágio 1 continua decidindo arquétipo/ângulo/framework
+  // livremente dentro dessa moldura, não o contrário.
+  pillar?: {
+    name: string;
+    function: string;
+    problemExplored: string;
+    promise: string;
+    idealFormat: string;
+    cta: string;
+    growthCategory: string;
+  } | null;
 }
 
 function computeEvidence(input: Stage1Input): ArchetypeEvidence {
@@ -106,7 +121,20 @@ Product:
 Brand description (source of truth for founder_story and behind_the_scenes claims — do NOT state anything beyond what's written here):
 ${input.brandDescription?.trim() || "(not set — founder_story and behind_the_scenes must stay fully generic, no specific unverified detail)"}
 
-Commercial objective for this post: ${input.objective}
+${
+  input.pillar
+    ? `Content pillar this post must serve (a strategic content theme the merchant already approved — ground creativeAngle and audience in this pillar's problem/promise for THIS specific product, don't drift into an unrelated angle):
+- Name: ${input.pillar.name}
+- Function: ${input.pillar.function}
+- Problem it explores: ${input.pillar.problemExplored}
+- Promise: ${input.pillar.promise}
+- Ideal format: ${input.pillar.idealFormat}
+- Typical CTA: ${input.pillar.cta}
+- Growth category: ${input.pillar.growthCategory} (atração=reach/new eyes, autoridade=trust/expertise, relacionamento=deepen with existing followers, conversão=drive purchase — let this bias your archetype/format choice toward what naturally serves that category, without overriding the eligible-archetype list below)
+Prefer format "${input.pillar.idealFormat === "carousel" ? "lifestyle or studio, suited to a multi-image carousel" : "close_up or studio, suited to a single image"}" unless the product genuinely calls for something else.
+`
+    : ""
+}Commercial objective for this post: ${input.objective}
 
 You MUST choose creativeArchetype from exactly this list (do not use any other value): ${eligibleArchetypes.join(", ")}. This list is already filtered to archetypes this product/shop actually has evidence for — never argue around the restriction.
 

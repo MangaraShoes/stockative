@@ -406,7 +406,7 @@ export default function Brand() {
                   disabled={!currentLogoUrl}
                   onChange={(e) => setApplyLogoOverlay(e.target.checked)}
                 />{" "}
-                Add my logo to the corner of AI-generated product images
+                Add my logo to the top-right corner of AI-generated product images
               </label>
             </div>
           </div>

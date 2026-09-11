@@ -151,8 +151,11 @@ export async function applyLogoOverlay(
     .png()
     .toBuffer();
 
-  // sharp's "southeast" gravity places flush against the edge — pad the
+  // sharp's "northeast" gravity places flush against the edge — pad the
   // logo itself with transparent margin so it doesn't touch the corner.
+  // Canto superior direito, não inferior: o produto costuma ocupar a parte
+  // de baixo do quadro (ex.: o sapato nos pés), então um logo embaixo
+  // competiria visualmente com ele (Patricia, 11/09/2026).
   const paddedLogo = await sharp(resizedLogo)
     .extend({
       top: margin,
@@ -165,7 +168,7 @@ export async function applyLogoOverlay(
     .toBuffer();
 
   const finalImage = await baseImage
-    .composite([{ input: paddedLogo, gravity: "southeast" }])
+    .composite([{ input: paddedLogo, gravity: "northeast" }])
     .png()
     .toBuffer();
 

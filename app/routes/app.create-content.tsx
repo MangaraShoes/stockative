@@ -13,7 +13,7 @@ import { inferObjective } from "../services/decisionEngine/archetypes.server";
 import { decideContentBrief, describeEvidence } from "../services/decisionEngine/stage1.server";
 import { generateCreativeCopy } from "../services/decisionEngine/stage2.server";
 import { translateCaption, buildBilingualCaption } from "../services/decisionEngine/translateCaption.server";
-import { buildFinalCaption } from "../services/decisionEngine/captionFormat";
+import { buildFinalCaption, maxPrimaryCaptionChars } from "../services/decisionEngine/captionFormat";
 import { generateProductImage } from "../services/imageMvp/generateProductImage.server";
 import { assessProductImageQuality } from "../services/imageMvp/assessProductImageQuality.server";
 import { getProductUsageStats } from "../services/decisionEngine/contentHistory.server";
@@ -207,6 +207,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       brandAvoid: shop.brandAvoid,
     },
     describeEvidence(stage1Input),
+    maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
   );
 
   const secondaryCaption = shop.contentLanguageSecondary
@@ -546,7 +547,9 @@ export default function CreateContent() {
           <s-paragraph>
             Publishes this post for real on the connected Instagram account
             (build the carousel or generate an image above first — a post
-            can&apos;t go out with no images).
+            can&apos;t go out with no images), and also shares the cover
+            image as a Story — Instagram&apos;s API has no caption field for
+            Stories, so it goes out with the image only.
           </s-paragraph>
 
           <s-button
@@ -558,9 +561,23 @@ export default function CreateContent() {
           </s-button>
 
           {publishResult?.status === "success" && (
-            <s-paragraph>
-              Published! Instagram media ID: {publishResult.igMediaId}
-            </s-paragraph>
+            <>
+              <s-paragraph>
+                Published! Instagram media ID: {publishResult.igMediaId}
+              </s-paragraph>
+              {publishResult.story.status === "published" && (
+                <s-paragraph>
+                  Also shared as a Story (same cover image, no caption —
+                  Instagram&apos;s API doesn&apos;t support Story captions).
+                </s-paragraph>
+              )}
+              {publishResult.story.status === "failed" && (
+                <s-paragraph>
+                  Feed post published, but sharing to Story failed:{" "}
+                  {publishResult.story.reason}
+                </s-paragraph>
+              )}
+            </>
           )}
           {publishResult?.status === "error" && (
             <s-paragraph>{publishResult.reason}</s-paragraph>

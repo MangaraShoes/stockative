@@ -6,6 +6,7 @@ import { generateCreativeCopy } from "./stage2.server";
 import { buildCarousel, hasUnusedEditorial } from "../imageMvp/buildCarousel.server";
 import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
+import { maxPrimaryCaptionChars } from "./captionFormat";
 import type { ContentLanguageCode } from "./constants";
 
 const POSTS_PER_WEEK = 3;
@@ -156,6 +157,7 @@ async function planOneSlot(
       brandAvoid: shop.brandAvoid,
     },
     describeEvidence(stage1Input),
+    maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
   );
 
   const secondaryCaption = shop.contentLanguageSecondary

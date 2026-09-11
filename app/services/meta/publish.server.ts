@@ -105,3 +105,17 @@ export async function publishCarousel(
 
   return publishContainer(target, parentContainerId);
 }
+
+// Publica um Story — SEM legenda, de propósito. Verificado ao vivo em
+// 11/09/2026 depois de a Patricia questionar isso: um POST com `caption`
+// nesse media_type não dá erro (a Graph API ignora parâmetro não
+// reconhecido em silêncio), mas tentar LER esse campo de volta no mesmo
+// container devolve "Tried accessing nonexisting field (caption)" — Stories
+// genuinely não têm esse campo na API, confirmado, não é limitação nossa.
+// Texto em Story só existe queimado na própria imagem (overlay), feature
+// separada, não implementada ainda.
+export async function publishStory(target: PublishTarget, imageUrl: string): Promise<string> {
+  const containerId = await createContainer(target, { image_url: imageUrl, media_type: "STORIES" });
+  await waitForContainerReady(target, containerId);
+  return publishContainer(target, containerId);
+}

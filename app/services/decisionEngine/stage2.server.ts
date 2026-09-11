@@ -34,6 +34,7 @@ export async function generateCreativeCopy(
   language: ContentLanguageCode,
   brand: BrandVoice,
   evidenceSummary: string,
+  maxCaptionChars: number,
 ): Promise<Stage2Output> {
   const languageLabel =
     CONTENT_LANGUAGES.find((l) => l.code === language)?.label ?? "English";
@@ -43,6 +44,8 @@ export async function generateCreativeCopy(
     : DEFAULT_BRAND_TONE;
 
   const prompt = `Write the final social media post copy based on this content strategy brief. Follow the brief exactly — do not change the strategy, only execute it in writing.
+
+Hard length limit: captionText must be at most ${maxCaptionChars} characters — Instagram rejects the whole post at publish time if the final caption (which may include a second-language translation appended after this text, plus CTA and hashtags) exceeds 2200 characters total. This is a hard requirement, not a stylistic preference — a shorter, tighter caption that respects this limit is strictly better than a longer one that gets rejected.
 
 Brief:
 - Product: ${brief.product}

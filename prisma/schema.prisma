@@ -207,6 +207,7 @@ model ContentItem {
   scheduledAt         DateTime?
   publishedAt         DateTime?
   externalPostId      String?
+  storyExternalPostId String? // ID do Story publicado junto (mesma imagem hero, sem legenda — API de Stories não tem campo de caption)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 

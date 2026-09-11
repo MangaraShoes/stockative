@@ -1,9 +1,18 @@
 import prisma from "../../db.server";
-import { publishCarousel, publishSingleImage } from "./publish.server";
+import { publishCarousel, publishSingleImage, publishStory } from "./publish.server";
 import { buildFinalCaption, parseStoredHashtags } from "../decisionEngine/captionFormat";
 
+// Story é sempre best-effort — nunca derruba a publicação do feed, que é o
+// post principal (Patricia, 11/09/2026: "podemos também gerar um stories
+// com este post ao mesmo tempo?"). Sem legenda: confirmado ao vivo que a
+// API de Stories não tem campo de caption — ver publishStory em publish.server.ts.
+export type StoryPublishOutcome =
+  | { status: "not_attempted" } // sem imagem hero disponível
+  | { status: "published"; igMediaId: string }
+  | { status: "failed"; reason: string };
+
 export type PublishResult =
-  | { status: "success"; igMediaId: string }
+  | { status: "success"; igMediaId: string; story: StoryPublishOutcome }
   | { status: "error"; reason: string };
 
 // shopId vem sempre da sessão autenticada de quem chama, nunca de dado
@@ -85,16 +94,33 @@ export async function publishContentItemToInstagram(
         ? await publishSingleImage(target, imageUrls[0], caption)
         : await publishCarousel(target, imageUrls, caption);
 
+    // Story usa a mesma imagem hero (posição 1) do feed — best-effort, nunca
+    // falha a publicação principal se der errado.
+    let story: StoryPublishOutcome = { status: "not_attempted" };
+    const heroImageUrl = imageUrls[0];
+    if (heroImageUrl) {
+      try {
+        const storyMediaId = await publishStory(target, heroImageUrl);
+        story = { status: "published", igMediaId: storyMediaId };
+      } catch (storyError) {
+        story = {
+          status: "failed",
+          reason: storyError instanceof Error ? storyError.message : "Unknown error publishing story.",
+        };
+      }
+    }
+
     await prisma.contentItem.update({
       where: { id: contentItemId },
       data: {
         status: "published",
         publishedAt: new Date(),
         externalPostId: igMediaId,
+        storyExternalPostId: story.status === "published" ? story.igMediaId : null,
       },
     });
 
-    return { status: "success", igMediaId };
+    return { status: "success", igMediaId, story };
   } catch (error) {
     // "failed" preserva o sinal de que uma tentativa real quebrou (em vez de
     // voltar pra "draft" silenciosamente) — o merchant vê e decide se tenta

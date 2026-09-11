@@ -181,14 +181,16 @@ Set passed=false if there is a real product mismatch, and list the specific issu
   ): Promise<CompositionCheckResult> {
     const systemPrompt = `You must respond with a single JSON object that conforms exactly to this JSON Schema, and nothing else (no prose, no markdown fences):\n\n${JSON.stringify(z.toJSONSchema(fidelityCheckSchema))}`;
 
-    const prompt = `Assess this AI-generated product photo of "${productDescription}" against the editorial fashion-photography standard used for this brand's campaigns:
+    const prompt = `Assess this AI-generated product photo of "${productDescription}" against the editorial fashion-photography standard used for this brand's campaigns.
 
+HARD VETO — check this first, on its own, before anything else: is this a workshop/craftsman/behind-the-scenes shot showing hands assembling, crafting, weaving, or working on the product (raw materials, tools, a workbench)? If yes, you MUST set passed=false with issue "workshop/craftsman shot" — this overrides every other criterion below, even if the lighting and styling are otherwise excellent. This brand's photos are always the FINISHED product worn/carried by a model, never the making-of process.
+
+If it clears that veto, then also assess:
 1. Light: warm, natural/soft golden light falling directly on the product — not flat, generic studio lighting.
 2. Contrast: strong, clear contrast between the product and its immediate background/surface, so its silhouette reads clearly.
 3. Styling: the outfit/setting reads as one deliberate, elevated idea (an interesting layer, texture, or structure) — not generic basics, and not a flat/boring composition.
 4. Presence: if a model is shown, their pose and expression are confident and composed, not stiff, vacant, or slouched.
 5. Product visibility: the product is the clear hero, fully visible, not obscured by hands, props, or awkward cropping.
-6. Never a workshop/craftsman/behind-the-scenes shot showing hands assembling or crafting the product.
 
 Set passed=false if the image reads as generic, flat, "stock photo" boring, or fails any of the above — even when nothing is technically wrong with the product itself. List the specific issues (e.g. "flat lighting", "outfit reads as generic basics", "background doesn't contrast with product").`;
 

@@ -101,7 +101,7 @@ export async function generateProductImage(
       : { passed: false, issues: [] as string[] };
     const passed = fidelity.passed && composition.passed;
 
-    await prisma.generationLog.create({
+    const generationLog = await prisma.generationLog.create({
       data: {
         contentItemId: params.contentItemId,
         taskType: "image",
@@ -122,12 +122,20 @@ export async function generateProductImage(
           ? await applyLogoOverlay(generated.imageDataUrl, shop.logoUrl)
           : generated.imageDataUrl;
 
+      // Liga o resultado do guardrail à imagem salva — sem isso, nada
+      // depois (ex.: o reaproveitamento de imagem editorial em
+      // buildCarousel.server.ts) consegue checar se essa imagem específica
+      // realmente passou nos critérios de composição (achado real,
+      // 11/09/2026: uma imagem de artesão trançando fibra foi reaproveitada
+      // num post publicado porque nada linkava o CreativeAsset ao
+      // GenerationLog que a aprovou).
       const creativeAsset = await prisma.creativeAsset.create({
         data: {
           shopId: params.shopId,
           productId: params.productId,
           imageUrl: finalImageUrl,
           source: "ai_generated",
+          generationLogId: generationLog.id,
         },
       });
 

@@ -39,7 +39,11 @@ export async function hasUnusedEditorial(productId: string): Promise<boolean> {
   const usedHeroAssetIds = new Set(usedHeroRows.map((r) => r.creativeAssetId));
 
   const existingEditorials = await prisma.creativeAsset.findMany({
-    where: { productId, source: "ai_generated" },
+    where: {
+      productId,
+      source: "ai_generated",
+      generationLog: { passedFidelityCheck: true, passedCompositionCheck: true },
+    },
     select: { id: true },
   });
 
@@ -67,8 +71,18 @@ export async function buildCarousel(
   });
   const usedHeroAssetIds = new Set(usedHeroRows.map((r) => r.creativeAssetId));
 
+  // Só reaproveita uma editorial que realmente tem o resultado do guardrail
+  // de qualidade linkado e aprovado — sem isso, imagens órfãs geradas fora
+  // do fluxo de carrossel (ex.: pelo botão de preview avulso "Generate
+  // product image", depois abandonadas num rascunho) podiam ser
+  // reaproveitadas como se fossem uma editorial pronta (achado real,
+  // 11/09/2026: uma imagem de artesão trançando fibra foi publicada assim).
   const existingEditorials = await prisma.creativeAsset.findMany({
-    where: { productId: params.productId, source: "ai_generated" },
+    where: {
+      productId: params.productId,
+      source: "ai_generated",
+      generationLog: { passedFidelityCheck: true, passedCompositionCheck: true },
+    },
     orderBy: { createdAt: "desc" },
   });
 

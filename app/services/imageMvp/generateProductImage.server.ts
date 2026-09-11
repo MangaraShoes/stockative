@@ -16,7 +16,11 @@ export type GenerateProductImageResult =
   | { status: "success"; creativeAssetId: string; imageUrl: string; attempts: number }
   | { status: "fallback"; reason: string; attempts: number };
 
-const MAX_ATTEMPTS = 2; // 1ª tentativa + 1 retry interno (não cobrado se falhar)
+// 1ª tentativa + 2 retries internos (não cobrados se falharem). Subido de 2
+// pra 3 em 11/09/2026 com evidência real: mesmo com o prompt de composição
+// corrigido, duas tentativas seguidas ainda falharam antes de uma terceira
+// passar — variância normal do modelo generativo, não um prompt errado.
+const MAX_ATTEMPTS = 3;
 
 // A cena é sempre modelo vestindo o produto, editorial, produto em destaque
 // (Patricia, 10/09/2026, depois de ver uma imagem gerada de mãos de artesão
@@ -36,7 +40,14 @@ const MAX_ATTEMPTS = 2; // 1ª tentativa + 1 retry interno (não cobrado se falh
 // pra Mangará (ver /Users/patriciacossettin/Mangara-Nano-Banana/CLAUDE.md —
 // referência completa se algum produto continuar saindo fraco mesmo com
 // isso).
-function buildImagePrompt(params: GenerateProductImageParams): string {
+//
+// Achado ao vivo em 11/09/2026: uma geração ficou linda mas reprovou na
+// checagem de composição — saia midi comprida cobrindo até quase o
+// tornozelo, sapato pequeno e parcialmente escondido no quadro. Regra 2 do
+// playbook original já cobria exatamente isso ("calça boca larga... usar
+// calça cropped que termine acima do tornozelo") e tinha ficado de fora da
+// versão condensada — adicionada explicitamente abaixo.
+export function buildImagePrompt(params: GenerateProductImageParams): string {
   return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way.
 
 Scene: an editorial fashion photograph in a quiet-luxury aesthetic — a model wearing/holding the product as the clear hero of the shot. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn/carried by the model.
@@ -47,7 +58,7 @@ Styling and composition (this is what separates a real editorial from a generic 
 - Strong contrast between the product and the surface/background immediately behind it, so its silhouette is unmistakable — never a dark product against a dark background or a light product lost against a light one.
 - The model's outfit reads as one deliberate, elevated styling idea — an interesting layer, a structured shoulder, a cinched waist, a fabric with real drape or texture — never generic basics (plain blazer-and-jeans, plain t-shirt). Understated gold jewelry or a structured bag is welcome, never loud logos.
 - The model has a confident, composed presence: spine straight, shoulders open and back, chin level — not hunched or leaning forward. A genuine, subtle warmth in the expression, not vacant and not overly serious.
-- If the product is footwear, frame it so its side silhouette is visible (never toe pointed straight at camera, which foreshortens it) and make sure it's fully visible — no fabric or prop covering it.
+- If the product is footwear: frame it so its side silhouette is visible (never toe pointed straight at camera, which foreshortens it). Any pants, skirt, or dress hem MUST end above the ankle, leaving the ankle bare — never a long/midi/maxi length that covers the ankle or shoe, even partially. The shoe needs to occupy a real, noticeable portion of the frame, not just be a small detail at the bottom of a full-body shot — favor a closer crop (from roughly the knee or thigh down, or a seated/cropped pose) over a distant full-length shot when in doubt.
 - Vary the setting rather than defaulting to the same interior every time — a garden, a café terrace, a sunlit interior with warm wood tones, a stone courtyard — whatever suits the product's season/mood.
 - Roughly an 85mm-equivalent portrait framing, camera at about hip height, natural distance from the subject — avoid wide-angle distortion that inflates the product or the pose.
 

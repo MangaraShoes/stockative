@@ -25,6 +25,7 @@ export default function App() {
         <s-link href="/app/plan-week">Weekly plan</s-link>
         <s-link href="/app/social">Social accounts</s-link>
         <s-link href="/app/create-content">Create content</s-link>
+        <s-link href="/app/performance">Performance</s-link>
         <s-link href="/app/ai-test">AI test</s-link>
         <s-link href="/app/additional">Additional page</s-link>
       </s-app-nav>

@@ -32,6 +32,28 @@ function computeEvidence(input: Stage1Input): ArchetypeEvidence {
   };
 }
 
+// Resumo determinístico (não julgado pela IA) do que está de fato disponível
+// — passado pro Estágio 2 também, pra ele nunca precisar adivinhar o que é
+// real (Patricia, 11/09/2026: "Evidence is not carried through into
+// final-copy validation" — o Estágio 2 só recebia o brief e a Brand Voice,
+// sem saber quais campos do brief já eram evidência verificada). Também
+// existe pra nunca mais confundir "produto listado há N dias" com "sem
+// vendas há N dias" — achado real no post publicado ("Zero sales velocity
+// over 829 days", quando na verdade eram 829 dias desde o cadastro e ZERO
+// vendas nos últimos 30, dois fatos diferentes que o texto livre da IA
+// fundiu num só).
+export function describeEvidence(input: Stage1Input): string {
+  const evidence = computeEvidence(input);
+  const lines = [
+    `- Founder/brand facts: ${evidence.hasFounderFact ? "available — the brand description below is real and can be cited" : "NOT available — do not state any founder or brand-history fact"}`,
+    `- Verifiable sales: ${evidence.hasVerifiableSales ? `available — ${input.unitsSold30d} unit(s) sold in the last 30 days, may be cited as a real number` : "NOT available — do not imply the product is popular or selling well"}`,
+    `- Real scarcity: ${evidence.isLowStock ? `available — only ${input.inventoryQuantity} unit(s) left, may be cited as real urgency` : "NOT available — never imply the product is running out"}`,
+    `- Product recency: ${evidence.isRecentProduct ? `available — listed ${input.daysSinceCreated} day(s) ago, may be called new/recent` : "NOT available — do not call this a new or recent arrival"}`,
+    `- Days since last sale (${input.daysSinceLastSale ?? "no recorded sale"}) and days since listed (${input.daysSinceCreated ?? "unknown"}) are DIFFERENT numbers measuring different things — never combine them into one figure or one claim (e.g. never say "no sales in N days" using the listing age).`,
+  ];
+  return lines.join("\n");
+}
+
 // Saída do Estágio 1 — decisão estruturada, nunca texto de marketing.
 // Campos batem com content_items.decision_brief documentado em ARCHITECTURE.md.
 export function buildStage1Schema(objective: CommercialObjective, evidence: ArchetypeEvidence) {
@@ -88,8 +110,9 @@ Commercial objective for this post: ${input.objective}
 
 You MUST choose creativeArchetype from exactly this list (do not use any other value): ${eligibleArchetypes.join(", ")}. This list is already filtered to archetypes this product/shop actually has evidence for — never argue around the restriction.
 
-Evidence rules — creativeAngle becomes the seed for the actual caption, so nothing invented here can be undone later:
+Evidence rules — creativeAngle and reason become the seed for the actual caption, so nothing invented or muddled here can be undone later:
 - Ground every specific claim in the product info or brand description above. If a detail isn't stated there, don't invent it.
+- "Days since last sale" and "days since listed" are DIFFERENT numbers measuring different things — never combine them into one figure or one claim in the reason field (e.g. never say "no sales in N days" using the listing-age number; if there's no recorded sale, say so as its own fact, separate from how long the product has existed).
 - behind_the_scenes: describe only process/material facts explicitly stated above — never invent artisan names, hand gestures, step-by-step crafting rituals, or phrases like "real hands and real time" that aren't literally stated. Do not frame the brand as artisanal/handmade-by-individuals unless the brand description explicitly says so.
 - founder_story: use only real facts from the brand description above — never invent biography details.
 - objection_handling: reference only generic objection categories (fit, sizing, returns, price) — never invent a specific policy detail (like an exact return window) unless it's stated above.

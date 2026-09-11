@@ -10,9 +10,10 @@ import {
   type ContentLanguageCode,
 } from "../services/decisionEngine/constants";
 import { inferObjective } from "../services/decisionEngine/archetypes.server";
-import { decideContentBrief } from "../services/decisionEngine/stage1.server";
+import { decideContentBrief, describeEvidence } from "../services/decisionEngine/stage1.server";
 import { generateCreativeCopy } from "../services/decisionEngine/stage2.server";
 import { translateCaption, buildBilingualCaption } from "../services/decisionEngine/translateCaption.server";
+import { buildFinalCaption } from "../services/decisionEngine/captionFormat";
 import { generateProductImage } from "../services/imageMvp/generateProductImage.server";
 import { assessProductImageQuality } from "../services/imageMvp/assessProductImageQuality.server";
 import { getProductUsageStats } from "../services/decisionEngine/contentHistory.server";
@@ -61,8 +62,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const creativeAngle = String(formData.get("creativeAngle"));
     const format = String(formData.get("format"));
 
-    const product = await prisma.productCache.findUnique({
-      where: { id: productId },
+    // Nunca confiar em productId/contentItemId vindos do form sem checar que
+    // pertencem à loja autenticada — mesma classe de falha achada por
+    // Patricia na publicação (11/09/2026), aplicada aqui também.
+    const ownedContentItem = await prisma.contentItem.findFirst({
+      where: { id: contentItemId, shopId: shop.id },
+    });
+    if (!ownedContentItem) throw new Response("Content item not found", { status: 404 });
+
+    const product = await prisma.productCache.findFirst({
+      where: { id: productId, shopId: shop.id },
     });
     if (!product?.imageUrl) {
       return {
@@ -101,6 +110,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const creativeAngle = String(formData.get("creativeAngle"));
     const format = String(formData.get("format"));
 
+    const ownedContentItem = await prisma.contentItem.findFirst({
+      where: { id: contentItemId, shopId: shop.id },
+    });
+    if (!ownedContentItem) throw new Response("Content item not found", { status: 404 });
+    const ownedProduct = await prisma.productCache.findFirst({
+      where: { id: productId, shopId: shop.id },
+    });
+    if (!ownedProduct) throw new Response("Product not found", { status: 404 });
+
     const result = await buildCarousel({
       shopId: shop.id,
       productId,
@@ -114,15 +132,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "publish-instagram") {
     const contentItemId = String(formData.get("contentItemId"));
-    const result = await publishContentItemToInstagram(contentItemId);
+    const result = await publishContentItemToInstagram(contentItemId, shop.id);
     return { intent: "publish-instagram" as const, result };
   }
 
   if (intent === "assess-image-quality") {
     const productId = String(formData.get("productId"));
 
-    const product = await prisma.productCache.findUnique({
-      where: { id: productId },
+    const product = await prisma.productCache.findFirst({
+      where: { id: productId, shopId: shop.id },
     });
     if (!product?.imageUrl) {
       return {
@@ -143,8 +161,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const productId = String(formData.get("productId"));
   const objectiveInput = String(formData.get("objective"));
 
-  const product = await prisma.productCache.findUnique({
-    where: { id: productId },
+  const product = await prisma.productCache.findFirst({
+    where: { id: productId, shopId: shop.id },
     include: { commerceSignal: true },
   });
   if (!product) throw new Response("Product not found", { status: 404 });
@@ -163,7 +181,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         })
       : (objectiveInput as CommercialObjective);
 
-  const brief = await decideContentBrief({
+  const stage1Input = {
     productTitle: product.title,
     productDescription: product.description,
     productType: product.productType,
@@ -177,7 +195,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       : null,
     brandDescription: shop.brandDescription,
     objective,
-  });
+  };
+  const brief = await decideContentBrief(stage1Input);
 
   const copy = await generateCreativeCopy(
     brief,
@@ -187,6 +206,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       brandTone: shop.brandTone,
       brandAvoid: shop.brandAvoid,
     },
+    describeEvidence(stage1Input),
   );
 
   const secondaryCaption = shop.contentLanguageSecondary
@@ -416,13 +436,24 @@ export default function CreateContent() {
 
       {contentResult && (
         <s-section heading="3. Generated post (Stage 2)">
-          <s-paragraph>{contentResult.copy.captionText}</s-paragraph>
           <s-paragraph>
-            {contentResult.copy.hashtags.map((tag) => `#${tag}`).join(" ")}
+            Exactly what will be sent to Instagram when you publish — caption,
+            CTA and hashtags together, same as the live post.
           </s-paragraph>
-          <s-paragraph>
-            <strong>CTA:</strong> {contentResult.copy.cta}
-          </s-paragraph>
+          <div
+            style={{
+              whiteSpace: "pre-wrap",
+              padding: 12,
+              border: "1px solid #ddd",
+              borderRadius: 4,
+            }}
+          >
+            {buildFinalCaption({
+              captionText: contentResult.copy.captionText,
+              cta: contentResult.copy.cta,
+              hashtags: contentResult.copy.hashtags,
+            })}
+          </div>
           <s-paragraph>Saved as draft content item.</s-paragraph>
         </s-section>
       )}

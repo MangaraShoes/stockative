@@ -20,6 +20,32 @@ export type BuildCarouselResult =
   | { status: "success"; images: CarouselImage[]; heroWasReused: boolean }
   | { status: "fallback"; reason: string };
 
+// Extraído pra fora de buildCarousel pra planWeek.server.ts poder checar a
+// MESMA definição de "reaproveitável" antes de decidir chamar buildCarousel
+// (Patricia, 11/09/2026: o planner só checava "existe alguma editorial",
+// não "existe uma editorial ainda não usada" — com todas já usadas, ele
+// ainda chamava buildCarousel achando que ia reaproveitar, e buildCarousel
+// gerava uma editorial NOVA por baixo dos panos, furando o orçamento de
+// "só o hero da semana ganha imagem nova").
+export async function hasUnusedEditorial(productId: string): Promise<boolean> {
+  const usedHeroRows = await prisma.contentItemImage.findMany({
+    where: {
+      position: 1,
+      creativeAssetId: { not: null },
+      contentItem: { productId },
+    },
+    select: { creativeAssetId: true },
+  });
+  const usedHeroAssetIds = new Set(usedHeroRows.map((r) => r.creativeAssetId));
+
+  const existingEditorials = await prisma.creativeAsset.findMany({
+    where: { productId, source: "ai_generated" },
+    select: { id: true },
+  });
+
+  return existingEditorials.some((asset) => !usedHeroAssetIds.has(asset.id));
+}
+
 // Monta o carrossel: posição 1 é sempre a editorial (gerada por IA — nunca
 // geramos still por IA), 2+ são stills da galeria da Shopify. A editorial
 // NUNCA repete entre posts do mesmo produto: se já existe uma editorial

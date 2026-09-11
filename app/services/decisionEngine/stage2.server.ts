@@ -23,10 +23,17 @@ const DEFAULT_BRAND_TONE =
 // Estágio 2 — só recebe a decisão já pronta do Estágio 1, nunca decide
 // estratégia sozinho. Se a loja não preencheu Brand Intelligence ainda
 // (onboarding em /app/brand), cai num tom neutro documentado como placeholder.
+//
+// evidenceSummary vem de describeEvidence() (stage1.server.ts) — resumo
+// determinístico do que é real, não julgado por IA nenhuma vez (Patricia,
+// 11/09/2026: "Evidence is not carried through into final-copy validation"
+// — antes o Estágio 2 só via o brief e podia embelezar um ângulo cauteloso
+// até virar alegação forte demais, sem nada que o impedisse de novo aqui).
 export async function generateCreativeCopy(
   brief: Stage1Output,
   language: ContentLanguageCode,
   brand: BrandVoice,
+  evidenceSummary: string,
 ): Promise<Stage2Output> {
   const languageLabel =
     CONTENT_LANGUAGES.find((l) => l.code === language)?.label ?? "English";
@@ -48,11 +55,14 @@ Brief:
 - Narrative framework: ${brief.narrativeFramework}
 - CTA: ${brief.cta}
 
+Evidence available for this post — do not state anything beyond what this says is available, even if the creative angle above gestures at it:
+${evidenceSummary}
+
 Brand voice: ${brandVoiceText}
 ${brand.brandDescription?.trim() ? `Brand description: ${brand.brandDescription}` : ""}
 ${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}
 
-Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}) explicitly.`;
+Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}) explicitly. Stay within the strength and scope of the sourced claims above — don't expand a specific, bounded claim (e.g. "supports extended wear") into a broader unbounded one (e.g. "all-day comfort" or "built to last for years") unless the evidence above actually supports that scope.`;
 
   return generateStructuredForTask("creative_copy", stage2Schema, prompt);
 }

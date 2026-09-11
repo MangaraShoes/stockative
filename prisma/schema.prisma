@@ -199,7 +199,7 @@ model ContentItem {
   cta                 String?
   creativeAssetId     String?
   creativeAsset       CreativeAsset? @relation(fields: [creativeAssetId], references: [id])
-  status              String        @default("draft") // draft | approved | scheduled | published | failed
+  status              String        @default("draft") // draft | approved | scheduled | publishing | published | failed
   scheduledAt         DateTime?
   publishedAt         DateTime?
   externalPostId      String?

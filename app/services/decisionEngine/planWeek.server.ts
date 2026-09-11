@@ -1,8 +1,8 @@
 import prisma from "../../db.server";
 import { inferObjective } from "./archetypes.server";
-import { decideContentBrief } from "./stage1.server";
+import { decideContentBrief, describeEvidence } from "./stage1.server";
 import { generateCreativeCopy } from "./stage2.server";
-import { buildCarousel } from "../imageMvp/buildCarousel.server";
+import { buildCarousel, hasUnusedEditorial } from "../imageMvp/buildCarousel.server";
 import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
 import type { ContentLanguageCode } from "./constants";
@@ -23,8 +23,11 @@ export interface WeeklyPlanSlot {
 // repetir um produto usado nos últimos AVOID_REUSE_WITHIN_DAYS dias, a não
 // ser que não haja produtos suficientes sem repetir.
 async function rankProductsForWeek(shopId: string) {
+  // status: "active" sozinho não bastava — Patricia, 11/09/2026: "selects
+  // active products without excluding zero inventory" — um produto ativo
+  // mas esgotado não deveria concorrer por um slot da semana.
   const products = await prisma.productCache.findMany({
-    where: { shopId, status: "active" },
+    where: { shopId, status: "active", inventoryQuantity: { gt: 0 } },
     include: { commerceSignal: true },
   });
   const usageStats = await getProductUsageStats(shopId);
@@ -69,7 +72,7 @@ async function planOneSlot(
       : null,
   });
 
-  const brief = await decideContentBrief({
+  const stage1Input = {
     productTitle: product.title,
     productDescription: product.description,
     productType: product.productType,
@@ -83,7 +86,8 @@ async function planOneSlot(
       : null,
     brandDescription: shop.brandDescription,
     objective,
-  });
+  };
+  const brief = await decideContentBrief(stage1Input);
 
   const copy = await generateCreativeCopy(
     brief,
@@ -93,6 +97,7 @@ async function planOneSlot(
       brandTone: shop.brandTone,
       brandAvoid: shop.brandAvoid,
     },
+    describeEvidence(stage1Input),
   );
 
   const secondaryCaption = shop.contentLanguageSecondary
@@ -128,10 +133,7 @@ async function planOneSlot(
       format: brief.format,
     });
   } else {
-    const hasReusableEditorial = await prisma.creativeAsset.findFirst({
-      where: { productId: product.id, source: "ai_generated" },
-    });
-    if (hasReusableEditorial) {
+    if (await hasUnusedEditorial(product.id)) {
       await buildCarousel({
         shopId,
         productId: product.id,

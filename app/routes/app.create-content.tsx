@@ -547,9 +547,10 @@ export default function CreateContent() {
           <s-paragraph>
             Publishes this post for real on the connected Instagram account
             (build the carousel or generate an image above first — a post
-            can&apos;t go out with no images), and also shares the cover
-            image as a Story — Instagram&apos;s API has no caption field for
-            Stories, so it goes out with the image only.
+            can&apos;t go out with no images), also shares the cover image
+            as a Story — Instagram&apos;s API has no caption field for
+            Stories, so it goes out with the image only — and mirrors the
+            same post (image and caption) to your connected Facebook Page.
           </s-paragraph>
 
           <s-button
@@ -575,6 +576,18 @@ export default function CreateContent() {
                 <s-paragraph>
                   Feed post published, but sharing to Story failed:{" "}
                   {publishResult.story.reason}
+                </s-paragraph>
+              )}
+              {publishResult.facebook.status === "published" && (
+                <s-paragraph>
+                  Also posted to your Facebook Page (same image and
+                  caption).
+                </s-paragraph>
+              )}
+              {publishResult.facebook.status === "failed" && (
+                <s-paragraph>
+                  Instagram post published, but posting to Facebook failed:{" "}
+                  {publishResult.facebook.reason}
                 </s-paragraph>
               )}
             </>

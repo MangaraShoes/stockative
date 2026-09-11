@@ -119,3 +119,72 @@ export async function publishStory(target: PublishTarget, imageUrl: string): Pro
   await waitForContainerReady(target, containerId);
   return publishContainer(target, containerId);
 }
+
+export interface FacebookPageTarget {
+  pageId: string;
+  pageAccessToken: string;
+}
+
+// Publica uma única foto na timeline da Página. Diferente do Instagram, a
+// Graph API de Página não usa o fluxo container→publish: o próprio POST em
+// /photos já cria o post publicado e devolve o post_id da Página (não o ID
+// da foto) em post_id — é esse ID que queremos guardar.
+async function publishFacebookPhoto(
+  target: FacebookPageTarget,
+  imageUrl: string,
+  caption: string,
+): Promise<string> {
+  const json = await graphApiRequest<{ id: string; post_id?: string }>(
+    `/${target.pageId}/photos`,
+    { access_token: target.pageAccessToken, url: imageUrl, caption },
+    "POST",
+  );
+  return json.post_id ?? json.id;
+}
+
+// Publica um álbum: sobe cada foto como "unpublished" (published=false, não
+// aparece na timeline sozinha), depois cria um post no feed anexando todas
+// via attached_media[N]={"media_fbid": "<id>"} — é assim que o Facebook
+// monta um post com várias fotos, não existe "carrossel" como no Instagram.
+async function publishFacebookAlbum(
+  target: FacebookPageTarget,
+  imageUrls: string[],
+  caption: string,
+): Promise<string> {
+  const photoIds = await Promise.all(
+    imageUrls.map(async (imageUrl) => {
+      const json = await graphApiRequest<{ id: string }>(
+        `/${target.pageId}/photos`,
+        { access_token: target.pageAccessToken, url: imageUrl, published: "false" },
+        "POST",
+      );
+      return json.id;
+    }),
+  );
+
+  const attachedMediaParams = Object.fromEntries(
+    photoIds.map((id, index) => [`attached_media[${index}]`, JSON.stringify({ media_fbid: id })]),
+  );
+
+  const json = await graphApiRequest<{ id: string }>(
+    `/${target.pageId}/feed`,
+    { access_token: target.pageAccessToken, message: caption, ...attachedMediaParams },
+    "POST",
+  );
+  return json.id;
+}
+
+// Espelha o mesmo post do Instagram (imagem(ns) + legenda) na Página do
+// Facebook vinculada — pedido direto da Patricia, 11/09/2026: "precisamos
+// fazer o mesmo post do IG no facebook". Usa o mesmo Page access token já
+// obtido na conexão do Instagram (toda conta Instagram Business é
+// tecnicamente acessada através de uma Página do Facebook).
+export async function publishToFacebookPage(
+  target: FacebookPageTarget,
+  imageUrls: string[],
+  caption: string,
+): Promise<string> {
+  return imageUrls.length === 1
+    ? publishFacebookPhoto(target, imageUrls[0], caption)
+    : publishFacebookAlbum(target, imageUrls, caption);
+}

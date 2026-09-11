@@ -1,5 +1,10 @@
 import prisma from "../../db.server";
-import { publishCarousel, publishSingleImage, publishStory } from "./publish.server";
+import {
+  publishCarousel,
+  publishSingleImage,
+  publishStory,
+  publishToFacebookPage,
+} from "./publish.server";
 import { buildFinalCaption, parseStoredHashtags } from "../decisionEngine/captionFormat";
 
 // Story é sempre best-effort — nunca derruba a publicação do feed, que é o
@@ -11,8 +16,24 @@ export type StoryPublishOutcome =
   | { status: "published"; igMediaId: string }
   | { status: "failed"; reason: string };
 
+// Mesma lógica best-effort do Story: espelhar o post na Página do Facebook
+// nunca derruba a publicação principal do Instagram (Patricia, 11/09/2026:
+// "precisamos fazer o mesmo post do IG no facebook"). "not_attempted"
+// cobre o caso de a conta conectada não ter uma Página vinculada com
+// fbPageId salvo (não deveria acontecer hoje, já que toda conexão de
+// Instagram passa por uma Página, mas é defensivo).
+export type FacebookPublishOutcome =
+  | { status: "not_attempted" }
+  | { status: "published"; postId: string }
+  | { status: "failed"; reason: string };
+
 export type PublishResult =
-  | { status: "success"; igMediaId: string; story: StoryPublishOutcome }
+  | {
+      status: "success";
+      igMediaId: string;
+      story: StoryPublishOutcome;
+      facebook: FacebookPublishOutcome;
+    }
   | { status: "error"; reason: string };
 
 // shopId vem sempre da sessão autenticada de quem chama, nunca de dado
@@ -110,6 +131,28 @@ export async function publishContentItemToInstagram(
       }
     }
 
+    // Espelha o mesmo post na Página do Facebook vinculada — mesma imagem
+    // (ou carrossel) e mesma legenda do Instagram, também best-effort.
+    let facebook: FacebookPublishOutcome = { status: "not_attempted" };
+    if (socialAccount.fbPageId) {
+      try {
+        const facebookPostId = await publishToFacebookPage(
+          { pageId: socialAccount.fbPageId, pageAccessToken: socialAccount.accessToken },
+          imageUrls,
+          caption,
+        );
+        facebook = { status: "published", postId: facebookPostId };
+      } catch (facebookError) {
+        facebook = {
+          status: "failed",
+          reason:
+            facebookError instanceof Error
+              ? facebookError.message
+              : "Unknown error publishing to Facebook.",
+        };
+      }
+    }
+
     await prisma.contentItem.update({
       where: { id: contentItemId },
       data: {
@@ -117,10 +160,11 @@ export async function publishContentItemToInstagram(
         publishedAt: new Date(),
         externalPostId: igMediaId,
         storyExternalPostId: story.status === "published" ? story.igMediaId : null,
+        facebookExternalPostId: facebook.status === "published" ? facebook.postId : null,
       },
     });
 
-    return { status: "success", igMediaId, story };
+    return { status: "success", igMediaId, story, facebook };
   } catch (error) {
     // "failed" preserva o sinal de que uma tentativa real quebrou (em vez de
     // voltar pra "draft" silenciosamente) — o merchant vê e decide se tenta

@@ -5,6 +5,10 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { buildAuthorizeUrl, isMetaConfigured } from "../services/meta/oauth.server";
 import { fetchBusinessDiscovery } from "../services/meta/businessDiscovery.server";
+import {
+  buildAuthorizeUrl as buildPinterestAuthorizeUrl,
+  isPinterestConfigured,
+} from "../services/pinterest/oauth.server";
 
 const MAX_COMPETITOR_ACCOUNTS = 2;
 
@@ -21,6 +25,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : null;
 
+  const pinterestAccount = shop
+    ? await prisma.socialAccount.findUnique({
+        where: { shopId_platform: { shopId: shop.id, platform: "pinterest" } },
+      })
+    : null;
+
   const competitorAccounts = shop
     ? await prisma.competitorAccount.findMany({
         where: { shopId: shop.id },
@@ -32,6 +42,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     isMetaConfigured: isMetaConfigured(),
     authorizeUrl: isMetaConfigured() ? buildAuthorizeUrl(session.shop) : null,
     igBusinessAccountId: socialAccount?.igBusinessAccountId ?? null,
+    isPinterestConfigured: isPinterestConfigured(),
+    pinterestAuthorizeUrl: isPinterestConfigured()
+      ? buildPinterestAuthorizeUrl(session.shop)
+      : null,
+    pinterestUsername: pinterestAccount?.pinterestUsername ?? null,
     competitorAccounts: competitorAccounts.map((c) => ({
       id: c.id,
       instagramUsername: c.instagramUsername,
@@ -126,6 +141,7 @@ export default function Social() {
   const [username, setUsername] = useState("");
 
   const connectedUsername = searchParams.get("connected");
+  const pinterestConnectedUsername = searchParams.get("pinterestConnected");
   const error = searchParams.get("error");
 
   const canAddMore = data.competitorAccounts.length < MAX_COMPETITOR_ACCOUNTS;
@@ -195,6 +211,58 @@ export default function Social() {
                 }}
               >
                 Connect Instagram
+              </a>
+              <s-paragraph>
+                Opens in a new tab — once connected, come back and refresh
+                this page.
+              </s-paragraph>
+            </>
+          )
+        )}
+      </s-section>
+
+      <s-section heading="Pinterest">
+        <s-paragraph>
+          Connect your Pinterest business account to publish product Pins
+          automatically, organized into one board per product category.
+        </s-paragraph>
+
+        {!data.isPinterestConfigured && (
+          <s-paragraph>
+            <strong>
+              Pinterest connection isn&apos;t set up yet — PINTEREST_APP_ID
+              and PINTEREST_APP_SECRET need to be configured first.
+            </strong>
+          </s-paragraph>
+        )}
+
+        {pinterestConnectedUsername && (
+          <s-paragraph>
+            <strong>Connected! Pinterest account linked successfully.</strong>
+          </s-paragraph>
+        )}
+
+        {data.pinterestUsername ? (
+          <s-paragraph>
+            Pinterest account connected (@{data.pinterestUsername}).
+          </s-paragraph>
+        ) : (
+          data.isPinterestConfigured &&
+          data.pinterestAuthorizeUrl && (
+            <>
+              <a
+                href={data.pinterestAuthorizeUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-block",
+                  padding: "8px 16px",
+                  border: "1px solid #ccc",
+                  borderRadius: 4,
+                  textDecoration: "none",
+                }}
+              >
+                Connect Pinterest
               </a>
               <s-paragraph>
                 Opens in a new tab — once connected, come back and refresh

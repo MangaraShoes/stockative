@@ -77,6 +77,7 @@ model Shop {
   imageCreditPurchases ImageCreditPurchase[]
   competitorAccounts   CompetitorAccount[]
   contentPillars       ContentPillar[]
+  pinterestBoards      PinterestBoard[]
 }
 
 // Fase 1 do "sistema de crescimento" (ver MARKETING-KNOWLEDGE.md) — 4 a 6
@@ -112,13 +113,29 @@ model SocialAccount {
   id                  String    @id @default(cuid())
   shopId              String
   shop                Shop      @relation(fields: [shopId], references: [id])
-  platform            String // instagram | facebook
+  platform            String // instagram | facebook | pinterest
   accessToken         String
   expiresAt           DateTime?
   igBusinessAccountId String?
   fbPageId            String?
+  refreshToken        String?
+  pinterestUserId     String?
+  pinterestUsername   String?
 
   @@unique([shopId, platform])
+  @@index([shopId])
+}
+
+model PinterestBoard {
+  id             String   @id @default(cuid())
+  shopId         String
+  shop           Shop     @relation(fields: [shopId], references: [id])
+  category       String // matches ProductCache.productType, used to route new pins
+  pinterestBoardId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  @@unique([shopId, category])
   @@index([shopId])
 }
 
@@ -208,6 +225,7 @@ model ContentItem {
   publishedAt         DateTime?
   externalPostId      String?
   storyExternalPostId String? // ID do Story publicado junto (mesma imagem hero, sem legenda — API de Stories não tem campo de caption)
+  facebookExternalPostId String? // ID do post espelhado na Página do Facebook (mesma imagem/carrossel + legenda do post do Instagram)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 

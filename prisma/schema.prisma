@@ -154,6 +154,7 @@ model ProductCache {
   tags              String? // lista separada por vírgula
   collections       String? // lista separada por vírgula
   imageUrl          String?
+  productUrl        String? // URL pública da loja — usada como link de volta no Pin do Pinterest
   status            String // active | draft | archived
   shopifyCreatedAt  DateTime?
   updatedAt         DateTime  @updatedAt
@@ -226,6 +227,7 @@ model ContentItem {
   externalPostId      String?
   storyExternalPostId String? // ID do Story publicado junto (mesma imagem hero, sem legenda — API de Stories não tem campo de caption)
   facebookExternalPostId String? // ID do post espelhado na Página do Facebook (mesma imagem/carrossel + legenda do post do Instagram)
+  pinterestExternalPostId String? // ID do Pin espelhado no board da categoria do produto (imagem hero + legenda)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 

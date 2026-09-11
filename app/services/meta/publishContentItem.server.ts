@@ -6,6 +6,8 @@ import {
   publishToFacebookPage,
 } from "./publish.server";
 import { buildFinalCaption, parseStoredHashtags } from "../decisionEngine/captionFormat";
+import { getOrCreateBoardForCategory } from "../pinterest/boards.server";
+import { createPin } from "../pinterest/publish.server";
 
 // Story é sempre best-effort — nunca derruba a publicação do feed, que é o
 // post principal (Patricia, 11/09/2026: "podemos também gerar um stories
@@ -27,12 +29,23 @@ export type FacebookPublishOutcome =
   | { status: "published"; postId: string }
   | { status: "failed"; reason: string };
 
+// Best-effort igual ao Story/Facebook: espelha o post num Pin, no board da
+// categoria do produto (Patricia, 11/09/2026 — "cria um app automatico
+// separando todos os posts por categorias dentro do pinterest"). "not
+// attempted" cobre tanto "Pinterest não conectado" quanto "produto sem
+// categoria pra rotear o board".
+export type PinterestPublishOutcome =
+  | { status: "not_attempted"; reason?: string }
+  | { status: "published"; pinId: string }
+  | { status: "failed"; reason: string };
+
 export type PublishResult =
   | {
       status: "success";
       igMediaId: string;
       story: StoryPublishOutcome;
       facebook: FacebookPublishOutcome;
+      pinterest: PinterestPublishOutcome;
     }
   | { status: "error"; reason: string };
 
@@ -65,7 +78,7 @@ export async function publishContentItemToInstagram(
 
   const contentItem = await prisma.contentItem.findUniqueOrThrow({
     where: { id: contentItemId },
-    include: { images: { orderBy: { position: "asc" } } },
+    include: { images: { orderBy: { position: "asc" } }, product: true },
   });
 
   const socialAccount = await prisma.socialAccount.findFirst({
@@ -153,6 +166,49 @@ export async function publishContentItemToInstagram(
       }
     }
 
+    // Espelha num Pin no board da categoria do produto — mesma imagem hero,
+    // best-effort igual ao Facebook/Story.
+    let pinterest: PinterestPublishOutcome = { status: "not_attempted" };
+    const pinterestAccount = await prisma.socialAccount.findFirst({
+      where: { shopId: contentItem.shopId, platform: "pinterest" },
+    });
+    if (pinterestAccount) {
+      const category = contentItem.product?.productType?.trim();
+      if (!category) {
+        pinterest = {
+          status: "not_attempted",
+          reason: "Product has no category set, so there's no board to route it to.",
+        };
+      } else {
+        try {
+          const boardId = await getOrCreateBoardForCategory(
+            contentItem.shopId,
+            { accessToken: pinterestAccount.accessToken },
+            category,
+          );
+          const pinId = await createPin(
+            { accessToken: pinterestAccount.accessToken },
+            {
+              boardId,
+              imageUrl: imageUrls[0],
+              title: contentItem.product?.title ?? "New arrival",
+              description: contentItem.captionText ?? "",
+              link: contentItem.product?.productUrl,
+            },
+          );
+          pinterest = { status: "published", pinId };
+        } catch (pinterestError) {
+          pinterest = {
+            status: "failed",
+            reason:
+              pinterestError instanceof Error
+                ? pinterestError.message
+                : "Unknown error publishing to Pinterest.",
+          };
+        }
+      }
+    }
+
     await prisma.contentItem.update({
       where: { id: contentItemId },
       data: {
@@ -161,10 +217,11 @@ export async function publishContentItemToInstagram(
         externalPostId: igMediaId,
         storyExternalPostId: story.status === "published" ? story.igMediaId : null,
         facebookExternalPostId: facebook.status === "published" ? facebook.postId : null,
+        pinterestExternalPostId: pinterest.status === "published" ? pinterest.pinId : null,
       },
     });
 
-    return { status: "success", igMediaId, story, facebook };
+    return { status: "success", igMediaId, story, facebook, pinterest };
   } catch (error) {
     // "failed" preserva o sinal de que uma tentativa real quebrou (em vez de
     // voltar pra "draft" silenciosamente) — o merchant vê e decide se tenta

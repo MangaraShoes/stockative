@@ -549,8 +549,10 @@ export default function CreateContent() {
             (build the carousel or generate an image above first — a post
             can&apos;t go out with no images), also shares the cover image
             as a Story — Instagram&apos;s API has no caption field for
-            Stories, so it goes out with the image only — and mirrors the
-            same post (image and caption) to your connected Facebook Page.
+            Stories, so it goes out with the image only — mirrors the same
+            post (image and caption) to your connected Facebook Page, and
+            pins the cover image to your connected Pinterest account, in
+            the board matching this product&apos;s category.
           </s-paragraph>
 
           <s-button
@@ -590,6 +592,22 @@ export default function CreateContent() {
                   {publishResult.facebook.reason}
                 </s-paragraph>
               )}
+              {publishResult.pinterest.status === "published" && (
+                <s-paragraph>
+                  Also pinned to your Pinterest board for this
+                  product&apos;s category.
+                </s-paragraph>
+              )}
+              {publishResult.pinterest.status === "failed" && (
+                <s-paragraph>
+                  Instagram post published, but pinning to Pinterest failed:{" "}
+                  {publishResult.pinterest.reason}
+                </s-paragraph>
+              )}
+              {publishResult.pinterest.status === "not_attempted" &&
+                publishResult.pinterest.reason && (
+                  <s-paragraph>{publishResult.pinterest.reason}</s-paragraph>
+                )}
             </>
           )}
           {publishResult?.status === "error" && (

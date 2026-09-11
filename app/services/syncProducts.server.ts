@@ -12,6 +12,7 @@ interface ShopifyProductNode {
   productType: string | null;
   tags: string[];
   createdAt: string;
+  onlineStoreUrl: string | null;
   featuredImage: { url: string } | null;
   totalInventory: number;
   collections: { edges: { node: { title: string } }[] };
@@ -28,6 +29,7 @@ const PRODUCT_FIELDS = `#graphql
   tags
   createdAt
   totalInventory
+  onlineStoreUrl
   featuredImage {
     url
   }
@@ -118,6 +120,7 @@ export async function upsertProduct(shopId: string, node: ShopifyProductNode): P
       tags: node.tags.join(", "),
       collections,
       imageUrl: node.featuredImage?.url ?? null,
+      productUrl: node.onlineStoreUrl,
       status: node.status.toLowerCase(),
     },
     create: {
@@ -134,6 +137,7 @@ export async function upsertProduct(shopId: string, node: ShopifyProductNode): P
       tags: node.tags.join(", "),
       collections,
       imageUrl: node.featuredImage?.url ?? null,
+      productUrl: node.onlineStoreUrl,
       status: node.status.toLowerCase(),
       shopifyCreatedAt: new Date(node.createdAt),
     },

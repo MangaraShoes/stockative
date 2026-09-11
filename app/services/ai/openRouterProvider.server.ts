@@ -183,9 +183,12 @@ Set passed=false if there is a real product mismatch, and list the specific issu
 
     const prompt = `Assess this AI-generated product photo of "${productDescription}" against the editorial fashion-photography standard used for this brand's campaigns.
 
-HARD VETO — check this first, on its own, before anything else: is this a workshop/craftsman/behind-the-scenes shot showing hands assembling, crafting, weaving, or working on the product (raw materials, tools, a workbench)? If yes, you MUST set passed=false with issue "workshop/craftsman shot" — this overrides every other criterion below, even if the lighting and styling are otherwise excellent. This brand's photos are always the FINISHED product worn/carried by a model, never the making-of process.
+HARD VETOES — check these first, on their own, before anything else. If either applies, you MUST set passed=false, even if the lighting and styling are otherwise excellent — these override every other criterion below.
 
-If it clears that veto, then also assess:
+1. Is this a workshop/craftsman/behind-the-scenes shot showing hands assembling, crafting, weaving, or working on the product (raw materials, tools, a workbench)? If yes, issue "workshop/craftsman shot". This brand's photos are always the FINISHED product worn/carried by a model, never the making-of process.
+2. If a model is seated and both feet are visible, is either foot lifted or hanging unsupported in mid-air, not resting on the ground or settled against the other leg? If yes, issue "unnatural floating foot" — nobody sits still with a foot floating like that; it reads as broken anatomy, not a candid pose.
+
+If it clears both vetoes, then also assess:
 1. Light: warm, natural/soft golden light falling directly on the product — not flat, generic studio lighting.
 2. Contrast: strong, clear contrast between the product and its immediate background/surface, so its silhouette reads clearly.
 3. Styling: the outfit/setting reads as one deliberate, elevated idea (an interesting layer, texture, or structure) — not generic basics, and not a flat/boring composition.

@@ -119,7 +119,7 @@ export async function computeCommerceSignals(
   // ficar com um sinal comercial desatualizado de um cálculo anterior.
   const products = await prisma.productCache.findMany({
     where: { shopId },
-    select: { id: true, shopifyProductId: true, shopifyCreatedAt: true },
+    select: { id: true, shopifyProductId: true, shopifyCreatedAt: true, price: true, unitCost: true },
   });
 
   let computedCount = 0;
@@ -132,6 +132,17 @@ export async function computeCommerceSignals(
     const inventoryAgeDays = product.shopifyCreatedAt
       ? Math.floor((now.getTime() - product.shopifyCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
       : null;
+    // Taxa de margem, (price - unitCost) / price — null quando a lojista
+    // nunca preencheu "Cost per item" na Shopify (unitCost null). Campo já
+    // existia no schema desde o MVP mas nunca era calculado (achado da
+    // análise estratégica, 14/09/2026: MARKETING-KNOWLEDGE.md já documentava
+    // isso como gap real, não só suposição). Usado pelo Product Opportunity
+    // Score em planWeek.server.ts pra não priorizar estoque parado de
+    // margem baixa acima de um best-seller de margem alta.
+    const margin =
+      product.unitCost != null && product.price > 0
+        ? (product.price - product.unitCost) / product.price
+        : null;
 
     await prisma.commerceSignal.upsert({
       where: { productId: product.id },
@@ -142,6 +153,7 @@ export async function computeCommerceSignals(
         salesVelocity: (aggregate?.unitsSold30d ?? 0) / 30,
         daysSinceLastSale,
         inventoryAgeDays,
+        margin,
         computedAt: now,
       },
       create: {
@@ -152,6 +164,7 @@ export async function computeCommerceSignals(
         salesVelocity: (aggregate?.unitsSold30d ?? 0) / 30,
         daysSinceLastSale,
         inventoryAgeDays,
+        margin,
       },
     });
 

@@ -44,16 +44,33 @@ export function truncateCaption(caption: string, limit: number = INSTAGRAM_CAPTI
   return `${caption.slice(0, limit - 1).trimEnd()}…`;
 }
 
+// Corrigido em 12/09/2026 (achado de revisão externa: "the fallback cuts
+// the completed caption at the character limit. That can remove the
+// second-language ending, CTA or hashtags"). Antes, o corte acontecia
+// DEPOIS de já ter juntado tudo, então um texto principal longo demais
+// podia levar CTA e hashtags junto no corte cego. Agora reserva o espaço
+// de CTA + hashtags primeiro e só encurta o texto principal (que pode ter
+// as duas traduções bilíngues juntas) se ainda faltar espaço — CTA e
+// hashtags nunca são cortados.
 export function buildFinalCaption(params: {
   captionText: string;
   cta?: string | null;
   hashtags: string[];
 }): string {
-  const parts = [
-    params.captionText.trim(),
-    params.cta?.trim() || null,
-    formatHashtags(params.hashtags) || null,
-  ];
-  const joined = parts.filter((part): part is string => Boolean(part)).join("\n\n");
-  return truncateCaption(joined);
+  const ctaPart = params.cta?.trim() || "";
+  const hashtagsPart = formatHashtags(params.hashtags) || "";
+  const trailingParts = [ctaPart, hashtagsPart].filter(Boolean);
+  // "\n\n" entre cada parte presente, inclusive entre o texto principal e a
+  // primeira parte final — reservado à parte pra sobrar exatamente o espaço
+  // certo pro texto principal.
+  const separatorsReserved = ("\n\n".length) * (trailingParts.length > 0 ? trailingParts.length : 0);
+  const trailingLength = trailingParts.join("").length + separatorsReserved;
+
+  const mainText = params.captionText.trim();
+  const maxForMainText = Math.max(INSTAGRAM_CAPTION_LIMIT - trailingLength, 0);
+  const trimmedMainText =
+    mainText.length > maxForMainText ? truncateCaption(mainText, maxForMainText) : mainText;
+
+  const parts = [trimmedMainText, ctaPart || null, hashtagsPart || null];
+  return parts.filter((part): part is string => Boolean(part)).join("\n\n");
 }

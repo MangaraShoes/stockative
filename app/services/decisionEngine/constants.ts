@@ -40,6 +40,18 @@ export const COMMERCIAL_OBJECTIVES = [
 
 export type CommercialObjective = (typeof COMMERCIAL_OBJECTIVES)[number];
 
+// Rótulos em linguagem simples pros 5 objetivos comerciais — a lojista não
+// precisa reconhecer o termo técnico de marketing pra escolher. Compartilhado
+// entre app.plan-week.tsx e app.content-pillars.tsx (13/09/2026, quando o
+// objetivo passou a ser escolhido antes de gerar os pillares também).
+export const OBJECTIVE_LABELS: Record<CommercialObjective, string> = {
+  awareness: "Introduce it (new arrival)",
+  engagement: "Build engagement",
+  traffic: "Drive traffic to the shop",
+  conversion: "Drive sales",
+  inventory: "Clear excess stock",
+};
+
 export const CONTENT_LANGUAGES = [
   { code: "en", label: "English" },
   { code: "fr", label: "French" },

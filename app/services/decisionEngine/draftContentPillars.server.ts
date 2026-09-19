@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { generateStructuredForTask } from "../ai/index.server";
+import { CONTENT_LANGUAGES, type ContentLanguageCode } from "./constants";
 
 interface ProductSample {
   title: string;
@@ -48,7 +49,10 @@ export type ContentPillarDraft = z.infer<typeof pillarSchema>;
 export async function draftContentPillars(
   products: ProductSample[],
   brandVoice: BrandVoiceInput,
+  languageCode: ContentLanguageCode,
 ): Promise<ContentPillarDraft[]> {
+  const languageLabel =
+    CONTENT_LANGUAGES.find((l) => l.code === languageCode)?.label ?? "English";
   const sample = products.slice(0, 30);
   const productList = sample
     .map(
@@ -69,7 +73,11 @@ ${productList}
 
 Define 4 to 6 content pillars for this brand. Each pillar must be SPECIFIC to this brand — never a generic pillar name like "Education" or "Inspiration" that could belong to any brand in the niche. Ground every field in the actual products and brand voice above, not generic social media advice.
 
-For each pillar, also classify it into exactly one growth category (atração | autoridade | relacionamento | conversão), and set an ideal target percentage of the weekly content mix — the percentages across all pillars should roughly sum to 100. Flag which pillars should drive reach, which should drive new followers, which should bring the audience closer to a purchase, and which should simply be posted less often than the others (not every pillar deserves equal frequency).`;
+For each pillar, also classify it into exactly one growth category (atração | autoridade | relacionamento | conversão), and set an ideal target percentage of the weekly content mix — the percentages across all pillars should roughly sum to 100. Flag which pillars should drive reach, which should drive new followers, which should bring the audience closer to a purchase, and which should simply be posted less often than the others (not every pillar deserves equal frequency).
+
+Write every field in ${languageLabel}, consistently. Never mix languages within a single field (e.g. a French phrase inserted into an otherwise English sentence) — pick ${languageLabel} for everything, including the pillar name and CTA.
+
+Never use an em dash (—) anywhere in the output; use a comma, period, colon, or parentheses instead.`;
 
   const result = await generateStructuredForTask("content_pillars", pillarsDraftSchema, prompt);
   return result.pillars;

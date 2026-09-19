@@ -1,5 +1,4 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { redirect } from "react-router";
 import prisma from "../db.server";
 import {
   exchangeCodeForToken,
@@ -7,6 +6,7 @@ import {
   getInstagramBusinessAccount,
   verifyState,
 } from "../services/meta/oauth.server";
+import { oauthPopupCloseResponse } from "../services/oauthPopupClose.server";
 
 // Callback público (fora do iframe embutido) — a Meta redireciona pra cá
 // depois do merchant autorizar. Troca o código por token, descobre a Página
@@ -21,22 +21,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const appUrl = process.env.SHOPIFY_APP_URL ?? "";
 
   if (oauthError) {
-    return redirect(`${appUrl}/app/social?error=${encodeURIComponent(oauthError)}`);
+    return oauthPopupCloseResponse(`${appUrl}/app/social?error=${encodeURIComponent(oauthError)}`);
   }
   if (!code || !state) {
-    return redirect(`${appUrl}/app/social?error=${encodeURIComponent("Missing code or state.")}`);
+    return oauthPopupCloseResponse(
+      `${appUrl}/app/social?error=${encodeURIComponent("Missing code or state.")}`,
+    );
   }
 
   const shopDomain = verifyState(state);
   if (!shopDomain) {
-    return redirect(
+    return oauthPopupCloseResponse(
       `${appUrl}/app/social?error=${encodeURIComponent("Invalid or expired connection request — try again.")}`,
     );
   }
 
   const shop = await prisma.shop.findUnique({ where: { shopifyDomain: shopDomain } });
   if (!shop) {
-    return redirect(`${appUrl}/app/social?error=${encodeURIComponent("Shop not found.")}`);
+    return oauthPopupCloseResponse(`${appUrl}/app/social?error=${encodeURIComponent("Shop not found.")}`);
   }
 
   try {
@@ -46,7 +48,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const igAccount = await getInstagramBusinessAccount(longLivedUserToken);
 
     if (!igAccount) {
-      return redirect(
+      return oauthPopupCloseResponse(
         `${appUrl}/app/social?error=${encodeURIComponent(
           "No Instagram professional account linked to a Facebook Page was found on this account.",
         )}`,
@@ -71,10 +73,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
     });
 
-    return redirect(`${appUrl}/app/social?connected=${encodeURIComponent(igAccount.igUsername)}`);
+    return oauthPopupCloseResponse(
+      `${appUrl}/app/social?connected=${encodeURIComponent(igAccount.igUsername)}`,
+    );
   } catch (error) {
     console.error("Meta OAuth callback failed:", error);
     const message = error instanceof Error ? error.message : "Unknown error connecting Instagram.";
-    return redirect(`${appUrl}/app/social?error=${encodeURIComponent(message)}`);
+    return oauthPopupCloseResponse(`${appUrl}/app/social?error=${encodeURIComponent(message)}`);
   }
 };

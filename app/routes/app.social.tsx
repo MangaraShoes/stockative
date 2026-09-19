@@ -1,16 +1,24 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData, useSearchParams } from "react-router";
+import { useFetcher, useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { buildAuthorizeUrl, isMetaConfigured } from "../services/meta/oauth.server";
-import { fetchBusinessDiscovery } from "../services/meta/businessDiscovery.server";
 import {
   buildAuthorizeUrl as buildPinterestAuthorizeUrl,
   isPinterestConfigured,
 } from "../services/pinterest/oauth.server";
+import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
+import { OnboardingStepper } from "../components/OnboardingStepper";
 
-const MAX_COMPETITOR_ACCOUNTS = 2;
+const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
+  hasStock: false,
+  hasBrand: false,
+  hasSocial: false,
+  hasCompetitors: false,
+  hasContentPillars: false,
+  hasPublished: false,
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -31,32 +39,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : null;
 
-  const competitorAccounts = shop
-    ? await prisma.competitorAccount.findMany({
-        where: { shopId: shop.id },
-        orderBy: { addedAt: "asc" },
-      })
-    : [];
+  const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
 
   return {
+    onboardingStatus,
     isMetaConfigured: isMetaConfigured(),
     authorizeUrl: isMetaConfigured() ? buildAuthorizeUrl(session.shop) : null,
     igBusinessAccountId: socialAccount?.igBusinessAccountId ?? null,
+    fbPageId: socialAccount?.fbPageId ?? null,
     isPinterestConfigured: isPinterestConfigured(),
     pinterestAuthorizeUrl: isPinterestConfigured()
       ? buildPinterestAuthorizeUrl(session.shop)
       : null,
     pinterestUsername: pinterestAccount?.pinterestUsername ?? null,
-    competitorAccounts: competitorAccounts.map((c) => ({
-      id: c.id,
-      instagramUsername: c.instagramUsername,
-    })),
   };
 };
 
-// Até 2 contas de concorrentes indicadas pela lojista pra enriquecer o
-// diagnóstico/estratégia via Business Discovery (Patricia, 10/09/2026 — ver
-// MARKETING-KNOWLEDGE.md). Só o @ público, nunca pede autorização deles.
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -67,66 +65,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
-  if (intent === "add-competitor") {
-    const rawUsername = String(formData.get("instagramUsername") ?? "").trim();
-    const username = rawUsername.replace(/^@/, "");
-    if (!username) return { intent, error: "Enter an Instagram username." };
-
-    const existingCount = await prisma.competitorAccount.count({ where: { shopId: shop.id } });
-    if (existingCount >= MAX_COMPETITOR_ACCOUNTS) {
-      return { intent, error: `You can add up to ${MAX_COMPETITOR_ACCOUNTS} competitor accounts.` };
-    }
-
-    const alreadyAdded = await prisma.competitorAccount.findFirst({
-      where: { shopId: shop.id, instagramUsername: username },
-    });
-    if (alreadyAdded) return { intent, error: "That account is already on your list." };
-
-    // Valida na hora de adicionar em vez de deixar falhar silenciosamente
-    // depois — Business Discovery só resolve contas Business/Creator
-    // públicas, então isso também pega "existe mas é conta pessoal/privada".
-    const socialAccount = await prisma.socialAccount.findUnique({
-      where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
-    });
-    if (!socialAccount?.igBusinessAccountId) {
-      return { intent, error: "Connect your own Instagram account first." };
-    }
-
-    const result = await fetchBusinessDiscovery(
-      socialAccount.igBusinessAccountId,
-      socialAccount.accessToken,
-      username,
-    );
-
-    if (!result.ok && result.reason === "not_found") {
-      return {
-        intent,
-        error: `Couldn't find @${username} — check the spelling, or it may be a private/personal account (needs to be a public Business or Creator account).`,
-      };
-    }
-
-    await prisma.competitorAccount.create({
-      data: { shopId: shop.id, instagramUsername: username },
-    });
-
-    // code 10 = nosso app ainda não tem Advanced Access da Meta pra Business
-    // Discovery em conta de terceiro (precisa de App Review) — salvamos o
-    // username mesmo assim (provavelmente está certo), só avisamos que os
-    // dados não vão entrar na estratégia até essa liberação acontecer.
-    if (!result.ok && result.reason === "permission_denied") {
-      return {
-        intent,
-        error: null,
-        warning: `Saved @${username}, but Instagram hasn't approved our app to read competitor data yet (needs Meta App Review). It'll start feeding your strategy automatically once that's approved.`,
-      };
-    }
-
-    return { intent, error: null, warning: null };
+  if (intent === "disconnect-pinterest") {
+    await prisma.socialAccount.deleteMany({ where: { shopId: shop.id, platform: "pinterest" } });
+    return { intent, error: null };
   }
 
-  if (intent === "remove-competitor") {
-    const id = String(formData.get("id") ?? "");
-    await prisma.competitorAccount.deleteMany({ where: { id, shopId: shop.id } });
+  // Instagram e Facebook usam a mesma linha (o Facebook não tem conexão
+  // própria, publica via fbPageId salvo junto com a conta Instagram), então
+  // desconectar aqui desliga os dois de uma vez.
+  if (intent === "disconnect-instagram") {
+    await prisma.socialAccount.deleteMany({ where: { shopId: shop.id, platform: "instagram" } });
     return { intent, error: null };
   }
 
@@ -136,39 +84,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Social() {
   const data = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
-  const addFetcher = useFetcher<typeof action>();
-  const removeFetcher = useFetcher<typeof action>();
-  const [username, setUsername] = useState("");
+  const disconnectPinterestFetcher = useFetcher<typeof action>();
+  const disconnectInstagramFetcher = useFetcher<typeof action>();
+  const revalidator = useRevalidator();
+
+  // O popup de OAuth (Instagram/Pinterest) roda fora deste iframe e o
+  // Shopify normalmente restringe a página aberta de "avisar" a original
+  // via window.opener (o iframe embutido do admin costuma ter sandbox sem
+  // allow-popups-to-escape-sandbox) — window.opener.location não é
+  // confiável aqui (Patricia, 12/09/2026: o botão continuava sem atualizar
+  // mesmo depois de conectar). Em vez disso, refaz a busca sempre que esta
+  // aba volta a ficar em foco/visível, o que cobre o caso normal de "abriu
+  // o popup, autorizou, voltou pra essa aba".
+  useEffect(() => {
+    const onFocus = () => revalidator.revalidate();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const connectedUsername = searchParams.get("connected");
   const pinterestConnectedUsername = searchParams.get("pinterestConnected");
   const error = searchParams.get("error");
 
-  const canAddMore = data.competitorAccounts.length < MAX_COMPETITOR_ACCOUNTS;
+  const disconnectPinterest = () =>
+    disconnectPinterestFetcher.submit({ intent: "disconnect-pinterest" }, { method: "POST" });
 
-  const addCompetitor = () => {
-    if (!username.trim()) return;
-    addFetcher.submit(
-      { intent: "add-competitor", instagramUsername: username },
-      { method: "POST" },
-    );
-    setUsername("");
-  };
-
-  const removeCompetitor = (id: string) =>
-    removeFetcher.submit({ intent: "remove-competitor", id }, { method: "POST" });
+  const disconnectInstagram = () =>
+    disconnectInstagramFetcher.submit({ intent: "disconnect-instagram" }, { method: "POST" });
 
   return (
     <s-page heading="Social accounts">
-      <s-section heading="Instagram">
-        <s-paragraph>
-          Connect your Instagram professional account (must be linked to a
-          Facebook Page) to publish generated posts for real, instead of just
-          copying the caption manually. This is also required before
-          generating your Brand Voice or weekly plan — the AI uses your own
-          Instagram history to build both.
-        </s-paragraph>
+      <OnboardingStepper status={data.onboardingStatus} currentStepHref="/app/social" />
 
+      <s-section heading="Instagram &amp; Facebook">
         {!data.isMetaConfigured && (
           <s-paragraph>
             <strong>
@@ -186,35 +139,35 @@ export default function Social() {
 
         {connectedUsername && (
           <s-paragraph>
-            <strong>Connected! Instagram account linked successfully.</strong>
+            <strong>Connected! Instagram and Facebook linked successfully.</strong>
           </s-paragraph>
         )}
 
         {data.igBusinessAccountId ? (
-          <s-paragraph>
-            Instagram account connected (ID: {data.igBusinessAccountId}).
-          </s-paragraph>
+          <s-stack direction="inline" gap="base">
+            <s-paragraph>
+              {data.fbPageId
+                ? "Instagram and Facebook connected."
+                : "Instagram connected — no Facebook Page found on this account yet."}
+            </s-paragraph>
+            <s-button
+              variant="secondary"
+              onClick={disconnectInstagram}
+              {...(disconnectInstagramFetcher.state !== "idle" ? { loading: true } : {})}
+            >
+              Disconnect
+            </s-button>
+          </s-stack>
         ) : (
           data.isMetaConfigured &&
           data.authorizeUrl && (
             <>
-              <a
-                href={data.authorizeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-block",
-                  padding: "8px 16px",
-                  border: "1px solid #ccc",
-                  borderRadius: 4,
-                  textDecoration: "none",
-                }}
-              >
-                Connect Instagram
-              </a>
+              <s-button href={data.authorizeUrl} target="_blank" variant="primary">
+                Connect Instagram &amp; Facebook
+              </s-button>
               <s-paragraph>
-                Opens in a new tab — once connected, come back and refresh
-                this page.
+                Opens in a new tab — this page updates automatically once
+                connected.
               </s-paragraph>
             </>
           )
@@ -243,88 +196,34 @@ export default function Social() {
         )}
 
         {data.pinterestUsername ? (
-          <s-paragraph>
-            Pinterest account connected (@{data.pinterestUsername}).
-          </s-paragraph>
+          <s-stack direction="inline" gap="base">
+            <s-paragraph>
+              Pinterest account connected (@{data.pinterestUsername}).
+            </s-paragraph>
+            <s-button
+              variant="secondary"
+              onClick={disconnectPinterest}
+              {...(disconnectPinterestFetcher.state !== "idle" ? { loading: true } : {})}
+            >
+              Disconnect
+            </s-button>
+          </s-stack>
         ) : (
           data.isPinterestConfigured &&
           data.pinterestAuthorizeUrl && (
             <>
-              <a
-                href={data.pinterestAuthorizeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-block",
-                  padding: "8px 16px",
-                  border: "1px solid #ccc",
-                  borderRadius: 4,
-                  textDecoration: "none",
-                }}
-              >
+              <s-button href={data.pinterestAuthorizeUrl} target="_blank" variant="primary">
                 Connect Pinterest
-              </a>
+              </s-button>
               <s-paragraph>
-                Opens in a new tab — once connected, come back and refresh
-                this page.
+                Opens in a new tab — this page updates automatically once
+                connected.
               </s-paragraph>
             </>
           )
         )}
       </s-section>
 
-      {data.igBusinessAccountId && (
-        <s-section heading="Competitor accounts (optional)">
-          <s-paragraph>
-            Add up to {MAX_COMPETITOR_ACCOUNTS} Instagram accounts you
-            consider strong in your niche. We only read their public posts
-            (via Business Discovery) — no authorization needed from them —
-            to enrich your Brand Voice and content strategy with real
-            reference data.
-          </s-paragraph>
-
-          <s-stack direction="block" gap="base">
-            {data.competitorAccounts.map((c) => (
-              <s-stack key={c.id} direction="inline" gap="base">
-                <s-paragraph>@{c.instagramUsername}</s-paragraph>
-                <s-button
-                  variant="tertiary"
-                  onClick={() => removeCompetitor(c.id)}
-                  {...(removeFetcher.state !== "idle" ? { loading: true } : {})}
-                >
-                  Remove
-                </s-button>
-              </s-stack>
-            ))}
-
-            {canAddMore && (
-              <s-stack direction="inline" gap="base">
-                <input
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="competitor_username"
-                  style={{ padding: 8 }}
-                />
-                <s-button
-                  onClick={addCompetitor}
-                  {...(addFetcher.state !== "idle" ? { loading: true } : {})}
-                >
-                  Add
-                </s-button>
-              </s-stack>
-            )}
-
-            {addFetcher.data?.error && (
-              <s-paragraph>
-                <strong>{addFetcher.data.error}</strong>
-              </s-paragraph>
-            )}
-            {"warning" in (addFetcher.data ?? {}) && addFetcher.data?.warning && (
-              <s-paragraph>{addFetcher.data.warning}</s-paragraph>
-            )}
-          </s-stack>
-        </s-section>
-      )}
     </s-page>
   );
 }

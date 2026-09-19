@@ -1,12 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import { redirect, useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { draftBrandVoice } from "../services/decisionEngine/draftBrandVoice.server";
 import { fetchBrandSources } from "../services/brandSources.server";
 import { prepareLogo, LogoNotTransparentError } from "../services/imageMvp/logoOverlay.server";
 import { CONTENT_LANGUAGES } from "../services/decisionEngine/constants";
+import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
+import { OnboardingStepper } from "../components/OnboardingStepper";
+import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
+
+const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
+  hasStock: false,
+  hasBrand: false,
+  hasSocial: false,
+  hasCompetitors: false,
+  hasContentPillars: false,
+  hasPublished: false,
+};
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -25,6 +37,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : null;
 
+  const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
+
   return {
     brandDescription: shop?.brandDescription ?? "",
     brandTone: shop?.brandTone ?? "",
@@ -35,6 +49,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     isInstagramConnected: Boolean(socialAccount?.igBusinessAccountId),
     contentLanguagePrimary: shop?.contentLanguagePrimary ?? "en",
     contentLanguageSecondary: shop?.contentLanguageSecondary ?? "",
+    languageConfirmed: shop?.languageConfirmed ?? false,
+    onboardingStatus,
   };
 };
 
@@ -63,19 +79,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       select: { title: true, description: true, productType: true, price: true },
     });
     const sources = await fetchBrandSources(admin, shop.id);
-    const draft = await draftBrandVoice(products, sources);
-    return {
-      intent,
-      draft,
-      sourcesFound: {
-        aboutPage: Boolean(sources.aboutPageText),
-        shopDescription: Boolean(sources.shopDescription),
-        instagramBio: Boolean(sources.instagramBio),
-        ownPosts: sources.ownRecentPosts.length > 0,
-        competitors: sources.competitorSnapshots.length,
-        competitorDataStatus: sources.competitorDataStatus,
-      },
-    };
+    const feedback = String(formData.get("feedback") ?? "").trim() || undefined;
+
+    // Nunca deixar um erro daqui derrubar a página inteira sem mensagem
+    // (Patricia, 12/09/2026: clicou em "Regenerate" e a tela ficou em
+    // branco) — a causa raiz era a IA às vezes devolver um JSON malformado
+    // (já corrigido em parseJsonResponse), mas qualquer outra falha aqui
+    // agora também vira um erro visível na tela, nunca um crash silencioso.
+    try {
+      const draft = await draftBrandVoice(products, sources, feedback);
+      return {
+        intent,
+        draft,
+        error: null,
+        sourcesFound: {
+          aboutPage: Boolean(sources.aboutPageText),
+          shopDescription: Boolean(sources.shopDescription),
+          instagramBio: Boolean(sources.instagramBio),
+          ownPosts: sources.ownRecentPosts.length > 0,
+          competitors: sources.competitorSnapshots.length,
+          competitorDataStatus: sources.competitorDataStatus,
+        },
+      };
+    } catch (error) {
+      console.error("draftBrandVoice failed:", error);
+      return {
+        intent,
+        draft: null,
+        error: "Something went wrong generating your draft. Try again.",
+        sourcesFound: null,
+      };
+    }
   }
 
   // Idioma(s) de publicação (Patricia, 10/09/2026: "precisamos criar um
@@ -89,7 +123,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     await prisma.shop.update({
       where: { shopifyDomain: session.shop },
-      data: { contentLanguagePrimary: primary, contentLanguageSecondary: secondary },
+      data: {
+        contentLanguagePrimary: primary,
+        contentLanguageSecondary: secondary,
+        languageConfirmed: true,
+      },
     });
 
     return { intent, saved: true };
@@ -115,9 +153,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  const brandDescription = String(formData.get("brandDescription") ?? "");
-  const brandTone = String(formData.get("brandTone") ?? "");
-  const brandAvoid = String(formData.get("brandAvoid") ?? "");
+  // Mesma trava do botão no cliente, reforçada aqui — nunca confiar só no
+  // disabled (Patricia, 12/09/2026: "precisa ser passo obrigatório salvar a
+  // linguagem antes de aprovar o brand voice").
+  if (!shop.languageConfirmed) {
+    throw new Response("Save your publishing language first.", { status: 400 });
+  }
+
+  const brandDescription = String(formData.get("brandDescription") ?? "").trim();
+  const brandTone = String(formData.get("brandTone") ?? "").trim();
+  const brandAvoid = String(formData.get("brandAvoid") ?? "").trim();
   const applyLogoOverlay = formData.get("applyLogoOverlay") === "true";
 
   await prisma.shop.update({
@@ -125,10 +170,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     data: { brandDescription, brandTone, brandAvoid, applyLogoOverlay },
   });
 
+  // Leva direto pra próxima tela quando é a única coisa que falta pra essa
+  // etapa — o aviso de "next step" ficava escondido lá embaixo, depois do
+  // Logo (Patricia, 12/09/2026: "ficou bem escondidinho... deveria abrir
+  // nova tela com este botão").
+  const pillarsCount = await prisma.contentPillar.count({ where: { shopId: shop.id } });
+  if (pillarsCount === 0) {
+    throw redirect("/app/content-pillars");
+  }
+
   return { intent: "save" as const, saved: true };
 };
 
-export default function Brand() {
+export default function StoreVoice() {
   const data = useLoaderData<typeof loader>();
   const draftFetcher = useFetcher<typeof action>();
   const saveFetcher = useFetcher<typeof action>();
@@ -141,25 +195,48 @@ export default function Brand() {
   const [applyLogoOverlay, setApplyLogoOverlay] = useState(data.applyLogoOverlay);
   const [contentLanguagePrimary, setContentLanguagePrimary] = useState(data.contentLanguagePrimary);
   const [contentLanguageSecondary, setContentLanguageSecondary] = useState(data.contentLanguageSecondary);
+  const [regenerateFeedback, setRegenerateFeedback] = useState("");
 
   useEffect(() => {
     if (draftFetcher.data?.intent === "draft" && draftFetcher.data.draft) {
       setBrandDescription(draftFetcher.data.draft.brandDescription);
       setBrandTone(draftFetcher.data.draft.brandTone);
       setBrandAvoid(draftFetcher.data.draft.brandAvoid);
+      setRegenerateFeedback("");
     }
   }, [draftFetcher.data]);
 
   const isDrafting = draftFetcher.state !== "idle";
   const isSaving = saveFetcher.state !== "idle";
-  const hasDraft = draftFetcher.data?.intent === "draft";
+  const hasDraft = draftFetcher.data?.intent === "draft" && Boolean(draftFetcher.data.draft);
+  const draftError = draftFetcher.data?.intent === "draft" ? draftFetcher.data.error : null;
   const canDraft = data.productCount > 0 && data.isInstagramConnected;
   const hasSavedBefore = Boolean(
     data.brandDescription || data.brandTone || data.brandAvoid,
   );
 
-  const generateDraft = () =>
-    draftFetcher.submit({ intent: "draft" }, { method: "POST" });
+  const generateDraft = (feedback?: string) =>
+    draftFetcher.submit({ intent: "draft", ...(feedback ? { feedback } : {}) }, { method: "POST" });
+
+  // Gera o rascunho sozinho assim que a página carrega, sem exigir clique
+  // nenhum — a cliente só revisa e aprova (ou pede ajuste) (Patricia,
+  // 12/09/2026: "deve ser preenchido automaticamente sem precisar clicar em
+  // nenhum botão"). Só dispara uma vez, e só quando ainda não existe nada
+  // salvo nem gerado.
+  const autoDraftTriggered = useRef(false);
+  useEffect(() => {
+    if (
+      canDraft &&
+      !hasSavedBefore &&
+      !hasDraft &&
+      draftFetcher.state === "idle" &&
+      !autoDraftTriggered.current
+    ) {
+      autoDraftTriggered.current = true;
+      generateDraft();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canDraft, hasSavedBefore]);
 
   const save = () =>
     saveFetcher.submit(
@@ -204,15 +281,13 @@ export default function Brand() {
 
   const sectionHeading = hasDraft
     ? "Review the AI's draft — edit anything you'd like, then approve"
-    : "Tell us about your brand";
-  const saveButtonLabel = hasDraft
-    ? "Approve & save"
-    : hasSavedBefore
-      ? "Save changes"
-      : "Save brand voice";
+    : "Store voice";
+  const saveButtonLabel = "Approve and save";
 
   return (
-    <s-page heading="Brand voice">
+    <s-page heading="Store voice">
+      <OnboardingStepper status={data.onboardingStatus} currentStepHref="/app/store-voice" />
+
       <s-section heading="Publishing language">
         <s-paragraph>
           Every post is generated in your primary language. Add a second
@@ -257,22 +332,46 @@ export default function Brand() {
           </div>
         </s-stack>
 
-        <s-button
-          onClick={saveLanguage}
-          {...(isSavingLanguage ? { loading: true } : {})}
-        >
-          Save publishing language
-        </s-button>
+        {/* Botão com fundo cinza de verdade e espaçamento próprio — a
+            variante padrão do s-button não tem preenchimento sólido e
+            ficava colado nos dropdowns acima (Patricia, 12/09/2026: "mal
+            posicionado e deve ser cinza também"), mesmo padrão do botão
+            Skip em app.competitors.tsx. */}
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={saveLanguage}
+            disabled={isSavingLanguage}
+            style={{
+              display: "inline-block",
+              padding: "8px 16px",
+              border: "1px solid #a8abae",
+              borderRadius: 8,
+              background: "#c9cccf",
+              color: "#202223",
+              fontWeight: 500,
+              cursor: isSavingLanguage ? "default" : "pointer",
+            }}
+          >
+            Save publishing language
+          </button>
+        </div>
 
         {languageFetcher.data?.intent === "save-language" && (
           <s-paragraph>Saved.</s-paragraph>
         )}
       </s-section>
 
-      <s-section heading={sectionHeading}>
+      <s-section>
+        {/* s-heading avulso em vez do heading do s-section — fica maior e
+            com mais destaque (Patricia, 12/09/2026: "Store voice pode ser
+            maior em mais destaque"). */}
+        <s-heading>{sectionHeading}</s-heading>
         <s-paragraph>
-          This shapes how the AI writes for you — used every time content is
-          generated (Stage 2 of the Content Decision Engine).
+          Built from a real analysis of your store and social accounts:
+          your products, your Instagram, your Shopify About Us page, and
+          your competitors&apos; voice, so every post the AI writes
+          actually sounds like you.
         </s-paragraph>
 
         <s-stack direction="block" gap="base">
@@ -286,17 +385,26 @@ export default function Brand() {
             </s-paragraph>
           )}
 
-          {data.productCount > 0 && (
-            <s-button
-              onClick={generateDraft}
-              variant="tertiary"
-              {...(isDrafting ? { loading: true } : {})}
-              {...(!canDraft ? { disabled: true } : {})}
-            >
-              Generate draft with AI (based on your About Us page, Shopify
-              store profile, Instagram account and competitors, plus your{" "}
-              {data.productCount} synced products)
-            </s-button>
+          {/* Sem botão pra gerar o primeiro rascunho — ele já é gerado
+              sozinho assim que a página carrega (ver useEffect acima). A
+              cliente só revisa, aprova, edita à mão, ou pede pra regenerar
+              explicando o que mudar (Patricia, 12/09/2026: "deve ser
+              preenchido automaticamente... apenas a cliente precisa
+              confirmar se concorda, se não, ter a opção de modificar ou
+              regenerar explicando o porquê"). */}
+          {isDrafting && !hasDraft && !hasSavedBefore && (
+            <>
+              <s-paragraph>
+                Writing your first draft from your store, Instagram and About
+                Us page…
+              </s-paragraph>
+              <GeneratingProgressBar label="Reading your store, Instagram and About Us page…" />
+            </>
+          )}
+          {draftError && (
+            <s-paragraph>
+              <strong>{draftError}</strong>
+            </s-paragraph>
           )}
           {hasDraft && (
             <s-paragraph>
@@ -330,7 +438,7 @@ export default function Brand() {
           )}
 
           <div>
-            <s-paragraph>Brand description</s-paragraph>
+            <s-paragraph>Store description</s-paragraph>
             <textarea
               value={brandDescription}
               onChange={(e) => setBrandDescription(e.target.value)}
@@ -362,12 +470,52 @@ export default function Brand() {
             />
           </div>
 
+          {canDraft && (hasDraft || hasSavedBefore) && (
+            <div>
+              <s-paragraph>
+                Not quite right? Tell us what to change, or simply ask to
+                regenerate.
+              </s-paragraph>
+              <textarea
+                value={regenerateFeedback}
+                onChange={(e) => setRegenerateFeedback(e.target.value)}
+                placeholder="e.g. make the tone warmer, mention we're a family business, don't focus on price"
+                rows={2}
+                style={{ width: "100%", padding: 8 }}
+              />
+              {/* Fundo cinza de verdade — mesmo padrão do Skip em
+                  app.competitors.tsx e do Save publishing language acima:
+                  variant="secondary" do s-button não tem preenchimento
+                  sólido (Patricia, 12/09/2026). */}
+              <div style={{ marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => generateDraft(regenerateFeedback || undefined)}
+                  disabled={isDrafting}
+                  style={{
+                    display: "inline-block",
+                    padding: "8px 16px",
+                    border: "1px solid #a8abae",
+                    borderRadius: 8,
+                    background: "#c9cccf",
+                    color: "#202223",
+                    fontWeight: 500,
+                    opacity: isDrafting ? 0.5 : 1,
+                    cursor: isDrafting ? "default" : "pointer",
+                  }}
+                >
+                  {isDrafting ? "Regenerating…" : "Regenerate"}
+                </button>
+                {isDrafting && <GeneratingProgressBar label="Regenerating your store voice…" />}
+              </div>
+            </div>
+          )}
+
           <div>
             <s-paragraph>Logo (optional)</s-paragraph>
             <s-paragraph>
-              Upload your logo to optionally add it to the corner of
-              AI-generated product images. Must be a PNG with a transparent
-              background.
+              Adds it to the corner of AI-generated product images. Must be
+              a PNG with a transparent background.
             </s-paragraph>
             {logoError && (
               <s-paragraph>
@@ -411,9 +559,41 @@ export default function Brand() {
             </div>
           </div>
 
-          <s-button onClick={save} {...(isSaving ? { loading: true } : {})}>
+          {/* Bem no final, depois do Logo — é a ação de confirmação de tudo
+              acima (Patricia, 12/09/2026: "deve vir depois da logo bem no
+              final"). */}
+          {!data.languageConfirmed && (
+            <s-paragraph>
+              <strong>
+                Save your publishing language above first — it&apos;s
+                required before you can approve your store voice.
+              </strong>
+            </s-paragraph>
+          )}
+
+          {/* Preto, não cinza — é a ação obrigatória pra destravar o próximo
+              passo do onboarding, diferente de Regenerate (opcional), então
+              precisa ficar visualmente clara como "a que eu tenho que
+              clicar" (Patricia, 13/09/2026). */}
+          <button
+            type="button"
+            onClick={save}
+            disabled={isSaving || !data.languageConfirmed}
+            style={{
+              display: "inline-block",
+              alignSelf: "flex-start",
+              padding: "8px 16px",
+              border: "1px solid #000",
+              borderRadius: 8,
+              background: "#000",
+              color: "#fff",
+              fontWeight: 500,
+              opacity: !data.languageConfirmed ? 0.5 : 1,
+              cursor: isSaving || !data.languageConfirmed ? "default" : "pointer",
+            }}
+          >
             {saveButtonLabel}
-          </s-button>
+          </button>
 
           {saveFetcher.data?.intent === "save" && (
             <s-paragraph>Approved and saved.</s-paragraph>

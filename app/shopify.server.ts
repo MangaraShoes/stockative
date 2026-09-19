@@ -14,7 +14,12 @@ const shopify = shopifyApp({
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
   apiVersion: ApiVersion.October25,
   scopes: process.env.SCOPES?.split(","),
-  appUrl: process.env.SHOPIFY_APP_URL || "",
+  // `shopify app dev` expõe a URL do túnel como HOST, não como
+  // SHOPIFY_APP_URL — sem esse fallback, appUrl ficava "" e o redirect_uri
+  // montado pro OAuth não batia com nenhum registrado no Partners, fazendo
+  // o Shopify recusar com "The installation link for this app is invalid"
+  // (achado ao vivo, 12/09/2026, tentando reinstalar pra pegar write_products).
+  appUrl: process.env.SHOPIFY_APP_URL || process.env.HOST || "",
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,

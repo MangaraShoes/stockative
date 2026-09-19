@@ -42,8 +42,10 @@ const CONTAINER_POLL_TIMEOUT_MS = 30_000;
 async function waitForContainerReady(
   target: PublishTarget,
   containerId: string,
+  pollIntervalMs = CONTAINER_POLL_INTERVAL_MS,
+  timeoutMs = CONTAINER_POLL_TIMEOUT_MS,
 ): Promise<void> {
-  const deadline = Date.now() + CONTAINER_POLL_TIMEOUT_MS;
+  const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     const json = await graphApiRequest<{ status_code: string }>(`/${containerId}`, {
@@ -56,11 +58,18 @@ async function waitForContainerReady(
       throw new Error(`Instagram media container failed to process (status: ${json.status_code}).`);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, CONTAINER_POLL_INTERVAL_MS));
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
   }
 
   throw new Error("Timed out waiting for Instagram to process the media container.");
 }
+
+// Vídeo demora muito mais que imagem pra processar — a própria Meta
+// recomenda checar a cada ~1min por até 5min (pesquisa feita em 14/09/2026
+// contra a documentação ao vivo antes de implementar Reels), bem diferente
+// do polling rápido de imagem acima.
+const VIDEO_CONTAINER_POLL_INTERVAL_MS = 5_000;
+const VIDEO_CONTAINER_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 
 // Publica um único post de imagem. `imageUrl` precisa ser um JPEG
 // publicamente acessível no momento da chamada (exigência da Graph API).
@@ -117,6 +126,31 @@ export async function publishCarousel(
 export async function publishStory(target: PublishTarget, imageUrl: string): Promise<string> {
   const containerId = await createContainer(target, { image_url: imageUrl, media_type: "STORIES" });
   await waitForContainerReady(target, containerId);
+  return publishContainer(target, containerId);
+}
+
+// Publica um Reel: vídeo já montado (ver buildReel.server.ts, nunca gera
+// pixel/frame novo por IA) a partir de imagens já aprovadas. share_to_feed
+// fica sempre explícito — a documentação da Meta não deixa claro o default
+// quando omitido (achado da pesquisa de 14/09/2026), então não dá pra confiar
+// no comportamento implícito.
+export async function publishReel(
+  target: PublishTarget,
+  videoUrl: string,
+  caption: string,
+): Promise<string> {
+  const containerId = await createContainer(target, {
+    media_type: "REELS",
+    video_url: videoUrl,
+    caption,
+    share_to_feed: "true",
+  });
+  await waitForContainerReady(
+    target,
+    containerId,
+    VIDEO_CONTAINER_POLL_INTERVAL_MS,
+    VIDEO_CONTAINER_POLL_TIMEOUT_MS,
+  );
   return publishContainer(target, containerId);
 }
 
@@ -187,4 +221,25 @@ export async function publishToFacebookPage(
   return imageUrls.length === 1
     ? publishFacebookPhoto(target, imageUrls[0], caption)
     : publishFacebookAlbum(target, imageUrls, caption);
+}
+
+// Espelha um Reel como vídeo de verdade na Página (não como imagem) —
+// Patricia, 14/09/2026: "cobre o Facebook mirror publicando como vídeo
+// também". Diferente do Instagram, a Graph API de Página de novo não usa
+// container→publish pra vídeo: POST em /videos com file_url já cria o post
+// e devolve o ID do vídeo na hora (o processamento/transcodificação
+// continua em segundo plano, mas o post já existe e é isso que guardamos).
+// Ainda não testado ao vivo contra uma Página real — mesma ressalva que já
+// vale pro resto do fluxo de vídeo: confirmar no primeiro post de verdade.
+export async function publishFacebookVideo(
+  target: FacebookPageTarget,
+  videoUrl: string,
+  caption: string,
+): Promise<string> {
+  const json = await graphApiRequest<{ id: string }>(
+    `/${target.pageId}/videos`,
+    { access_token: target.pageAccessToken, file_url: videoUrl, description: caption },
+    "POST",
+  );
+  return json.id;
 }

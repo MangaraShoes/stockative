@@ -37,6 +37,11 @@ export type BrandDraft = z.infer<typeof brandDraftSchema>;
 export async function draftBrandVoice(
   products: ProductSample[],
   sources: BrandSources,
+  // Comentário livre da lojista quando ela pede pra regenerar um rascunho
+  // que já não agradou (Patricia, 12/09/2026: "ter a opção de modificar ou
+  // regenerar explicando o porquê") — mesmo padrão do correctionNote em
+  // generateProductImage.server.ts.
+  feedback?: string,
 ): Promise<BrandDraft> {
   const sample = products.slice(0, 20);
   const priceRange =
@@ -112,7 +117,11 @@ Ground the brand description in what the PRIMARY sources actually say. If those 
 
 Even when the sources mention craftsmanship, heritage, or sustainability, don't let that become the LEAD of the brand description — those are supporting proof of quality, never the main hook. Lead with the brand's most concrete, differentiating claim instead (a specific design point of view, a real price-to-quality argument, something distinctive about the product itself). If craftsmanship/sustainability appear in the sources, mention them as secondary support, not the opening idea (Patricia, 10/09/2026 — decided explicitly after seeing this exact pattern happen once already).
 
-Draft the brand description, tone of voice, and things to avoid saying.`;
+Draft the brand description, tone of voice, and things to avoid saying. Never use an em dash (—) anywhere in the output; use a comma, period, colon, or parentheses instead.${
+    feedback
+      ? `\n\nThe merchant reviewed a previous draft and asked for this specific change: "${feedback}". Address that directly in this new draft, while still respecting the grounding rules above.`
+      : ""
+  }`;
 
   return generateStructuredForTask("brand_analysis", brandDraftSchema, prompt);
 }

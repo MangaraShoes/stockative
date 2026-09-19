@@ -36,6 +36,19 @@ interface Stage1Input {
     cta: string;
     growthCategory: string;
   } | null;
+  // Promoção real ativa que este post deve divulgar (ver Promotion no
+  // schema e planPromotionalWeek em planWeek.server.ts) — único caso em que
+  // o arquétipo Urgency pode ser usado fora de escassez real de estoque.
+  promotion?: {
+    name: string;
+    discountPct: number;
+    endsAt: Date;
+  } | null;
+  // Resumo determinístico de performance real por arquétipo, já filtrado
+  // por amostra mínima (ver performanceLearning.server.ts) — null quando
+  // ainda não há dado maduro suficiente. Sinal informativo, nunca substitui
+  // a lista de arquétipos elegíveis por evidência abaixo.
+  archetypePerformance?: string | null;
 }
 
 function computeEvidence(input: Stage1Input): ArchetypeEvidence {
@@ -44,6 +57,7 @@ function computeEvidence(input: Stage1Input): ArchetypeEvidence {
     hasVerifiableSales: input.unitsSold30d > 0,
     isLowStock: input.inventoryQuantity > 0 && input.inventoryQuantity <= LOW_STOCK_THRESHOLD,
     isRecentProduct: input.daysSinceCreated !== null && input.daysSinceCreated <= NEWNESS_WINDOW_DAYS,
+    hasActivePromotion: Boolean(input.promotion),
   };
 }
 
@@ -64,6 +78,7 @@ export function describeEvidence(input: Stage1Input): string {
     `- Verifiable sales: ${evidence.hasVerifiableSales ? `available — ${input.unitsSold30d} unit(s) sold in the last 30 days, may be cited as a real number` : "NOT available — do not imply the product is popular or selling well"}`,
     `- Real scarcity: ${evidence.isLowStock ? `available — only ${input.inventoryQuantity} unit(s) left, may be cited as real urgency` : "NOT available — never imply the product is running out"}`,
     `- Product recency: ${evidence.isRecentProduct ? `available — listed ${input.daysSinceCreated} day(s) ago, may be called new/recent` : "NOT available — do not call this a new or recent arrival"}`,
+    `- Active promotion: ${evidence.hasActivePromotion && input.promotion ? `available — real "${input.promotion.name}" promotion, ${input.promotion.discountPct}% off, ends ${input.promotion.endsAt.toDateString()}, may be cited as a real, time-limited offer` : "NOT available — never mention a discount, sale, or expiring offer"}`,
     `- Days since last sale (${input.daysSinceLastSale ?? "no recorded sale"}) and days since listed (${input.daysSinceCreated ?? "unknown"}) are DIFFERENT numbers measuring different things — never combine them into one figure or one claim (e.g. never say "no sales in N days" using the listing age).`,
   ];
   return lines.join("\n");
@@ -132,6 +147,19 @@ ${
 - Typical CTA: ${input.pillar.cta}
 - Growth category: ${input.pillar.growthCategory} (atração=reach/new eyes, autoridade=trust/expertise, relacionamento=deepen with existing followers, conversão=drive purchase — let this bias your archetype/format choice toward what naturally serves that category, without overriding the eligible-archetype list below)
 Prefer format "${input.pillar.idealFormat === "carousel" ? "lifestyle or studio, suited to a multi-image carousel" : "close_up or studio, suited to a single image"}" unless the product genuinely calls for something else.
+`
+    : ""
+}${
+  input.promotion
+    ? `This post is part of a REAL, active promotion — the discount and deadline below are real facts, not invented urgency; state them plainly and accurately, never round up or exaggerate the discount:
+- Promotion: ${input.promotion.name}
+- Discount: ${input.promotion.discountPct}% off
+- Ends: ${input.promotion.endsAt.toDateString()}
+`
+    : ""
+}${
+  input.archetypePerformance
+    ? `${input.archetypePerformance}
 `
     : ""
 }Commercial objective for this post: ${input.objective}

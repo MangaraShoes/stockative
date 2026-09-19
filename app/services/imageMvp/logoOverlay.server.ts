@@ -130,8 +130,10 @@ export async function prepareLogo(logoDataUrl: string): Promise<string> {
 }
 
 // Sobrepõe o logo já preparado no canto inferior direito da imagem gerada.
-// O logo é redimensionado pra ~14% da largura da imagem principal, com uma
+// O logo é redimensionado pra ~21% da largura da imagem principal, com uma
 // margem proporcional — nunca desenhado pela IA, só composição determinística.
+// Era 14%, aumentado 50% (Patricia, 13/09/2026: "a logo ficou muito pequena
+// no canto superior, precisa aumentar uns 50%").
 export async function applyLogoOverlay(
   imageDataUrl: string,
   logoDataUrl: string,
@@ -143,7 +145,7 @@ export async function applyLogoOverlay(
   const baseMetadata = await baseImage.metadata();
   const baseWidth = baseMetadata.width ?? 1024;
 
-  const logoWidth = Math.round(baseWidth * 0.14);
+  const logoWidth = Math.round(baseWidth * 0.21);
   const margin = Math.round(baseWidth * 0.03);
 
   const resizedLogo = await sharp(logoBuffer)

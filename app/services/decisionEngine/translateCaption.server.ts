@@ -20,6 +20,8 @@ export async function translateCaption(
 
   const prompt = `Translate this social media caption into ${languageLabel}. This is a professional marketing translation — preserve the tone, structure, line breaks, and persuasive intent exactly; don't translate word-for-word if that would sound stiff. Don't add or remove content, don't add hashtags.
 
+Never use an em dash (—) anywhere in the translation, even if the original caption has one. Use a comma, period, colon, or parentheses instead.
+
 Caption:
 ${captionText}`;
 

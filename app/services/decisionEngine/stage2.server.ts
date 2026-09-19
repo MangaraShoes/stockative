@@ -22,7 +22,7 @@ const DEFAULT_BRAND_TONE =
 
 // Estágio 2 — só recebe a decisão já pronta do Estágio 1, nunca decide
 // estratégia sozinho. Se a loja não preencheu Brand Intelligence ainda
-// (onboarding em /app/brand), cai num tom neutro documentado como placeholder.
+// (onboarding em /app/store-voice), cai num tom neutro documentado como placeholder.
 //
 // evidenceSummary vem de describeEvidence() (stage1.server.ts) — resumo
 // determinístico do que é real, não julgado por IA nenhuma vez (Patricia,
@@ -65,7 +65,9 @@ Brand voice: ${brandVoiceText}
 ${brand.brandDescription?.trim() ? `Brand description: ${brand.brandDescription}` : ""}
 ${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}
 
-Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}) explicitly. Stay within the strength and scope of the sourced claims above — don't expand a specific, bounded claim (e.g. "supports extended wear") into a broader unbounded one (e.g. "all-day comfort" or "built to last for years") unless the evidence above actually supports that scope.`;
+Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}) explicitly. Stay within the strength and scope of the sourced claims above — don't expand a specific, bounded claim (e.g. "supports extended wear") into a broader unbounded one (e.g. "all-day comfort" or "built to last for years") unless the evidence above actually supports that scope.
+
+Never use an em dash (—) anywhere in the caption. Use a comma, period, colon, or parentheses instead.`;
 
   return generateStructuredForTask("creative_copy", stage2Schema, prompt);
 }

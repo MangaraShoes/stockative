@@ -20,6 +20,7 @@ const TASK_MODEL_CONFIG: Record<
     | "image_fidelity_check"
     | "image_composition_check"
     | "image_quality_assessment"
+    | "product_visual_classification"
   >,
   { model: string }
 > = {
@@ -32,6 +33,7 @@ const TASK_MODEL_CONFIG: Record<
   image_fidelity_check: { model: "anthropic/claude-sonnet-5" }, // modelo de geração não é o ideal pra julgar a própria imagem
   image_composition_check: { model: "anthropic/claude-sonnet-5" }, // mesmo motivo do fidelity check — julgamento visual, não geração
   image_quality_assessment: { model: "anthropic/claude-sonnet-5" }, // mesmo modelo do fidelity check, tarefa de julgamento parecida
+  product_visual_classification: { model: "anthropic/claude-haiku-4.5" }, // classificação simples, barata — mesmo critério do decision_engine
 };
 
 export function getProviderForTask(taskType: AITaskType): AIProvider {

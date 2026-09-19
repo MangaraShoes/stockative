@@ -14,6 +14,17 @@ export const FACEBOOK_OAUTH_DIALOG_BASE = `https://www.facebook.com/${GRAPH_API_
 // Tentando `instagram_content_publish` (sem "-ing") em seguida — nem o
 // painel do app nem busca na web bateram com o que o endpoint de fato
 // aceitou até agora, então isso só fica confirmado depois de testar ao vivo.
+// instagram_manage_insights adicionado em 13/09/2026 (Patricia: "precisamos
+// ativar o instagram_manage_insights o quanto antes") — é a permissão que
+// falta pra reach/saves/shares deixarem de ser null em PerformanceSignal
+// (ver collectPerformance.server.ts). Só pedir o escopo aqui não é
+// suficiente por si só: como toda permissão além do básico, a Meta exige
+// Advanced Access via App Review antes de funcionar em produção pra contas
+// que não são admin/tester do app — mesma situação já documentada pro
+// Business Discovery (ver businessDiscovery.server.ts). Contas já
+// conectadas ANTES desta mudança também precisam reconectar (desconectar e
+// conectar de novo em Social accounts) pra receber o novo escopo — o token
+// antigo não ganha permissão nova sozinho.
 export const META_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
@@ -21,6 +32,7 @@ export const META_SCOPES = [
   "business_management",
   "instagram_basic",
   "instagram_content_publish",
+  "instagram_manage_insights",
 ].join(",");
 
 export class MetaGraphApiError extends Error {

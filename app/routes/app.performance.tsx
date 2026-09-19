@@ -3,6 +3,7 @@ import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { collectPerformanceSignals } from "../services/meta/collectPerformance.server";
+import { getArchetypePerformance } from "../services/decisionEngine/performanceLearning.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -23,8 +24,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : [];
 
+  const archetypePerformance = shop ? await getArchetypePerformance(shop.id) : [];
+
   return {
     hasShop: Boolean(shop),
+    archetypePerformance,
     items: publishedItems.map((item) => ({
       id: item.id,
       productTitle: item.product?.title ?? "(product removed)",
@@ -35,6 +39,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? {
             likes: item.performanceSignals[0].likes,
             comments: item.performanceSignals[0].comments,
+            reach: item.performanceSignals[0].reach,
+            saves: item.performanceSignals[0].saves,
+            shares: item.performanceSignals[0].shares,
+            clicks: item.performanceSignals[0].clicks,
             capturedAt: item.performanceSignals[0].capturedAt,
           }
         : null,
@@ -55,7 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function Performance() {
-  const { hasShop, items } = useLoaderData<typeof loader>();
+  const { hasShop, archetypePerformance, items } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
 
   const isCollecting = fetcher.state !== "idle";
@@ -65,15 +73,40 @@ export default function Performance() {
 
   return (
     <s-page heading="Performance">
+      {archetypePerformance.length > 0 && (
+        <s-section heading="What's working">
+          <s-paragraph>
+            How each creative approach performs for your own audience,
+            compared to your store&apos;s own average — this feeds back into
+            future posts as a soft preference (never overrides which
+            approach actually fits a product). Only approaches with at
+            least 3 published, measured posts show up here.
+          </s-paragraph>
+          <s-stack direction="block" gap="small">
+            {archetypePerformance.map((p) => (
+              <s-paragraph key={p.archetype}>
+                <strong>{p.archetype.replace(/_/g, " ")}</strong>:{" "}
+                {p.relativeScore.toFixed(1)}x your average engagement (
+                {p.sampleSize} post{p.sampleSize === 1 ? "" : "s"})
+              </s-paragraph>
+            ))}
+          </s-stack>
+        </s-section>
+      )}
+
       <s-section heading="Published posts">
         <s-paragraph>
           Likes and comments for each post you&apos;ve actually published,
-          pulled straight from Instagram — this is public engagement, not
-          reach, saves, visits, or sales. Reach/saves need a Meta permission
-          we don&apos;t have yet (Instagram Insights); visits/sales need a
-          tracked-link redirector we haven&apos;t built. Every click below
-          adds a new timestamped snapshot rather than overwriting the last
-          one, so you can see how a post&apos;s engagement moves over time.
+          pulled straight from Instagram. Reach/saves/shares need a Meta
+          permission we don&apos;t have yet (Instagram Insights). Link clicks
+          come from the trackable link Stockative adds automatically to
+          Facebook and Pinterest — Instagram itself doesn&apos;t allow a
+          clickable link in a feed post or Story, so clicks from Instagram
+          specifically can&apos;t be measured yet. Full purchase attribution
+          (visits → sales from a specific post) isn&apos;t built. Every click
+          below adds a new timestamped snapshot rather than overwriting the
+          last one, so you can see how a post&apos;s engagement moves over
+          time.
         </s-paragraph>
 
         {!hasShop && <s-paragraph>Sync your products first.</s-paragraph>}
@@ -125,7 +158,13 @@ export default function Performance() {
                 {item.latestSignal ? (
                   <s-paragraph>
                     {item.latestSignal.likes ?? "?"} likes ·{" "}
-                    {item.latestSignal.comments ?? "?"} comments (as of{" "}
+                    {item.latestSignal.comments ?? "?"} comments
+                    {item.latestSignal.reach !== null && ` · ${item.latestSignal.reach} reach`}
+                    {item.latestSignal.saves !== null && ` · ${item.latestSignal.saves} saves`}
+                    {item.latestSignal.shares !== null && ` · ${item.latestSignal.shares} shares`}
+                    {item.latestSignal.clicks !== null &&
+                      ` · ${item.latestSignal.clicks} link click(s)`}
+                    {" (as of "}
                     {new Date(item.latestSignal.capturedAt).toLocaleString()})
                   </s-paragraph>
                 ) : (

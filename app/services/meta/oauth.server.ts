@@ -101,7 +101,10 @@ export async function exchangeForLongLivedToken(
       fb_exchange_token: shortLivedToken,
     },
   );
-  console.log("Meta fb_exchange_token raw response:", JSON.stringify(json));
+  console.log("Meta fb_exchange_token raw response:", {
+    ...json,
+    access_token: json.access_token ? "[REDACTED]" : json.access_token,
+  });
   const expiresInSeconds =
     typeof json.expires_in === "number" && Number.isFinite(json.expires_in)
       ? json.expires_in

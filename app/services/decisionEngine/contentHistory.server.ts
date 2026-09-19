@@ -5,35 +5,38 @@ export interface ProductUsageStat {
   lastUsedAt: string; // ISO string, já serializável pelo loader
 }
 
-// Consulta o histórico de content_items já criados por produto — sem custo
-// de IA nenhum, é só o que já está guardado no banco. Responde "já usamos
-// esse produto/imagem recentemente?" antes de gerar mais conteúdo pra ele.
+// Consulta o histórico de content_items JÁ PUBLICADOS por produto — sem
+// custo de IA nenhum, é só o que já está guardado no banco. Responde "já
+// mostramos esse produto pra audiência recentemente?" antes de gerar mais
+// conteúdo pra ele.
 //
-// Limitação atual: conta TODO content_item (inclusive rascunhos), não só os
-// publicados de verdade — porque a publicação real no Instagram/Facebook
-// ainda não existe neste projeto (Meta OAuth não construído).
+// Só conta status "published" (corrigido em 12/09/2026, achado de revisão
+// externa: "product-repetition history counts abandoned drafts... a
+// product appear overused despite never reaching the audience"). Antes
+// contava TODO content_item, inclusive rascunho nunca publicado e
+// experimento de teste — um produto podia ficar "esgotado" na rotação da
+// semana sem nunca ter sido mostrado de verdade. Isso era resquício de
+// quando a publicação real ainda não existia neste projeto.
 export async function getProductUsageStats(
   shopId: string,
 ): Promise<Record<string, ProductUsageStat>> {
   const items = await prisma.contentItem.findMany({
-    where: { shopId, productId: { not: null } },
-    select: { productId: true, createdAt: true },
-    orderBy: { createdAt: "asc" },
+    where: { shopId, productId: { not: null }, status: "published" },
+    select: { productId: true, publishedAt: true, createdAt: true },
+    orderBy: { publishedAt: "asc" },
   });
 
   const stats: Record<string, ProductUsageStat> = {};
 
   for (const item of items) {
     if (!item.productId) continue;
+    const usedAt = (item.publishedAt ?? item.createdAt).toISOString();
     const existing = stats[item.productId];
     if (existing) {
       existing.timesUsed += 1;
-      existing.lastUsedAt = item.createdAt.toISOString();
+      existing.lastUsedAt = usedAt;
     } else {
-      stats[item.productId] = {
-        timesUsed: 1,
-        lastUsedAt: item.createdAt.toISOString(),
-      };
+      stats[item.productId] = { timesUsed: 1, lastUsedAt: usedAt };
     }
   }
 

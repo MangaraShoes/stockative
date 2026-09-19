@@ -20,6 +20,11 @@ export interface OwnPost {
 
 export interface CompetitorSnapshot {
   username: string;
+  // Mais úteis pra confirmar que é a conta certa do que seguidores/posts
+  // (Patricia, 12/09/2026: "acho mais importante mencionar a frase
+  // principal e o website").
+  biography: string | null;
+  website: string | null;
   followersCount: number | null;
   mediaCount: number | null;
   recentPosts: OwnPost[];
@@ -77,12 +82,14 @@ export async function fetchBusinessDiscovery(
   try {
     const result = await graphApiRequest<{
       business_discovery?: {
+        biography?: string;
+        website?: string;
         followers_count?: number;
         media_count?: number;
         media?: { data: MediaNode[] };
       };
     }>(`/${ownIgBusinessAccountId}`, {
-      fields: `business_discovery.username(${competitorUsername}){followers_count,media_count,media.limit(12){caption,media_type,like_count,comments_count,timestamp}}`,
+      fields: `business_discovery.username(${competitorUsername}){biography,website,followers_count,media_count,media.limit(12){caption,media_type,like_count,comments_count,timestamp}}`,
       access_token: accessToken,
     });
 
@@ -93,6 +100,8 @@ export async function fetchBusinessDiscovery(
       ok: true,
       snapshot: {
         username: competitorUsername,
+        biography: discovery.biography ?? null,
+        website: discovery.website ?? null,
         followersCount: discovery.followers_count ?? null,
         mediaCount: discovery.media_count ?? null,
         recentPosts: (discovery.media?.data ?? []).map((node) => ({

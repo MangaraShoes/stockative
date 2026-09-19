@@ -638,7 +638,7 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     orderBy: { createdAt: "asc" },
   });
 
-  return items.map((item, index) => ({
+  return items.map((item) => ({
     contentItemId: item.id,
     productId: item.productId ?? "",
     productTitle: item.product?.title ?? "(product removed)",

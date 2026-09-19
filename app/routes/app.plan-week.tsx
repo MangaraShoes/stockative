@@ -520,7 +520,7 @@ export default function PlanWeek() {
 
         {slots.length > 0 && (
           <s-stack direction="block" gap="base">
-            {slots.map((slot) => {
+            {orderedSlots.map((slot) => {
               const editable = isEditable(slot.status);
               const isSwapping = swappingContentItemId === slot.contentItemId;
               const isManaging = managingContentItemId === slot.contentItemId;
@@ -569,19 +569,29 @@ export default function PlanWeek() {
                     {slot.images.length > 0 && (
                       <s-stack direction="inline" gap="small">
                         {slot.images.map((image) => (
-                          <img
+                          <button
                             key={image.position}
-                            src={image.url}
-                            alt={`${slot.productTitle} — position ${image.position}`}
+                            type="button"
                             onClick={() => setZoomedImageUrl(image.url)}
                             style={{
-                              width: 100,
-                              height: 100,
-                              objectFit: "cover",
-                              borderRadius: 4,
+                              padding: 0,
+                              border: "none",
+                              background: "none",
                               cursor: "zoom-in",
                             }}
-                          />
+                          >
+                            <img
+                              src={image.url}
+                              alt={`${slot.productTitle} — position ${image.position}`}
+                              style={{
+                                width: 100,
+                                height: 100,
+                                objectFit: "cover",
+                                borderRadius: 4,
+                                display: "block",
+                              }}
+                            />
+                          </button>
                         ))}
                       </s-stack>
                     )}
@@ -867,7 +877,15 @@ export default function PlanWeek() {
 
       {zoomedImageUrl && (
         <div
+          role="button"
+          tabIndex={0}
+          aria-label="Close zoomed preview"
           onClick={() => setZoomedImageUrl(null)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" || event.key === "Enter" || event.key === " ") {
+              setZoomedImageUrl(null);
+            }
+          }}
           style={{
             position: "fixed",
             inset: 0,

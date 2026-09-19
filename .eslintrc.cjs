@@ -74,6 +74,13 @@ module.exports = {
         "plugin:import/recommended",
         "plugin:import/typescript",
       ],
+      rules: {
+        // Convenção já usada no código: um parâmetro prefixado com "_" é
+        // exigido por uma interface compartilhada (ex.: selectScene em
+        // app/services/imageMvp/*Repertoire.server.ts) mas não é usado
+        // nessa implementação específica.
+        "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      },
     },
 
     // Node

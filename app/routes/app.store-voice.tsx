@@ -197,14 +197,21 @@ export default function StoreVoice() {
   const [contentLanguageSecondary, setContentLanguageSecondary] = useState(data.contentLanguageSecondary);
   const [regenerateFeedback, setRegenerateFeedback] = useState("");
 
-  useEffect(() => {
+  // Sincroniza os campos com um novo rascunho da IA assim que ele chega,
+  // sem passar por useEffect (evita o re-render em cascata que a regra
+  // react-hooks/set-state-in-effect aponta) — ajuste de estado durante a
+  // própria renderização, como recomendado pelo React pra "adjusting state
+  // when a prop changes".
+  const [syncedDraft, setSyncedDraft] = useState(draftFetcher.data);
+  if (draftFetcher.data !== syncedDraft) {
+    setSyncedDraft(draftFetcher.data);
     if (draftFetcher.data?.intent === "draft" && draftFetcher.data.draft) {
       setBrandDescription(draftFetcher.data.draft.brandDescription);
       setBrandTone(draftFetcher.data.draft.brandTone);
       setBrandAvoid(draftFetcher.data.draft.brandAvoid);
       setRegenerateFeedback("");
     }
-  }, [draftFetcher.data]);
+  }
 
   const isDrafting = draftFetcher.state !== "idle";
   const isSaving = saveFetcher.state !== "idle";

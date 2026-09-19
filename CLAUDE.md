@@ -151,6 +151,12 @@ Não construir Phase 2 antes de validar Phase 1 (brief original, seção 45, ref
 
 Antes de escrever a plataforma completa: validar manualmente com um grupo piloto pequeno (3-5 marcas de moda/calçado pequenas) se a dor e o preço são reais.
 
+## Regra de commit (Patricia, 19/09/2026)
+
+**Sempre commitar ao final de cada step concluído, sem esperar pedido explícito.** Decisão tomada depois de um incidente real: o app ficou 5 dias sem publicar nada e sem carregar no Shopify porque um servidor de produção nunca foi implantado E o trabalho de dias inteiros (incluindo o próprio arquivo do cron do GitHub Actions) ficou só na máquina local, nunca commitado nem enviado pro GitHub — então a automação que devia rodar sozinha nunca chegou a existir de verdade no repositório remoto.
+
+Isso substitui a regra geral de "só commitar quando pedido" só para este projeto. Um "step" é uma unidade de trabalho que fecha sozinha (um serviço novo, uma migração aplicada e testada, uma correção completa) — não é preciso commitar no meio de uma tarefa ainda incompleta. Sempre revisar `git status`/`git diff` antes de commitar (nunca incluir `.env` nem segredo nenhum) e enviar (`git push`) pro remoto depois de commitar, já que um commit que fica só local tem o mesmo problema que gerou o incidente.
+
 ## Documentos deste projeto
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — arquitetura técnica do MVP (stack, AI Provider Layer, modelo de dados, fluxo OAuth, Decision Engine em dois estágios, Image MVP).

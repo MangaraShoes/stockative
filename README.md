@@ -9,7 +9,7 @@ See [`CLAUDE.md`](CLAUDE.md) for the full product vision, [`ARCHITECTURE.md`](AR
 ## Stack
 
 - [React Router v7](https://reactrouter.com/) + [`@shopify/shopify-app-react-router`](https://shopify.dev/docs/api/shopify-app-react-router) (Shopify's current recommended app framework — not Remix)
-- Prisma + SQLite for local dev (see [`prisma/schema.prisma`](prisma/schema.prisma))
+- Prisma + Postgres (see [`prisma/schema.prisma`](prisma/schema.prisma)) — needs a `DATABASE_URL` env var, local or hosted (Neon, Render Postgres, Supabase all work)
 - [OpenRouter](https://openrouter.ai/) as the AI backend, behind a vendor-agnostic provider layer (`app/services/ai/`) — swapping models/vendors is a config change, not a rewrite
 - Nano Banana (`google/gemini-2.5-flash-image`, via OpenRouter) for AI product imagery, with an automated fidelity guardrail before anything reaches the merchant
 
@@ -93,5 +93,5 @@ If the ngrok URL changes between sessions (free-tier URLs aren't permanent), upd
 ## Notes
 
 - All merchant-facing UI copy is in English; code comments are in Portuguese.
-- The dev database is SQLite (`prisma/dev.sqlite`, gitignored). Production is expected to move to Postgres.
+- The database is Postgres (`DATABASE_URL` env var, see `.env.example`), both locally and in production — migrated from SQLite on 13/09/2026. The old `prisma/dev.sqlite` file is gitignored and no longer read by the app.
 - AI-generated images are currently stored as base64 data URIs in the database — fine for local dev/proof-of-concept, but needs real file storage (e.g. Shopify Files or S3) before any production use.

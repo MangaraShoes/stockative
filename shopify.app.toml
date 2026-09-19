@@ -7,7 +7,12 @@ name = "Stockative"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,read_orders"
+# read_locales: idioma primário/secundário real da loja (shopLocales), pra
+# pré-preencher o idioma de publicação no onboarding em vez de assumir
+# inglês (Patricia, 13/09/2026: "precisa sempre ter a permissao do idioma é
+# muito importante" — descoberto quando faltar essa permissão derrubou o
+# app inteiro na Mangará).
+scopes = "read_products,write_products,read_orders,read_locales"
 
 [webhooks]
 api_version = "2026-10"

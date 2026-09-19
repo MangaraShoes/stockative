@@ -1,0 +1,51 @@
+name: Stockative scheduled jobs
+
+# Dispara os 3 endpoints /cron/* do app (ver app/routes/cron.*.tsx) — eles
+# não rodam sozinhos, precisam de algo externo batendo neles periodicamente.
+# GitHub Actions só faz a chamada HTTP; o app em si precisa estar publicado
+# num host com URL fixa e rodando o tempo todo (não funciona contra um túnel
+# ngrok, que muda de endereço e cai quando o terminal fecha).
+#
+# Requer 2 secrets no repositório (Settings → Secrets and variables →
+# Actions → New repository secret):
+#   STOCKATIVE_APP_URL    — ex.: https://stockative.onrender.com (sem barra no fim)
+#   STOCKATIVE_CRON_SECRET — o mesmo valor da env var CRON_SECRET no host do app
+on:
+  schedule:
+    # Publica posts agendados que já venceram — checagem frequente, pra sair
+    # perto do horário real (mesmo padrão dos outros 2 crons).
+    - cron: "*/15 * * * *"
+    # Gera o próximo plano semanal pra loja que passou do intervalo de 7 dias.
+    - cron: "15 6 * * *"
+    # Coleta likes/comments dos posts publicados — fecha o loop de medição
+    # (Patricia, 13/09/2026, ver collectDuePerformanceSignals).
+    - cron: "0 6 * * *"
+  workflow_dispatch: {} # permite rodar manualmente na aba Actions, pra testar
+
+jobs:
+  publish-scheduled:
+    if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /cron/publish-scheduled
+        run: |
+          curl -fsS -X POST "${{ secrets.STOCKATIVE_APP_URL }}/cron/publish-scheduled" \
+            -H "Authorization: Bearer ${{ secrets.STOCKATIVE_CRON_SECRET }}"
+
+  generate-weekly-plans:
+    if: github.event.schedule == '15 6 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /cron/generate-weekly-plans
+        run: |
+          curl -fsS -X POST "${{ secrets.STOCKATIVE_APP_URL }}/cron/generate-weekly-plans" \
+            -H "Authorization: Bearer ${{ secrets.STOCKATIVE_CRON_SECRET }}"
+
+  collect-performance:
+    if: github.event.schedule == '0 6 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /cron/collect-performance
+        run: |
+          curl -fsS -X POST "${{ secrets.STOCKATIVE_APP_URL }}/cron/collect-performance" \
+            -H "Authorization: Bearer ${{ secrets.STOCKATIVE_CRON_SECRET }}"

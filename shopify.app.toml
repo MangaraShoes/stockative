@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "f1978fb0820d62282071fdd8bea58214"
-application_url = "https://ecology-smoking-crock.ngrok-free.dev"
+application_url = "https://app.stockative.com"
 embedded = true
 name = "Stockative"
 
@@ -42,7 +42,7 @@ api_version = "2026-10"
   topics = [ "orders/paid" ]
 
 [auth]
-redirect_urls = [ "https://ecology-smoking-crock.ngrok-free.dev/auth/callback" ]
+redirect_urls = [ "https://app.stockative.com/auth/callback" ]
 
 [build]
 automatically_update_urls_on_dev = true

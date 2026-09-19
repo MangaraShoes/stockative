@@ -6,6 +6,13 @@ jobs:
   CI:
     name: Node ${{ matrix.node }}
     runs-on: ubuntu-latest
+    env:
+      # Prisma exige que DATABASE_URL/DIRECT_URL resolvam pra algo (ver
+      # prisma/schema.prisma) mesmo pra `prisma validate`/`generate`, que só
+      # leem o schema e nunca abrem conexão de verdade — não é segredo, é
+      # só pra satisfazer o env(). Nunca aponta pro banco real de produção.
+      DATABASE_URL: "postgresql://user:password@localhost:5432/ci?sslmode=disable"
+      DIRECT_URL: "postgresql://user:password@localhost:5432/ci?sslmode=disable"
     strategy:
       matrix:
         # Só npm: é o único gerenciador que este projeto suporta (só existe

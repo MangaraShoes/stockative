@@ -49,7 +49,16 @@ async function resolveFfmpegPath(): Promise<string> {
   // Só usado em dev local (fora do Docker) — no Docker, FFMPEG_PATH sempre
   // aponta pro binário real instalado via apk, porque o binário baixado por
   // este pacote é linkado contra glibc e não roda no Alpine (musl).
-  const ffmpegStatic = await import("ffmpeg-static");
+  //
+  // @vite-ignore é obrigatório aqui: sem isso, o Rollup tenta RESOLVER este
+  // import em tempo de build (mesmo sendo dinâmico e condicional em runtime),
+  // e falha, porque ffmpeg-static é devDependency e "npm ci --omit=dev" no
+  // Dockerfile nem instala o pacote — achado real, 19/09/2026, derrubou o
+  // primeiro deploy de produção: "Rollup failed to resolve import
+  // ffmpeg-static". Com @vite-ignore, o import só é resolvido de verdade
+  // pelo Node em runtime, e essa linha nunca roda em produção mesmo (o "if"
+  // acima sempre retorna antes, já que FFMPEG_PATH está setado no Docker).
+  const ffmpegStatic = await import(/* @vite-ignore */ "ffmpeg-static");
   return ffmpegStatic.default as unknown as string;
 }
 

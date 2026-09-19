@@ -9,8 +9,13 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider  = "postgresql"
+  // DATABASE_URL usa o pooler do Neon (bom pro app em runtime); DIRECT_URL é
+  // a conexão direta, sem pooler — o Prisma Migrate precisa dela porque uma
+  // conexão via pgbouncer/pooler não sustenta os advisory locks que uma
+  // migração usa.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Gerenciado automaticamente pelo pacote @shopify/shopify-app-react-router — não editar.
@@ -53,11 +58,49 @@ model Shop {
   brandTone        String? // tom de voz, ex.: "warm, confident, never pushy"
   brandAvoid       String? // palavras/tom que a marca nunca deve usar
 
+  // Trava a aprovação do store voice até a lojista confirmar o idioma de
+  // publicação pelo menos uma vez (mesmo que aceite o padrão em inglês) —
+  // Patricia, 12/09/2026: "precisa ser passo obrigatório salvar a
+  // linguagem [antes de] aprovar o brand voice". Setado só quando a action
+  // "save-language" roda, nunca fica true pelo valor padrão sozinho.
+  languageConfirmed Boolean @default(false)
+
+  // Passo obrigatório do onboarding (Patricia, 12/09/2026: "step 3", antes
+  // da store voice) — a lojista pode optar por não informar concorrentes,
+  // mas precisa passar pela decisão; ver onboardingStatus.server.ts.
+  competitorsSkipped Boolean @default(false)
+
   // Logo opcional (data URI, fundo já tratado pra ficar transparente quando
   // possível — ver logoOverlay.server.ts). applyLogoOverlay é opt-in: a
   // lojista decide se quer o logo aplicado no canto das imagens geradas.
   logoUrl          String?
   applyLogoOverlay Boolean @default(false)
+
+  // Fuso horário real da loja (IANA, ex.: "America/Sao_Paulo",
+  // "Europe/Brussels"), buscado uma vez da Admin API (shop.ianaTimezone) e
+  // cacheado aqui — Patricia, 12/09/2026: "precisamos considerar sim o fuso
+  // horario da loja queremos vender este app no brasil e Europa
+  // principalmente". Usado pra agendar os posts da semana no horário local
+  // de verdade da lojista, não no fuso do servidor. Null só antes da
+  // primeira visita ao app depois de instalado (ver ensureShopTimezone).
+  ianaTimezone String?
+
+  // Marca a última vez que um plano semanal foi gerado automaticamente
+  // (ver generateDueWeeklyPlans em planWeek.server.ts) — achado de revisão
+  // externa, 12/09/2026: "there is also a distinction between publishing
+  // an existing plan automatically and creating the next plan
+  // automatically... no recurring weekly-plan generation path". Null pra
+  // loja que nunca teve um plano gerado (nem manual nem automático).
+  lastWeeklyPlanGeneratedAt DateTime?
+
+  // Trava de concorrência pra planWeeklyContent (ver planWeek.server.ts) —
+  // sem isso, um clique duplo no botão "Generate"/"Regenerate" antes de ele
+  // desabilitar, ou o cron diário rodando bem na hora que a lojista clica,
+  // criavam DOIS weekBatchId diferentes disputando a mesma semana (achado
+  // de revisão de código, 13/09/2026). Null quando nenhuma geração está em
+  // andamento; tratada como expirada depois de 15 minutos pra nunca travar
+  // a loja pra sempre se o processo cair no meio.
+  weeklyPlanGeneratingAt DateTime?
 
   // Idioma(s) de publicação (Patricia, 10/09/2026: "a cliente escolhe o
   // idioma... até 2 idiomas, aparece o primeiro e na sequência o segundo,
@@ -78,6 +121,33 @@ model Shop {
   competitorAccounts   CompetitorAccount[]
   contentPillars       ContentPillar[]
   pinterestBoards      PinterestBoard[]
+  promotions           Promotion[]
+}
+
+// Promoção real declarada pela lojista (Patricia, 13/09/2026: "poderiamos...
+// criar conteudo sazonal ou de campanhas promocionais ex blackfriday...
+// escolher a categoria ou a loja todo... criamos as campanhas em cima de
+// reais necessidades") — é a evidência real que faltava pra legitimar o
+// arquétipo Urgency (MARKETING-KNOWLEDGE.md seção 4: "Se a intenção
+// comercial for de fato escoar estoque, a ação correta é o lojista criar
+// uma promoção real, com prazo"). Uma promoção ATIVA substitui o plano
+// semanal normal inteiro (ver planPromotionalWeek em planWeek.server.ts),
+// nunca soma aos posts comuns — decisão da Patricia, 13/09/2026.
+model Promotion {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  name        String // "Black Friday", "Christmas", ou texto livre
+  discountPct Float
+  scopeType   String // "store" | "collection" | "products"
+  scopeValue  String? // nome da coleção Shopify quando "collection" (Patricia, 13/09/2026: "assim ele pode criar uma collection com os items que deseja promover sem ter que criar uma nova categoria"); IDs de ProductCache separados por vírgula quando "products"; null quando "store"
+  startsAt    DateTime
+  endsAt      DateTime
+  createdAt   DateTime @default(now())
+
+  contentItems ContentItem[]
+
+  @@index([shopId])
 }
 
 // Fase 1 do "sistema de crescimento" (ver MARKETING-KNOWLEDGE.md) — 4 a 6
@@ -149,6 +219,14 @@ model ProductCache {
   description       String?
   price             Float
   compareAtPrice    Float?
+  // Custo por unidade (Settings > Products > Cost per item na Shopify) —
+  // null quando a lojista nunca preencheu esse campo. Único jeito real de
+  // saber MARGEM, não só preço de tabela — sem isso, o Product Opportunity
+  // Score podia priorizar estoque parado de margem baixa acima de um
+  // best-seller de margem alta (achado da análise estratégica, 14/09/2026).
+  // Confirmado ao vivo, 14/09/2026: InventoryItem.unitCost já vem com o
+  // escopo read_products existente, sem precisar pedir escopo novo.
+  unitCost          Float?
   inventoryQuantity Int       @default(0)
   productType       String?
   tags              String? // lista separada por vírgula
@@ -158,6 +236,25 @@ model ProductCache {
   status            String // active | draft | archived
   shopifyCreatedAt  DateTime?
   updatedAt         DateTime  @updatedAt
+
+  // Classificação de "como fotografar este produto" pra geração de imagem
+  // por IA — calculada uma vez por IA barata e guardada aqui, não recalculada
+  // a cada geração (custo real de mais uma chamada por imagem, sem
+  // necessidade: o tipo de foto certo pra um produto não muda entre uma
+  // geração e outra). Null até a primeira geração de imagem pedir isso (ver
+  // productClassification.server.ts). Existe pra abrir a Stockative pra
+  // qualquer tipo de loja Shopify, não só calçado/vestuário (Patricia,
+  // 14/09/2026: "queremos vender o app para todo o tipo de loja").
+  //
+  // Interação e modo visual são dimensões DIFERENTES (Patricia, 14/09/2026,
+  // revisando a proposta: "held descreve como alguém interage com o
+  // produto; Editorial descreve a abordagem criativa... uma imagem pode ser
+  // editorial com o produto na mão ou sozinho"). Um produto pode admitir
+  // MAIS DE UMA interação válida (um perfume: standalone E held) — a
+  // campanha (objetivo comercial) escolhe entre elas na hora de gerar, não
+  // uma classificação fixa por produto. Lista separada por vírgula.
+  imagingInteractions String? // worn,held,applied,standalone — ver ProductInteraction
+  imagingCategory     String? // footwear | apparel | jewelry | home_decor | etc. — ver VisualCategory
 
   commerceSignal CommerceSignal?
   contentItems   ContentItem[]
@@ -213,7 +310,13 @@ model ContentItem {
   product             ProductCache? @relation(fields: [productId], references: [id])
   contentPillarId     String? // qual pilar (Fase 1) orientou este post, se houver — ver planWeek.server.ts
   contentPillar       ContentPillar? @relation(fields: [contentPillarId], references: [id])
+  // Promoção real que gerou este post, se houver (ver planPromotionalWeek em
+  // planWeek.server.ts) — usado pra travar a publicação depois do prazo
+  // (Patricia, 13/09/2026: "sim trava a publicação depois do prazo").
+  promotionId         String?
+  promotion           Promotion? @relation(fields: [promotionId], references: [id])
   platform            String // instagram | facebook
+  format              String        @default("post") // post | reel — reel monta um MP4 a partir das imagens já geradas e aprovadas (ver buildReel.server.ts), nunca gera vídeo novo por IA
   commercialObjective String // awareness | engagement | traffic | conversion | inventory
   decisionBrief       Json? // saída estruturada do Estágio 1 (arquétipo, ângulo, framework, etc.)
   captionText         String?
@@ -221,13 +324,33 @@ model ContentItem {
   cta                 String?
   creativeAssetId     String?
   creativeAsset       CreativeAsset? @relation(fields: [creativeAssetId], references: [id])
-  status              String        @default("draft") // draft | approved | scheduled | publishing | published | failed
+  status              String        @default("draft") // draft | approved | publishing | partial | published | failed | cancelled
+  // Agrupa os posts criados juntos por um "Generate this week's plan" (ver
+  // planWeek.server.ts) — a tela do plano semanal usa isso pra reabrir
+  // mostrando o mesmo lote depois de um refresh, e pra CANCELAR o lote
+  // anterior (ainda não publicado) em vez de deixar dois lotes concorrendo
+  // pela mesma janela de publicação (achado de revisão, 12/09/2026: "Once
+  // the scheduler runs, both batches can become eligible for publication").
+  // Null pra post criado avulso em "Create content", que nunca faz parte
+  // de um lote semanal.
+  weekBatchId         String?
   scheduledAt         DateTime?
   publishedAt         DateTime?
   externalPostId      String?
   storyExternalPostId String? // ID do Story publicado junto (mesma imagem hero, sem legenda — API de Stories não tem campo de caption)
   facebookExternalPostId String? // ID do post espelhado na Página do Facebook (mesma imagem/carrossel + legenda do post do Instagram)
   pinterestExternalPostId String? // ID do Pin espelhado no board da categoria do produto (imagem hero + legenda)
+  // Quando a imagem hero foi subida pra galeria do produto no Shopify (ver
+  // publishContentItem.server.ts). Sem isso, um retry de um item "partial"
+  // (Instagram publicou, uma etapa depois falhou) subia a mesma imagem de
+  // novo a cada tentativa, duplicando foto no produto (achado de revisão de
+  // código, 13/09/2026).
+  galleryImageUploadedAt DateTime?
+  // URL no CDN do Shopify do MP4 montado pra este post (só quando format="reel").
+  // videoGeneratedAt é o guarda de idempotência, mesmo padrão de galleryImageUploadedAt:
+  // sem isso, um retry remontava e resubia o vídeo do zero a cada tentativa.
+  videoUrl             String?
+  videoGeneratedAt      DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
@@ -238,6 +361,7 @@ model ContentItem {
 
   @@index([shopId])
   @@index([status])
+  @@index([weekBatchId])
 }
 
 // Sequência ordenada de imagens de um post/carrossel — position=1 é a capa
@@ -303,9 +427,49 @@ model GenerationLog {
   countsAsCredit         Boolean      @default(false)
   createdAt              DateTime     @default(now())
 
+  // Piloto de diversidade criativa (Patricia, 12/09/2026, discussão sobre o
+  // "Creative System" — ver planWeek.server.ts/repertoire.server.ts).
+  // Guardado direto aqui (não só via contentItemId) pra poder consultar o
+  // histórico da LOJA rápido, sem join. Só preenchido pra taskType = image.
+  shopId      String?
+  productId   String?
+  category    String? // footwear | apparel | jewelry | etc. — ver VisualCategory
+  campaignId  String? // hoje: o weekBatchId do post, quando existe; null pra post avulso
+
+  // Registrados desde já (Patricia, 14/09/2026: "registrar agora o modo
+  // visual, o objetivo e a versão da estratégia evita perder o histórico
+  // necessário depois") — mesmo o learning loop visual ainda não existindo,
+  // sem isso o histórico de qual modo/objetivo gerou qual resultado ficaria
+  // perdido até o dia de construir esse loop.
+  interaction         String? // worn | held | applied | standalone — a interação ESCOLHIDA pra esta geração, ver ProductInteraction
+  visualMode          String? // product_hero | lifestyle | editorial | styled_still_life — ver VisualMode
+  commercialObjective String? // objetivo do post que gerou esta imagem, ver CommercialObjective
+  strategyVersion     String? // versão da arquitetura de decisão visual em vigor nesta geração
+  // Preservar/evitar explícitos usados nesta geração (ver
+  // fidelityConstraints.server.ts) — checagem de IA AJUDA a avaliar
+  // fidelidade, não a garante; isto é o que foi de fato pedido/checado,
+  // pra auditoria futura.
+  fidelityConstraints Json?
+
+  // Solicitado: o que o repertório escolheu ANTES de montar o prompt.
+  requestedAction      String?
+  requestedEnvironment String?
+  requestedFraming     String?
+  requestedLight       String?
+
+  // Observado: o que a checagem de composição classificou DEPOIS de olhar
+  // a imagem de verdade — "unknown"/"not_applicable" são respostas válidas,
+  // nunca inventadas. Comparar isso com o solicitado é o que expõe quais
+  // instruções o gerador de fato obedece.
+  observedAction      String?
+  observedEnvironment String?
+  observedFraming     String?
+  observedLight       String?
+
   creativeAsset CreativeAsset?
 
   @@index([contentItemId])
+  @@index([shopId])
 }
 
 model CreativeAsset {
@@ -343,6 +507,22 @@ model CompetitorAccount {
   shop              Shop     @relation(fields: [shopId], references: [id])
   instagramUsername String
   addedAt           DateTime @default(now())
+
+  // true só quando o Business Discovery confirmou a conta de verdade (ok:
+  // true) — hoje isso quase nunca acontece pra conta de terceiro porque a
+  // Meta ainda não aprovou Advanced Access pro app (ver
+  // businessDiscovery.server.ts), então a maioria fica false até essa
+  // aprovação sair. Nunca mostrar como validado sem isso (Patricia,
+  // 12/09/2026: "eu coloquei um IG que nem existe e ele deu ok").
+  verified Boolean @default(false)
+
+  // Bio e site, buscados junto no Business Discovery quando a chamada
+  // funciona — mais úteis pra confirmar que é a conta certa do que
+  // seguidores/posts (Patricia, 12/09/2026: "acho mais importante mencionar
+  // a frase principal e o website"). Ficam null enquanto a Meta não aprova
+  // o acesso, igual verified.
+  biography String?
+  website   String?
 
   posts CompetitorPost[]
 

@@ -18,7 +18,10 @@ database.sqlite
 .env.*
 !.env.example
 
-package-lock.json
+# package-lock.json É commitado de propósito — npm ci (usado no build de
+# produção, ver Dockerfile) exige o lockfile presente, e sem ele o build no
+# Railway falhava sempre (achado real, 19/09/2026). Só os lockfiles de
+# outros gerenciadores ficam de fora, já que o projeto usa só npm.
 yarn.lock
 pnpm-lock.yaml
 

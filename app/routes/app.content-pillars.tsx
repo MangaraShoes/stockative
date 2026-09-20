@@ -234,9 +234,13 @@ export default function ContentPillars() {
             <s-paragraph>
               Your content strategy and this week&apos;s plan are already set up.
             </s-paragraph>
-            <s-button href="/app/plan-week" variant="primary">
-              View weekly plan
-            </s-button>
+            {/* s-link em vez de s-button href= (Patricia, 20/09/2026: achado
+                ao vivo — clicar não navegava) — mesmo componente já usado
+                com sucesso pra navegação no menu superior (ver s-app-nav em
+                app.tsx), diferente do s-button, cujo href nunca tinha sido
+                exercitado de verdade nesta tela pra uma loja já com o
+                onboarding completo. */}
+            <s-link href="/app/plan-week">View weekly plan</s-link>
           </>
         ) : (
           <>

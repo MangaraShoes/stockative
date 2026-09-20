@@ -1,10 +1,11 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { getOrCreateShop } from "../services/syncProducts.server";
 import { getOnboardingStatus } from "../services/onboardingStatus.server";
+import { goTo } from "../utils/navigateOnClick";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -58,6 +59,7 @@ interface ChecklistStep {
 
 export default function Index() {
   const data = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
 
   // Onboarding real do merchant, na ordem em que os dados de fato fluem no
   // produto (Patricia, 12/09/2026: "vamos analisar o estoque antes de
@@ -136,8 +138,10 @@ export default function Index() {
                 {data.stuckPostTitles.join(", ")} — image generation never
                 finished, so Stockative held these back instead of
                 publishing incomplete. Go to{" "}
-                <s-link href="/app/plan-week">Weekly plan</s-link> to
-                generate an image or swap the product.
+                <s-link href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
+                  Weekly plan
+                </s-link>{" "}
+                to generate an image or swap the product.
               </s-paragraph>
             </s-stack>
           </s-box>
@@ -155,7 +159,10 @@ export default function Index() {
         <s-paragraph>
           You&apos;re always in control: you can swap the products chosen for
           you, or change the day and time each post goes out, from the{" "}
-          <s-link href="/app/plan-week">Weekly plan</s-link> tab.
+          <s-link href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
+            Weekly plan
+          </s-link>{" "}
+          tab.
         </s-paragraph>
       </s-section>
 
@@ -172,7 +179,11 @@ export default function Index() {
               <s-badge tone="info">Next step</s-badge>
               <s-heading>{nextStep.title}</s-heading>
               <s-paragraph>{nextStep.description}</s-paragraph>
-              <s-button href={nextStep.href} variant="primary">
+              <s-button
+                href={nextStep.href}
+                onClick={goTo(navigate, nextStep.href)}
+                variant="primary"
+              >
                 {nextStep.cta}
               </s-button>
             </s-stack>
@@ -215,7 +226,9 @@ export default function Index() {
                       Finish step {nextStepIndex + 1} first to unlock this.
                     </s-text>
                   ) : (
-                    <s-link href={step.href}>{step.cta}</s-link>
+                    <s-link href={step.href} onClick={goTo(navigate, step.href)}>
+                      {step.cta}
+                    </s-link>
                   )}
                 </s-stack>
               </s-box>

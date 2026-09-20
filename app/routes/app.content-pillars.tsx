@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Form, redirect, useActionData, useLoaderData, useNavigation } from "react-router";
+import { Form, redirect, useActionData, useLoaderData, useNavigate, useNavigation } from "react-router";
+import { goTo } from "../utils/navigateOnClick";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { useState } from "react";
@@ -204,6 +205,7 @@ const OCCASION_PRESETS = [
 export default function ContentPillars() {
   const data = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
+  const navigate = useNavigate();
   const navigation = useNavigation();
   const isGenerating = navigation.state !== "idle";
 
@@ -234,13 +236,13 @@ export default function ContentPillars() {
             <s-paragraph>
               Your content strategy and this week&apos;s plan are already set up.
             </s-paragraph>
-            {/* s-link em vez de s-button href= (Patricia, 20/09/2026: achado
-                ao vivo — clicar não navegava) — mesmo componente já usado
-                com sucesso pra navegação no menu superior (ver s-app-nav em
-                app.tsx), diferente do s-button, cujo href nunca tinha sido
-                exercitado de verdade nesta tela pra uma loja já com o
-                onboarding completo. */}
-            <s-link href="/app/plan-week">View weekly plan</s-link>
+            {/* href= sozinho faz navegação de documento inteira e perde o
+                contexto embutido do Shopify (achado ao vivo, 20/09/2026 —
+                ver app/utils/navigateOnClick.ts). onClick intercepta e
+                navega pelo React Router; href fica só de fallback/SEO. */}
+            <s-link href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
+              View weekly plan
+            </s-link>
           </>
         ) : (
           <>

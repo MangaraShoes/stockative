@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { goTo } from "../utils/navigateOnClick";
 import {
   COMMERCIAL_OBJECTIVES,
   CONTENT_LANGUAGES,
@@ -449,6 +450,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function CreateContent() {
+  const navigate = useNavigate();
   const {
     products,
     hasBrandVoice,
@@ -613,8 +615,10 @@ export default function CreateContent() {
         <s-section heading="Store voice not set up yet">
           <s-paragraph>
             Content is being generated with a generic placeholder tone.{" "}
-            <s-link href="/app/store-voice">Set up your store voice</s-link> for
-            copy that actually sounds like your store.
+            <s-link href="/app/store-voice" onClick={goTo(navigate, "/app/store-voice")}>
+              Set up your store voice
+            </s-link>{" "}
+            for copy that actually sounds like your store.
           </s-paragraph>
         </s-section>
       )}
@@ -682,7 +686,11 @@ export default function CreateContent() {
               {contentLanguageSecondary &&
                 ` + ${CONTENT_LANGUAGES.find((l) => l.code === contentLanguageSecondary)?.label ?? contentLanguageSecondary}`}
             </strong>
-            . <s-link href="/app/store-voice">Change in Store voice</s-link>.
+            .{" "}
+            <s-link href="/app/store-voice" onClick={goTo(navigate, "/app/store-voice")}>
+              Change in Store voice
+            </s-link>
+            .
           </s-paragraph>
 
           <s-button

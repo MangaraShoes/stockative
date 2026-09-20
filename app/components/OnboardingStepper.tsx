@@ -1,4 +1,6 @@
+import { useNavigate } from "react-router";
 import type { OnboardingStatus } from "../services/onboardingStatus.server";
+import { goTo } from "../utils/navigateOnClick";
 
 interface Step {
   keys: (keyof OnboardingStatus)[];
@@ -40,6 +42,7 @@ export function OnboardingStepper({
   status: OnboardingStatus;
   currentStepHref: string;
 }) {
+  const navigate = useNavigate();
   const isDone = (step: Step) => step.keys.every((k) => status[k]);
   const isComplete = STEPS.every(isDone);
   if (isComplete) return null;
@@ -90,7 +93,11 @@ export function OnboardingStepper({
         <s-box padding="large" borderRadius="large" background="strong">
           <s-stack direction="block" gap="base" alignItems="center">
             <s-badge tone="info">Next step</s-badge>
-            <s-button href={nextIncomplete.hrefs[0]} variant="primary">
+            <s-button
+              href={nextIncomplete.hrefs[0]}
+              onClick={goTo(navigate, nextIncomplete.hrefs[0])}
+              variant="primary"
+            >
               {nextIncomplete.label}
             </s-button>
           </s-stack>

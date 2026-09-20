@@ -42,10 +42,28 @@ jobs:
     if: github.event.schedule == '22 6 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
+      # Diferente dos outros 2 endpoints, este chama a IA de verdade (copy +
+      # imagem) por post gerado — pra uma loja com plano pendente isso passa
+      # dos ~5min que o proxy do Railway aguenta numa request, e ele devolve
+      # 502 pro cliente mesmo com o trabalho terminando certinho no servidor
+      # (confirmado em produção em 20/09/2026: lastWeeklyPlanGeneratedAt e os
+      # content_items novos ficaram lá mesmo com o curl caindo em 502). Então
+      # 502/504 aqui não é tratado como falha — só um 401/500 genuíno é.
       - name: Call /cron/generate-weekly-plans
         run: |
-          curl -fsS -X POST "${{ secrets.STOCKATIVE_APP_URL }}/cron/generate-weekly-plans" \
-            -H "Authorization: Bearer ${{ secrets.STOCKATIVE_CRON_SECRET }}"
+          status=$(curl -sS -o /tmp/response.json -w "%{http_code}" --max-time 600 \
+            -X POST "${{ secrets.STOCKATIVE_APP_URL }}/cron/generate-weekly-plans" \
+            -H "Authorization: Bearer ${{ secrets.STOCKATIVE_CRON_SECRET }}")
+          cat /tmp/response.json
+          echo
+          echo "HTTP status: $status"
+          if [ "$status" = "502" ] || [ "$status" = "504" ]; then
+            echo "::warning::Gateway timeout waiting for the response — generation keeps running server-side and finishes on its own, so this isn't treated as a job failure."
+            exit 0
+          fi
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+            exit 1
+          fi
 
   collect-performance:
     if: github.event.schedule == '7 6 * * *' || github.event_name == 'workflow_dispatch'

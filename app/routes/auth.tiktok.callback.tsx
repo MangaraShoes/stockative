@@ -1,0 +1,71 @@
+import type { LoaderFunctionArgs } from "react-router";
+import prisma from "../db.server";
+import { exchangeCodeForToken, getTikTokAccount, verifyState } from "../services/tiktok/oauth.server";
+import { oauthPopupCloseResponse } from "../services/oauthPopupClose.server";
+
+// Callback público — o TikTok redireciona pra cá depois do merchant
+// autorizar. Troca o código por token (+ refresh token), busca o username
+// conectado, salva em SocialAccount e manda o navegador de volta pro app
+// embutido no admin da Shopify. Mesmo formato de auth.pinterest.callback.tsx.
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const oauthError = url.searchParams.get("error_description") ?? url.searchParams.get("error");
+
+  const appUrl = process.env.SHOPIFY_APP_URL ?? "";
+
+  if (oauthError) {
+    return oauthPopupCloseResponse(`${appUrl}/app/social?error=${encodeURIComponent(oauthError)}`);
+  }
+  if (!code || !state) {
+    return oauthPopupCloseResponse(
+      `${appUrl}/app/social?error=${encodeURIComponent("Missing code or state.")}`,
+    );
+  }
+
+  const shopDomain = verifyState(state);
+  if (!shopDomain) {
+    return oauthPopupCloseResponse(
+      `${appUrl}/app/social?error=${encodeURIComponent("Invalid or expired connection request — try again.")}`,
+    );
+  }
+
+  const shop = await prisma.shop.findUnique({ where: { shopifyDomain: shopDomain } });
+  if (!shop) {
+    return oauthPopupCloseResponse(`${appUrl}/app/social?error=${encodeURIComponent("Shop not found.")}`);
+  }
+
+  try {
+    const { accessToken, refreshToken, expiresInSeconds, openId } = await exchangeCodeForToken(code);
+    const account = await getTikTokAccount(accessToken);
+
+    await prisma.socialAccount.upsert({
+      where: { shopId_platform: { shopId: shop.id, platform: "tiktok" } },
+      create: {
+        shopId: shop.id,
+        platform: "tiktok",
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
+        tiktokOpenId: account.openId ?? openId,
+        tiktokUsername: account.username,
+      },
+      update: {
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
+        tiktokOpenId: account.openId ?? openId,
+        tiktokUsername: account.username,
+      },
+    });
+
+    return oauthPopupCloseResponse(
+      `${appUrl}/app/social?tiktokConnected=${encodeURIComponent(account.username)}`,
+    );
+  } catch (error) {
+    console.error("TikTok OAuth callback failed:", error);
+    const message = error instanceof Error ? error.message : "Unknown error connecting TikTok.";
+    return oauthPopupCloseResponse(`${appUrl}/app/social?error=${encodeURIComponent(message)}`);
+  }
+};

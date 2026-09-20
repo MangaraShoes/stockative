@@ -8,6 +8,10 @@ import {
   buildAuthorizeUrl as buildPinterestAuthorizeUrl,
   isPinterestConfigured,
 } from "../services/pinterest/oauth.server";
+import {
+  buildAuthorizeUrl as buildTikTokAuthorizeUrl,
+  isTikTokConfigured,
+} from "../services/tiktok/oauth.server";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 
@@ -39,6 +43,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : null;
 
+  const tiktokAccount = shop
+    ? await prisma.socialAccount.findUnique({
+        where: { shopId_platform: { shopId: shop.id, platform: "tiktok" } },
+      })
+    : null;
+
   const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
 
   return {
@@ -52,6 +62,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? buildPinterestAuthorizeUrl(session.shop)
       : null,
     pinterestUsername: pinterestAccount?.pinterestUsername ?? null,
+    isTikTokConfigured: isTikTokConfigured(),
+    tiktokAuthorizeUrl: isTikTokConfigured() ? buildTikTokAuthorizeUrl(session.shop) : null,
+    tiktokUsername: tiktokAccount?.tiktokUsername ?? null,
   };
 };
 
@@ -67,6 +80,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "disconnect-pinterest") {
     await prisma.socialAccount.deleteMany({ where: { shopId: shop.id, platform: "pinterest" } });
+    return { intent, error: null };
+  }
+
+  if (intent === "disconnect-tiktok") {
+    await prisma.socialAccount.deleteMany({ where: { shopId: shop.id, platform: "tiktok" } });
     return { intent, error: null };
   }
 
@@ -86,6 +104,7 @@ export default function Social() {
   const [searchParams] = useSearchParams();
   const disconnectPinterestFetcher = useFetcher<typeof action>();
   const disconnectInstagramFetcher = useFetcher<typeof action>();
+  const disconnectTikTokFetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
 
   // O popup de OAuth (Instagram/Pinterest) roda fora deste iframe e o
@@ -109,6 +128,7 @@ export default function Social() {
 
   const connectedUsername = searchParams.get("connected");
   const pinterestConnectedUsername = searchParams.get("pinterestConnected");
+  const tiktokConnectedUsername = searchParams.get("tiktokConnected");
   const error = searchParams.get("error");
 
   const disconnectPinterest = () =>
@@ -116,6 +136,9 @@ export default function Social() {
 
   const disconnectInstagram = () =>
     disconnectInstagramFetcher.submit({ intent: "disconnect-instagram" }, { method: "POST" });
+
+  const disconnectTikTok = () =>
+    disconnectTikTokFetcher.submit({ intent: "disconnect-tiktok" }, { method: "POST" });
 
   return (
     <s-page heading="Social accounts">
@@ -214,6 +237,57 @@ export default function Social() {
             <>
               <s-button href={data.pinterestAuthorizeUrl} target="_blank" variant="primary">
                 Connect Pinterest
+              </s-button>
+              <s-paragraph>
+                Opens in a new tab — this page updates automatically once
+                connected.
+              </s-paragraph>
+            </>
+          )
+        )}
+      </s-section>
+
+      <s-section heading="TikTok">
+        <s-paragraph>
+          Connect your TikTok account so Reels can go out there too. For now,
+          each Reel lands in your TikTok inbox as a draft — open the TikTok
+          app and tap to confirm it, same as sharing from any other app.
+          Direct, fully automatic posting needs TikTok&apos;s own audit,
+          which we&apos;re applying for.
+        </s-paragraph>
+
+        {!data.isTikTokConfigured && (
+          <s-paragraph>
+            <strong>
+              TikTok connection isn&apos;t set up yet — TIKTOK_CLIENT_KEY and
+              TIKTOK_CLIENT_SECRET need to be configured first.
+            </strong>
+          </s-paragraph>
+        )}
+
+        {tiktokConnectedUsername && (
+          <s-paragraph>
+            <strong>Connected! TikTok account linked successfully.</strong>
+          </s-paragraph>
+        )}
+
+        {data.tiktokUsername ? (
+          <s-stack direction="inline" gap="base">
+            <s-paragraph>TikTok account connected (@{data.tiktokUsername}).</s-paragraph>
+            <s-button
+              variant="secondary"
+              onClick={disconnectTikTok}
+              {...(disconnectTikTokFetcher.state !== "idle" ? { loading: true } : {})}
+            >
+              Disconnect
+            </s-button>
+          </s-stack>
+        ) : (
+          data.isTikTokConfigured &&
+          data.tiktokAuthorizeUrl && (
+            <>
+              <s-button href={data.tiktokAuthorizeUrl} target="_blank" variant="primary">
+                Connect TikTok
               </s-button>
               <s-paragraph>
                 Opens in a new tab — this page updates automatically once

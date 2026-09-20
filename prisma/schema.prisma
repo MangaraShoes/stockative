@@ -183,7 +183,7 @@ model SocialAccount {
   id                  String    @id @default(cuid())
   shopId              String
   shop                Shop      @relation(fields: [shopId], references: [id])
-  platform            String // instagram | facebook | pinterest
+  platform            String // instagram | facebook | pinterest | tiktok
   accessToken         String
   expiresAt           DateTime?
   igBusinessAccountId String?
@@ -191,6 +191,8 @@ model SocialAccount {
   refreshToken        String?
   pinterestUserId     String?
   pinterestUsername   String?
+  tiktokOpenId        String? // identificador estável da conta TikTok (não muda, diferente do username)
+  tiktokUsername      String?
 
   @@unique([shopId, platform])
   @@index([shopId])
@@ -340,6 +342,11 @@ model ContentItem {
   storyExternalPostId String? // ID do Story publicado junto (mesma imagem hero, sem legenda — API de Stories não tem campo de caption)
   facebookExternalPostId String? // ID do post espelhado na Página do Facebook (mesma imagem/carrossel + legenda do post do Instagram)
   pinterestExternalPostId String? // ID do Pin espelhado no board da categoria do produto (imagem hero + legenda)
+  // publish_id do upload pra caixa de rascunhos do TikTok (Content Posting
+  // API em modo inbox, sem a auditoria de Direct Post) — só existe pra
+  // post format="reel"; a lojista precisa abrir o TikTok e confirmar a
+  // publicação de lá, o app só entrega o vídeo pronto na caixa de entrada.
+  tiktokExternalPostId String?
   // Quando a imagem hero foi subida pra galeria do produto no Shopify (ver
   // publishContentItem.server.ts). Sem isso, um retry de um item "partial"
   // (Instagram publicou, uma etapa depois falhou) subia a mesma imagem de

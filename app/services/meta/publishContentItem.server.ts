@@ -10,6 +10,7 @@ import {
 import { buildFinalCaption, parseStoredHashtags } from "../decisionEngine/captionFormat";
 import { getOrCreateBoardForCategory } from "../pinterest/boards.server";
 import { createPin } from "../pinterest/publish.server";
+import { uploadVideoToInbox } from "../tiktok/publish.server";
 import { uploadGeneratedImageToProduct } from "../shopify/uploadProductImage.server";
 import { unauthenticated } from "../../shopify.server";
 import { getOrCreateTrackedLink, buildTrackedUrl } from "../trackedLink.server";
@@ -44,6 +45,16 @@ export type PinterestPublishOutcome =
   | { status: "published"; pinId: string }
   | { status: "failed"; reason: string };
 
+// Best-effort igual aos outros — só tentado pra post format="reel" (TikTok
+// só aceita vídeo), e só entrega na caixa de rascunhos do TikTok da
+// lojista, não publica sozinho (ver uploadVideoToInbox em
+// tiktok/publish.server.ts pro motivo: a Content Posting API exige
+// auditoria pra Direct Post, e a Stockative ainda não passou por ela).
+export type TikTokPublishOutcome =
+  | { status: "not_attempted"; reason?: string }
+  | { status: "published"; publishId: string }
+  | { status: "failed"; reason: string };
+
 export type PublishResult =
   | {
       status: "success";
@@ -51,6 +62,7 @@ export type PublishResult =
       story: StoryPublishOutcome;
       facebook: FacebookPublishOutcome;
       pinterest: PinterestPublishOutcome;
+      tiktok: TikTokPublishOutcome;
     }
   | { status: "error"; reason: string };
 
@@ -285,6 +297,37 @@ export async function publishContentItemToInstagram(
       }
     }
 
+    // Espelha o Reel na caixa de rascunhos do TikTok — só tentado pra
+    // post format="reel" (TikTok só aceita vídeo), best-effort igual ao
+    // Pinterest/Facebook. A lojista ainda precisa abrir o TikTok e confirmar
+    // a publicação de lá (ver uploadVideoToInbox), então isso nunca conta
+    // como "published" de verdade, só como "entregue".
+    let tiktok: TikTokPublishOutcome = contentItem.tiktokExternalPostId
+      ? { status: "published", publishId: contentItem.tiktokExternalPostId }
+      : { status: "not_attempted" };
+    if (tiktok.status === "not_attempted" && contentItem.format === "reel") {
+      const tiktokAccount = await prisma.socialAccount.findFirst({
+        where: { shopId: contentItem.shopId, platform: "tiktok" },
+      });
+      if (tiktokAccount) {
+        try {
+          const publishId = await uploadVideoToInbox(
+            { accessToken: tiktokAccount.accessToken },
+            `${appUrl}/media/content-item-video/${contentItem.id}`,
+          );
+          tiktok = { status: "published", publishId };
+        } catch (tiktokError) {
+          tiktok = {
+            status: "failed",
+            reason:
+              tiktokError instanceof Error
+                ? tiktokError.message
+                : "Unknown error sending to TikTok.",
+          };
+        }
+      }
+    }
+
     await prisma.contentItem.update({
       where: { id: contentItemId },
       data: {
@@ -294,6 +337,7 @@ export async function publishContentItemToInstagram(
         storyExternalPostId: story.status === "published" ? story.igMediaId : null,
         facebookExternalPostId: facebook.status === "published" ? facebook.postId : null,
         pinterestExternalPostId: pinterest.status === "published" ? pinterest.pinId : null,
+        tiktokExternalPostId: tiktok.status === "published" ? tiktok.publishId : null,
       },
     });
 
@@ -328,7 +372,7 @@ export async function publishContentItemToInstagram(
       }
     }
 
-    return { status: "success", igMediaId, story, facebook, pinterest };
+    return { status: "success", igMediaId, story, facebook, pinterest, tiktok };
   } catch (error) {
     // Se o Instagram já tinha sido publicado (igMediaId setado) antes do
     // erro, "partial" preserva isso e permite reconciliar no próximo retry

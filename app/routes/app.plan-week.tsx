@@ -13,6 +13,8 @@ import {
   changeWeeklyPlanSlotObjective,
   regenerateWeeklyPlanSlotImage,
   getActivePromotion,
+  planPromotionalWeek,
+  createPromotion,
   type WeeklyPlanSlot,
 } from "../services/decisionEngine/planWeek.server";
 import {
@@ -67,6 +69,29 @@ function isEditable(status: string): boolean {
   return status === "draft" || status === "approved";
 }
 
+// Calendário anual de campanhas de e-commerce (Patricia, 13/09/2026: "já
+// devemos todo o calendario anual de campanhas") — em ordem cronológica do
+// ano, pra ela achar rápido a próxima data que se aplica à loja dela.
+// "Other" sempre por último, pra ocasião que não está na lista. Movido de
+// app.content-pillars.tsx (Patricia, 20/09/2026).
+const OCCASION_PRESETS = [
+  "New Year Sale",
+  "Valentine's Day",
+  "Mother's Day",
+  "Easter",
+  "Father's Day",
+  "Summer Sale",
+  "Back to School",
+  "Halloween",
+  "Singles' Day (11.11)",
+  "Black Friday",
+  "Cyber Monday",
+  "Christmas",
+  "Boxing Day",
+  "End of Season Sale",
+  "Other",
+] as const;
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
@@ -98,10 +123,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // must restore it.") — nunca mais só memória do navegador.
   const slots = shop ? await getCurrentWeekBatch(shop.id) : [];
 
+  // Coleções reais da loja, pra escopar uma campanha promocional (Patricia,
+  // 13/09/2026: "acho melhor por collection assim ele pode criar uma
+  // collection com os items que deseja promover sem ter que criar uma nova
+  // categoria") — em vez de productType, que travaria numa categoria fixa do
+  // cadastro. Cada linha em ProductCache.collections junta até 5 nomes com
+  // ", " (ver syncProducts.server.ts), então separa e desduplica em JS.
+  const collectionRows = shop
+    ? await prisma.productCache.findMany({
+        where: { shopId: shop.id, collections: { not: null } },
+        select: { collections: true },
+      })
+    : [];
+  const productCollections = Array.from(
+    new Set(
+      collectionRows
+        .flatMap((row) => (row.collections ?? "").split(","))
+        .map((name) => name.trim())
+        .filter(Boolean),
+    ),
+  ).sort();
+
   return {
     hasShop: Boolean(shop),
     isInstagramConnected: Boolean(socialAccount?.igBusinessAccountId),
     products,
+    productCollections,
     // Fuso horário real da loja (Patricia, 12/09/2026: "precisamos
     // considerar sim o fuso horario da loja") — usado pra mostrar e editar
     // dia/horário na perspectiva da loja, não na de quem está com o
@@ -214,6 +261,72 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { intent: "cancel" as const, contentItemId, result };
   }
 
+  // Movido de app.content-pillars.tsx (Patricia, 20/09/2026: "esconde o
+  // Weekly objective do menu quando já tiver pilares mas precisamos definir
+  // como fica... se a cliente quiser refazer a weekly") — antes disso, essa
+  // tela só tinha o formulário de campanha promocional ANTES dos pilares
+  // existirem, então não havia como criar uma campanha nova depois do
+  // onboarding inicial. Agora fica aqui, sempre acessível.
+  if (intent === "promotion") {
+    const existingPromotion = await getActivePromotion(shop.id);
+    if (existingPromotion) {
+      return {
+        intent: "promotion" as const,
+        error: `The ${existingPromotion.name} promotion is already running until ${existingPromotion.endsAt.toLocaleDateString()} — end it before starting a new one.`,
+      };
+    }
+
+    const socialAccountForPromotion = await prisma.socialAccount.findUnique({
+      where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
+    });
+    if (!socialAccountForPromotion?.igBusinessAccountId) {
+      return { intent: "promotion" as const, error: "Connect Instagram first — see Social accounts." };
+    }
+
+    const occasionPreset = String(formData.get("occasionPreset") ?? "");
+    const customOccasionName = String(formData.get("customOccasionName") ?? "").trim();
+    const name = occasionPreset === "Other" ? customOccasionName : occasionPreset;
+    const discountPct = Number(formData.get("discountPct"));
+    const scopeType = String(formData.get("scopeType") ?? "store") as "store" | "collection";
+    const scopeValue = scopeType === "collection" ? String(formData.get("scopeValue") ?? "") : null;
+    const startsAt = new Date(String(formData.get("startsAt")));
+    const endsAt = new Date(String(formData.get("endsAt")));
+
+    if (!name || !Number.isFinite(discountPct) || discountPct <= 0) {
+      return {
+        intent: "promotion" as const,
+        error: "Fill in the campaign name and a real discount percentage.",
+      };
+    }
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) || endsAt <= startsAt) {
+      return {
+        intent: "promotion" as const,
+        error: "Pick a valid start and end date, with the end after the start.",
+      };
+    }
+
+    try {
+      const promotion = await createPromotion({
+        shopId: shop.id,
+        name,
+        discountPct,
+        scopeType,
+        scopeValue,
+        startsAt,
+        endsAt,
+      });
+      await planPromotionalWeek(shop.id, promotion);
+    } catch (error) {
+      console.error("Failed to build promotional campaign:", error);
+      return {
+        intent: "promotion" as const,
+        error: "Something went wrong building this campaign. Please try again.",
+      };
+    }
+
+    return { intent: "promotion" as const, error: null as string | null };
+  }
+
   const socialAccount = await prisma.socialAccount.findUnique({
     where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
   });
@@ -275,8 +388,15 @@ function formatScheduledAt(iso: string, timeZone: string): string {
 }
 
 export default function PlanWeek() {
-  const { hasShop, isInstagramConnected, products, shopTimezone, onboardingStatus, slots } =
-    useLoaderData<typeof loader>();
+  const {
+    hasShop,
+    isInstagramConnected,
+    products,
+    productCollections,
+    shopTimezone,
+    onboardingStatus,
+    slots,
+  } = useLoaderData<typeof loader>();
 
   // Mostrar na ordem em que os posts realmente saem no ar (Patricia,
   // 12/09/2026: "a sequencia de posts deve seguir a sequencia da semana"),
@@ -296,6 +416,7 @@ export default function PlanWeek() {
   const manageFetcher = useFetcher<typeof action>();
   const objectiveFetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
+  const promotionFetcher = useFetcher<typeof action>();
 
   const [swapChoices, setSwapChoices] = useState<Record<string, string>>({});
   const [scheduleChoices, setScheduleChoices] = useState<
@@ -314,6 +435,25 @@ export default function PlanWeek() {
   const [objectiveChoices, setObjectiveChoices] = useState<Record<string, string>>({});
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
+
+  // Formulário de campanha promocional, movido de app.content-pillars.tsx
+  // pra cá (Patricia, 20/09/2026) — fica escondido atrás de um botão até a
+  // lojista pedir, pra não competir visualmente com o plano da semana.
+  const [showPromotionForm, setShowPromotionForm] = useState(false);
+  const [occasionPreset, setOccasionPreset] = useState<string>(OCCASION_PRESETS[0]);
+  const [promotionScopeType, setPromotionScopeType] = useState<"store" | "collection">("store");
+  const isSubmittingPromotion = promotionFetcher.state !== "idle";
+  // Fecha o formulário assim que a campanha é criada com sucesso, sem passar
+  // por useEffect (evita o re-render em cascata que react-hooks/set-state-in-
+  // effect aponta) — ajuste de estado durante a própria renderização, como
+  // recomendado pelo React pra "adjusting state when a prop changes".
+  const [syncedPromotionData, setSyncedPromotionData] = useState(promotionFetcher.data);
+  if (promotionFetcher.data !== syncedPromotionData) {
+    setSyncedPromotionData(promotionFetcher.data);
+    if (promotionFetcher.data?.intent === "promotion" && promotionFetcher.data.error === null) {
+      setShowPromotionForm(false);
+    }
+  }
 
   const isGenerating = generateFetcher.state !== "idle";
 
@@ -428,6 +568,11 @@ export default function PlanWeek() {
   const generateFailure =
     generateFetcher.data?.intent === "generate" && generateFetcher.data.error
       ? generateFetcher.data.error
+      : null;
+
+  const promotionFailure =
+    promotionFetcher.data?.intent === "promotion" && promotionFetcher.data.error
+      ? promotionFetcher.data.error
       : null;
 
   return (
@@ -872,6 +1017,156 @@ export default function PlanWeek() {
               </s-paragraph>
             )}
           </s-stack>
+        )}
+      </s-section>
+
+      {/* Movido de app.content-pillars.tsx (Patricia, 20/09/2026) — antes só
+          dava pra criar uma campanha promocional ANTES de os pilares
+          existirem (ou seja, só uma vez, no onboarding). Agora fica sempre
+          acessível aqui, junto com o resto das ações da semana. */}
+      <s-section heading="Seasonal or promotional campaign">
+        {activePromotionName ? (
+          <s-paragraph>
+            <strong>{activePromotionName}</strong> is running now — every
+            post above belongs to it. It&apos;ll end on its own and hand
+            control back to the regular weekly plan.
+          </s-paragraph>
+        ) : !showPromotionForm ? (
+          <>
+            <s-paragraph>
+              Start a campaign like Black Friday or Christmas — it replaces
+              this week&apos;s regular content with posts about it, and
+              nothing new publishes once it ends.
+            </s-paragraph>
+            <s-button
+              onClick={() => setShowPromotionForm(true)}
+              {...(!canGenerate ? { disabled: true } : {})}
+            >
+              Start a seasonal campaign
+            </s-button>
+          </>
+        ) : (
+          <promotionFetcher.Form method="post">
+            <input type="hidden" name="intent" value="promotion" />
+            <s-stack direction="block" gap="base">
+              <s-stack direction="inline" gap="base">
+                <select
+                  name="occasionPreset"
+                  value={occasionPreset}
+                  onChange={(e) => setOccasionPreset(e.target.value)}
+                  style={{ padding: 8 }}
+                >
+                  {OCCASION_PRESETS.map((preset) => (
+                    <option key={preset} value={preset}>
+                      {preset}
+                    </option>
+                  ))}
+                </select>
+                {occasionPreset === "Other" && (
+                  <input
+                    type="text"
+                    name="customOccasionName"
+                    placeholder="Campaign name"
+                    style={{ padding: 8, flex: 1 }}
+                  />
+                )}
+              </s-stack>
+
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <input
+                  type="number"
+                  name="discountPct"
+                  min="1"
+                  max="90"
+                  placeholder="Discount"
+                  style={{ width: 100, padding: 8 }}
+                />
+                <s-text>% off</s-text>
+              </s-stack>
+
+              <s-stack direction="inline" gap="base">
+                <select
+                  name="scopeType"
+                  value={promotionScopeType}
+                  onChange={(e) =>
+                    setPromotionScopeType(e.target.value as "store" | "collection")
+                  }
+                  style={{ padding: 8 }}
+                >
+                  <option value="store">Whole store</option>
+                  <option value="collection">One collection</option>
+                </select>
+                {promotionScopeType === "collection" && (
+                  <select name="scopeValue" style={{ padding: 8 }}>
+                    {productCollections.length === 0 ? (
+                      <option value="">No collections found</option>
+                    ) : (
+                      productCollections.map((collection) => (
+                        <option key={collection} value={collection}>
+                          {collection}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                )}
+              </s-stack>
+
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <label>
+                  Starts <input type="date" name="startsAt" style={{ padding: 8 }} />
+                </label>
+                <label>
+                  Ends <input type="date" name="endsAt" style={{ padding: 8 }} />
+                </label>
+              </s-stack>
+
+              <s-stack direction="inline" gap="base">
+                <button
+                  type="submit"
+                  disabled={isSubmittingPromotion}
+                  style={{
+                    display: "inline-block",
+                    alignSelf: "flex-start",
+                    padding: "8px 16px",
+                    border: "1px solid #000",
+                    borderRadius: 8,
+                    background: "#000",
+                    color: "#fff",
+                    fontWeight: 500,
+                    opacity: isSubmittingPromotion ? 0.5 : 1,
+                    cursor: isSubmittingPromotion ? "default" : "pointer",
+                  }}
+                >
+                  {isSubmittingPromotion ? "Building…" : "Build my promotional campaign"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPromotionForm(false)}
+                  disabled={isSubmittingPromotion}
+                  style={{
+                    display: "inline-block",
+                    alignSelf: "flex-start",
+                    padding: "8px 16px",
+                    border: "1px solid #a8abae",
+                    borderRadius: 8,
+                    background: "transparent",
+                    fontWeight: 500,
+                  }}
+                >
+                  Cancel
+                </button>
+              </s-stack>
+
+              {isSubmittingPromotion && (
+                <GeneratingProgressBar label="Building this campaign's posts…" />
+              )}
+              {promotionFailure && (
+                <s-paragraph>
+                  <strong>{promotionFailure}</strong>
+                </s-paragraph>
+              )}
+            </s-stack>
+          </promotionFetcher.Form>
         )}
       </s-section>
 

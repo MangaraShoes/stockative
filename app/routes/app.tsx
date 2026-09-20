@@ -63,7 +63,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       : SETUP_STEPS.slice(0, firstIncomplete + 1).flatMap((step) => [...step.paths]);
 
   // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "", unlockedPaths };
+  return {
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    unlockedPaths,
+    hasContentPillars: status.hasContentPillars,
+  };
 };
 
 const NAV_ITEMS = [
@@ -81,14 +85,22 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
-  const { apiKey, unlockedPaths } = useLoaderData<typeof loader>();
+  const { apiKey, unlockedPaths, hasContentPillars } = useLoaderData<typeof loader>();
   const isUnlocked = (href: string) =>
     href === "/app" || unlockedPaths === null || unlockedPaths.includes(href);
+  // "Weekly objective" só existe pra criar os pilares na primeira vez
+  // (Patricia, 20/09/2026: "esconde o Weekly objective do menu quando já
+  // tiver pilares") — depois disso ela só redireciona pra "Weekly plan"
+  // (ver app.content-pillars.tsx), então some do menu pra não virar um
+  // item morto. Regenerar a semana e criar uma campanha promocional nova já
+  // vivem dentro da própria "Weekly plan".
+  const isHiddenAfterSetup = (href: string) =>
+    href === "/app/content-pillars" && hasContentPillars;
 
   return (
     <AppProvider embedded apiKey={apiKey}>
       <s-app-nav>
-        {NAV_ITEMS.filter((item) => isUnlocked(item.href)).map((item) => (
+        {NAV_ITEMS.filter((item) => isUnlocked(item.href) && !isHiddenAfterSetup(item.href)).map((item) => (
           <s-link key={item.href} href={item.href}>
             {item.label}
           </s-link>

@@ -22,7 +22,16 @@ on:
     # deslocado reduz a chance de cair numa fila cheia.
     - cron: "8,23,38,53 * * * *"
     # Gera o próximo plano semanal pra loja que passou do intervalo de 7 dias.
-    - cron: "22 6 * * *"
+    #
+    # Trocado de 1x/dia (Patricia, 20/09/2026: "não está recriando um novo
+    # plano automaticamente") — o prazo de 7 dias vence na mesma HORA em que
+    # o plano anterior foi gerado (ex.: 13:09), não à meia-noite, então uma
+    # checagem única de madrugada perde a janela por até ~24h toda vez que a
+    # última geração aconteceu depois do horário fixo do cron. A cada 2h
+    # fecha essa folga sem disparar a IA à toa (generateDueWeeklyPlans só
+    # gera de verdade pra loja que passou do prazo — pra quem não passou,
+    # a chamada é só uma query rápida no banco).
+    - cron: "22 */2 * * *"
     # Coleta likes/comments dos posts publicados — fecha o loop de medição
     # (Patricia, 13/09/2026, ver collectDuePerformanceSignals).
     - cron: "7 6 * * *"
@@ -39,7 +48,7 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.STOCKATIVE_CRON_SECRET }}"
 
   generate-weekly-plans:
-    if: github.event.schedule == '22 6 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '22 */2 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       # Diferente dos outros 2 endpoints, este chama a IA de verdade (copy +

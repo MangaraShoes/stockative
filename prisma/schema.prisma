@@ -163,7 +163,7 @@ model ContentPillar {
   attractsAudience  String
   problemExplored   String
   promise           String
-  idealFormat       String // carousel | single_image
+  idealFormat       String // carousel | single_image | reel
   cta               String
   growthCategory    String // atração | autoridade | relacionamento | conversão
   targetSharePct    Float // percentual ideal da distribuição semanal

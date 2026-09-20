@@ -146,7 +146,13 @@ ${
 - Ideal format: ${input.pillar.idealFormat}
 - Typical CTA: ${input.pillar.cta}
 - Growth category: ${input.pillar.growthCategory} (atração=reach/new eyes, autoridade=trust/expertise, relacionamento=deepen with existing followers, conversão=drive purchase — let this bias your archetype/format choice toward what naturally serves that category, without overriding the eligible-archetype list below)
-Prefer format "${input.pillar.idealFormat === "carousel" ? "lifestyle or studio, suited to a multi-image carousel" : "close_up or studio, suited to a single image"}" unless the product genuinely calls for something else.
+Prefer format "${
+            input.pillar.idealFormat === "carousel"
+              ? "lifestyle or studio, suited to a multi-image carousel"
+              : input.pillar.idealFormat === "reel"
+                ? "lifestyle or studio, suited to a short sequence of stills that will be assembled into a Reel — favor angles/moments that read well as motion, not a single static hero shot"
+                : "close_up or studio, suited to a single image"
+          }" unless the product genuinely calls for something else.
 `
     : ""
 }${

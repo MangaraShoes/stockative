@@ -696,6 +696,7 @@ export default function PlanWeek() {
                       {OBJECTIVE_LABELS[slot.objective as CommercialObjective] ?? slot.objective}
                       {slot.pillarName && ` · pillar: ${slot.pillarName}`}
                       {slot.promotionName && ` · promotion: ${slot.promotionName}`}
+                      {slot.format === "reel" && " · 🎬 Reel"}
                     </s-paragraph>
                     <s-paragraph>
                       {slot.status === "published" && slot.publishedAt
@@ -709,6 +710,20 @@ export default function PlanWeek() {
                           {slot.captionText}
                         </pre>
                       </s-box>
+                    )}
+
+                    {/* Post que o pilar decidiu publicar como Reel (Patricia,
+                        20/09/2026) — o vídeo é o que de fato vai pro
+                        Instagram (ver publishContentItem.server.ts), as
+                        stills abaixo são só as imagens-fonte usadas pra
+                        montá-lo. */}
+                    {slot.format === "reel" && slot.videoUrl && (
+                      // eslint-disable-next-line jsx-a11y/media-has-caption
+                      <video
+                        src={slot.videoUrl}
+                        controls
+                        style={{ width: 160, borderRadius: 4, display: "block" }}
+                      />
                     )}
 
                     {slot.images.length > 0 && (

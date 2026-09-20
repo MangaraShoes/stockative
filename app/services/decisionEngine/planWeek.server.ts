@@ -5,6 +5,7 @@ import { getArchetypePerformance, describeArchetypePerformance } from "./perform
 import { decideContentBrief, describeEvidence } from "./stage1.server";
 import { generateCreativeCopy } from "./stage2.server";
 import { buildCarousel } from "../imageMvp/buildCarousel.server";
+import { generateReelForContentItem } from "../video/generateReelForContentItem.server";
 import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
 import { maxPrimaryCaptionChars } from "./captionFormat";
@@ -34,6 +35,8 @@ export interface WeeklyPlanSlot {
   status: string; // draft | approved | publishing | partial | published | failed | cancelled
   captionText: string; // legenda completa, pra lojista ver o que vai publicar antes de aprovar
   images: WeeklyPlanImage[];
+  format: string; // post | reel — ver ContentItem.format em prisma/schema.prisma
+  videoUrl: string | null; // só quando format="reel" (ver generateReelForContentItem.server.ts)
 }
 
 // Dia da semana (0=domingo) + horário em que cada slot posta por padrão, se
@@ -402,6 +405,28 @@ export async function planOneSlot(
   });
   const needsManualImage = result.status !== "success";
 
+  // Monta o Reel automaticamente quando o pilar pede esse formato (Patricia,
+  // 20/09/2026: "integrar Reel no Weekly plan automático") — mesmo pipeline
+  // já usado manualmente em Create Content (buildReel.server.ts, monta um
+  // MP4 a partir das stills acima, sem chamar IA de vídeo nenhuma). Nunca
+  // deixa uma falha aqui derrubar o slot inteiro: sem Reel, o post segue
+  // publicável como imagem normal, só sem o formato preferido do pilar.
+  let itemFormat = contentItem.format;
+  let videoUrl: string | null = null;
+  if (!needsManualImage && pillar?.idealFormat === "reel") {
+    try {
+      await generateReelForContentItem(contentItem.id, shopId);
+      const updated = await prisma.contentItem.findUniqueOrThrow({
+        where: { id: contentItem.id },
+        select: { format: true, videoUrl: true },
+      });
+      itemFormat = updated.format;
+      videoUrl = updated.videoUrl;
+    } catch (error) {
+      console.error(`Failed to build Reel for content item ${contentItem.id}:`, error);
+    }
+  }
+
   const images = await loadSlotImages(contentItem.id);
 
   return {
@@ -415,6 +440,8 @@ export async function planOneSlot(
     scheduledAt: scheduledAt.toISOString(),
     publishedAt: null, // recém-criado — nunca publicado ainda neste ponto
     status: contentItem.status,
+    format: itemFormat,
+    videoUrl,
     captionText: captionText ?? "",
     images,
   };
@@ -649,6 +676,8 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     scheduledAt: (item.scheduledAt ?? item.createdAt).toISOString(),
     publishedAt: item.publishedAt ? item.publishedAt.toISOString() : null,
     status: item.status,
+    format: item.format,
+    videoUrl: item.videoUrl,
     captionText: item.captionText ?? "",
     images: item.images.map((row) => ({
       position: row.position,

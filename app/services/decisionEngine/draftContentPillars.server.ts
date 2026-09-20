@@ -23,7 +23,11 @@ const pillarSchema = z.object({
   attractsAudience: z.string().describe("Which slice of the ideal audience this pillar speaks to"),
   problemExplored: z.string().describe("The specific pain/need this pillar addresses"),
   promise: z.string().describe("What the audience gains by consuming this pillar"),
-  idealFormat: z.enum(["carousel", "single_image"]),
+  idealFormat: z
+    .enum(["carousel", "single_image", "reel"])
+    .describe(
+      "reel only for pillars whose content is naturally about motion or a moment unfolding (behind the scenes, founder story, styling/how-to, process, before/after) — not for pillars that are fundamentally about showing crisp product detail from multiple static angles.",
+    ),
   cta: z.string().describe("The action this pillar typically asks for"),
   growthCategory: z.enum(["atração", "autoridade", "relacionamento", "conversão"]),
   targetSharePct: z

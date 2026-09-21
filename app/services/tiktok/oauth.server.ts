@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { SocialAccount } from "@prisma/client";
+import prisma from "../../db.server";
 import {
   TIKTOK_AUTHORIZE_BASE,
   TIKTOK_SCOPES,
@@ -135,4 +137,69 @@ export async function getTikTokAccount(accessToken: string): Promise<ConnectedTi
     accessToken,
   );
   return { openId: data.user.open_id, username: data.user.username };
+}
+
+// O access_token do TikTok expira em ~24h (refresh_token dura bem mais) —
+// refreshToken/expiresAt já eram salvos desde a conexão, mas nada nunca os
+// usava pra renovar (achado de revisão de código, 21/09/2026: "refreshToken
+// is captured but never used" — todo Reel que tenta chegar no TikTok passa
+// a falhar silenciosamente, best-effort, cerca de um dia depois de
+// conectar). Formato de resposta idêntico ao de exchangeCodeForToken.
+async function refreshAccessToken(refreshToken: string): Promise<{
+  accessToken: string;
+  refreshToken: string;
+  expiresInSeconds: number;
+}> {
+  const response = await fetch(TIKTOK_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Cache-Control": "no-cache",
+    },
+    body: new URLSearchParams({
+      client_key: getClientKey(),
+      client_secret: getClientSecret(),
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+
+  const json = (await response.json()) as TikTokTokenResponse & {
+    error?: string;
+    error_description?: string;
+  };
+  if (!response.ok || json.error) {
+    throw new Error(json.error_description ?? `TikTok token refresh failed (${response.status})`);
+  }
+
+  return {
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    expiresInSeconds: json.expires_in,
+  };
+}
+
+const EXPIRY_SAFETY_BUFFER_MS = 5 * 60 * 1000; // renova um pouco antes de expirar de verdade, não em cima da hora
+
+// Devolve um access_token válido pra essa conta, renovando e salvando no
+// banco primeiro se o atual já expirou ou está perto disso — chamar isso
+// direto em vez de ler socialAccount.accessToken é o que faltava pra
+// publicação no TikTok continuar funcionando depois do primeiro dia
+// conectado. O TikTok também ROTACIONA o refresh_token a cada renovação:
+// precisa salvar o novo, nunca reusar o antigo depois de usado uma vez.
+export async function getValidTikTokAccessToken(account: SocialAccount): Promise<string> {
+  const isFresh = account.expiresAt && account.expiresAt.getTime() - Date.now() > EXPIRY_SAFETY_BUFFER_MS;
+  if (isFresh) return account.accessToken;
+  if (!account.refreshToken) return account.accessToken; // nada pra renovar com — segue com o que tem, deixa a chamada real falhar e reportar
+
+  const refreshed = await refreshAccessToken(account.refreshToken);
+  await prisma.socialAccount.update({
+    where: { id: account.id },
+    data: {
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken,
+      expiresAt: new Date(Date.now() + refreshed.expiresInSeconds * 1000),
+    },
+  });
+  return refreshed.accessToken;
 }

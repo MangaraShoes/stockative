@@ -11,6 +11,7 @@ import { buildFinalCaption, parseStoredHashtags } from "../decisionEngine/captio
 import { getOrCreateBoardForCategory } from "../pinterest/boards.server";
 import { createPin } from "../pinterest/publish.server";
 import { uploadVideoToInbox } from "../tiktok/publish.server";
+import { getValidTikTokAccessToken } from "../tiktok/oauth.server";
 import { uploadGeneratedImageToProduct } from "../shopify/uploadProductImage.server";
 import { unauthenticated } from "../../shopify.server";
 import { getOrCreateTrackedLink, buildTrackedUrl } from "../trackedLink.server";
@@ -311,8 +312,9 @@ export async function publishContentItemToInstagram(
       });
       if (tiktokAccount) {
         try {
+          const accessToken = await getValidTikTokAccessToken(tiktokAccount);
           const publishId = await uploadVideoToInbox(
-            { accessToken: tiktokAccount.accessToken },
+            { accessToken },
             `${appUrl}/media/content-item-video/${contentItem.id}`,
           );
           tiktok = { status: "published", publishId };

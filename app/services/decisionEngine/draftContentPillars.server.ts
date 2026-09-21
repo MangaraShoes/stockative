@@ -23,10 +23,19 @@ const pillarSchema = z.object({
   attractsAudience: z.string().describe("Which slice of the ideal audience this pillar speaks to"),
   problemExplored: z.string().describe("The specific pain/need this pillar addresses"),
   promise: z.string().describe("What the audience gains by consuming this pillar"),
+  // "single_image" removido das opções (Patricia, 22/09/2026: "nao queremos
+  // posts de single imagem somente qdo o produto nao tiver imagens de
+  // still") — o post publicado já inclui stills do produto sempre que
+  // existem (buildCarousel.server.ts puxa até 3 sozinho, independente
+  // desse campo), então esse valor nunca reduzia o número de imagens de
+  // verdade, só confundia como um rótulo de "isso vai sair como 1 imagem
+  // só". Um pilar antigo salvo com "single_image" continua funcionando
+  // normalmente (stage1.server.ts ainda sabe interpretar esse valor); só a
+  // IA para de sugerir esse valor pra pilar NOVO daqui pra frente.
   idealFormat: z
-    .enum(["carousel", "single_image", "reel"])
+    .enum(["carousel", "reel"])
     .describe(
-      "reel only for pillars whose content is naturally about motion or a moment unfolding (behind the scenes, founder story, styling/how-to, process, before/after) — not for pillars that are fundamentally about showing crisp product detail from multiple static angles.",
+      "reel only for pillars whose content is naturally about motion or a moment unfolding (behind the scenes, founder story, styling/how-to, process, before/after) — not for pillars that are fundamentally about showing crisp product detail from multiple static angles. Every other pillar is carousel: the post always shows the product's still photos alongside the hero image when they exist, never just one image on purpose.",
     ),
   cta: z.string().describe("The action this pillar typically asks for"),
   growthCategory: z.enum(["atração", "autoridade", "relacionamento", "conversão"]),

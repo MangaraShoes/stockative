@@ -14,6 +14,12 @@ import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
 
 const POSTS_PER_WEEK = 3;
+// Qual dos POSTS_PER_WEEK slots é sempre reservado como Reel (Patricia,
+// 22/09/2026: "toda semana tenha um reel que va para o IG e tiktok") —
+// índice 0 = o primeiro produto escolhido pelo ranking da semana, sempre,
+// independente de qual pilar caiu nesse slot (ver forceReel em
+// planOneSlot). Não depende de nenhum pilar existir com idealFormat="reel".
+const REEL_SLOT_INDEX = 0;
 // Achado ao vivo, 21/09/2026: com isso igual a WEEKLY_PLAN_INTERVAL_DAYS (7),
 // um produto usado nesta semana chega EXATAMENTE sem penalidade no instante
 // em que a próxima semana é gerada (daysSinceLastUsed=7, e a checagem é
@@ -303,6 +309,16 @@ export async function planOneSlot(
   // presente, vira evidência real de Urgency e o discount/prazo entram no
   // Estágio 1 como fato, nunca inventado (Patricia, 13/09/2026).
   promotion?: Promotion,
+  // Reserva este slot como Reel independente do pilar sorteado (Patricia,
+  // 22/09/2026: "queremos que toda semana tenha um reel que va para o IG e
+  // tiktok") — antes disso, um Reel só saía se o pilar da vez tivesse
+  // idealFormat="reel" por sorteio, o que nunca acontecia pra lojas sem
+  // nenhum pilar marcado assim (achado ao vivo, mesma data: 0 dos 6 pilares
+  // reais de uma loja de teste eram "reel"). Com isso, planWeeklyContent
+  // reserva um dos POSTS_PER_WEEK slots como Reel sempre, e o pilar
+  // continua decidindo ângulo/mensagem normalmente — só o formato final (e
+  // o hint de estilo que vai pro Estágio 1) é forçado.
+  forceReel?: boolean,
 ): Promise<WeeklyPlanSlot> {
   const product = await prisma.productCache.findUniqueOrThrow({
     where: { id: productId },
@@ -319,6 +335,12 @@ export async function planOneSlot(
     price: product.price,
   });
 
+  // Quando forceReel, o Estágio 1 recebe o pilar com idealFormat="reel"
+  // (mesmo que o pilar real seja carousel/single_image) — só pra escrever
+  // um ângulo/mensagem que combine com o formato final; o resto do pilar
+  // (problema, promessa, CTA) continua vindo do pilar de verdade sorteado.
+  const effectivePillar = forceReel && pillar ? { ...pillar, idealFormat: "reel" } : pillar;
+
   const stage1Input = {
     productTitle: product.title,
     productDescription: product.description,
@@ -333,15 +355,15 @@ export async function planOneSlot(
       : null,
     brandDescription: shop.brandDescription,
     objective,
-    pillar: pillar
+    pillar: effectivePillar
       ? {
-          name: pillar.name,
-          function: pillar.function,
-          problemExplored: pillar.problemExplored,
-          promise: pillar.promise,
-          idealFormat: pillar.idealFormat,
-          cta: pillar.cta,
-          growthCategory: pillar.growthCategory,
+          name: effectivePillar.name,
+          function: effectivePillar.function,
+          problemExplored: effectivePillar.problemExplored,
+          promise: effectivePillar.promise,
+          idealFormat: effectivePillar.idealFormat,
+          cta: effectivePillar.cta,
+          growthCategory: effectivePillar.growthCategory,
         }
       : null,
     promotion: promotion
@@ -421,7 +443,7 @@ export async function planOneSlot(
   // publicável como imagem normal, só sem o formato preferido do pilar.
   let itemFormat = contentItem.format;
   let videoUrl: string | null = null;
-  if (!needsManualImage && pillar?.idealFormat === "reel") {
+  if (!needsManualImage && (forceReel || pillar?.idealFormat === "reel")) {
     try {
       await generateReelForContentItem(contentItem.id, shopId);
       const updated = await prisma.contentItem.findUniqueOrThrow({
@@ -564,6 +586,8 @@ export async function planWeeklyContent(
         scheduledAt,
         weekBatchId,
         objectiveForSlot,
+        undefined,
+        index === REEL_SLOT_INDEX,
       );
       slots.push(slot);
     }
@@ -755,6 +779,11 @@ export async function swapWeeklyPlanSlotProduct(params: {
     oldItem.weekBatchId,
     oldItem.promotion ? (oldItem.commercialObjective as CommercialObjective) : undefined,
     oldItem.promotion ?? undefined,
+    // Preserva o Reel da semana se ESTE post era ele — sem isso, trocar o
+    // produto do slot reservado como Reel o rebaixava de volta pra imagem
+    // estática, e a garantia de "1 Reel por semana" deixava de valer assim
+    // que a lojista trocasse o produto desse post específico.
+    oldItem.format === "reel",
   );
 
   await prisma.contentItemImage.deleteMany({ where: { contentItemId: oldItem.id } });
@@ -881,6 +910,9 @@ export async function changeWeeklyPlanSlotObjective(params: {
     oldItem.weekBatchId,
     params.objective,
     oldItem.promotion ?? undefined,
+    // Mesmo motivo do swap de produto acima: preserva o Reel da semana se
+    // este post já era ele.
+    oldItem.format === "reel",
   );
 
   await prisma.contentItemImage.deleteMany({ where: { contentItemId: oldItem.id } });

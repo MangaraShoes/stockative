@@ -638,14 +638,15 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
 // última visita, ou que falharam). Fonte única de verdade pra tela do
 // plano semanal, tanto no primeiro load quanto depois de qualquer ação.
 //
-// TAMBÉM inclui posts já publicados de um lote ANTERIOR, dentro da mesma
-// janela de 7 dias (Patricia, 13/09/2026: "como fica se a pessoa clicar em
-// regenerate weekly plan depois de já ter publicado um dos posts?") —
-// regenerar cria um weekBatchId NOVO, e sem isso o post publicado (que o
-// código já preserva, nunca cancela) sumiria da tela mesmo continuando no
-// ar normalmente. Mesma janela rolante de 7 dias usada em
-// AVOID_REUSE_WITHIN_DAYS/WEEKLY_PLAN_INTERVAL_DAYS — "semana" aqui sempre
-// conta a partir de quando o plano foi gerado, não do calendário.
+// Só o lote MAIS RECENTE (Patricia, 21/09/2026: "os anuncios ja publicados
+// da semana anterior deveriam desaparecer desta tela... ali deve ser apenas
+// o weekly plan") — antes disso, um post já publicado de um lote ANTERIOR
+// continuava aparecendo aqui por até 7 dias (pensado originalmente pra
+// cobrir regenerar a semana depois de já ter publicado algo dela, ver
+// histórico), mas na prática misturava posts de semanas diferentes na
+// mesma tela e confundia qual conteúdo é o da semana atual de verdade. O
+// post antigo continua publicado no Instagram normalmente — só não aparece
+// mais NESTA tela depois que um lote novo existe.
 export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlot[]> {
   const latest = await prisma.contentItem.findFirst({
     where: { shopId, weekBatchId: { not: null } },
@@ -654,16 +655,8 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
   });
   if (!latest?.weekBatchId) return [];
 
-  const recentPublishedCutoff = new Date(Date.now() - WEEKLY_PLAN_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
-
   const items = await prisma.contentItem.findMany({
-    where: {
-      shopId,
-      OR: [
-        { weekBatchId: latest.weekBatchId },
-        { status: "published", publishedAt: { gte: recentPublishedCutoff } },
-      ],
-    },
+    where: { shopId, weekBatchId: latest.weekBatchId },
     include: {
       product: true,
       contentPillar: true,

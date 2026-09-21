@@ -387,6 +387,52 @@ function formatScheduledAt(iso: string, timeZone: string): string {
   });
 }
 
+// Achado ao vivo, 21/09/2026: uma lojista trocou o produto de um post,
+// clicou Swap, e nada mudou — nem erro, nem dado novo no banco (confirmado
+// direto na produção). O banner de "travou" adicionado antes cobre só o
+// caso em que o fetcher volta pra idle sem resposta; ele não cobre o caso
+// mais provável aqui, que é o Shopify forçar uma RE-AUTENTICAÇÃO via
+// redirect de topo quando o token de sessão embutida expira no meio do
+// POST — isso recarrega a página inteira e apaga todo o estado do React
+// (inclusive aquele banner) antes de qualquer coisa rodar. sessionStorage
+// sobrevive a esse reload (é por aba/origem, não por render), então
+// guardamos ali um rastro ANTES de cada submit mutável desta tela, e
+// limpamos assim que o fetcher correspondente volta pra idle com QUALQUER
+// resposta (prova de que o JS sobreviveu e a ação não foi engolida). Se na
+// montagem seguinte ainda sobrar um rastro, é porque a página recarregou
+// no meio de uma ação — mostramos um aviso pedindo pra repetir.
+const PENDING_ACTION_KEY = "stockative:planWeek:pendingAction";
+
+function markPendingAction(label: string) {
+  try {
+    sessionStorage.setItem(PENDING_ACTION_KEY, JSON.stringify({ label, ts: Date.now() }));
+  } catch {
+    // sessionStorage indisponível (modo privado, etc.) — a ação ainda roda
+    // normalmente, só perde a recuperação depois de um reload forçado.
+  }
+}
+
+function clearPendingAction() {
+  try {
+    sessionStorage.removeItem(PENDING_ACTION_KEY);
+  } catch {
+    // ver comentário acima
+  }
+}
+
+// Um hook por fetcher mutável da tela — limpa o rastro assim que aquele
+// fetcher específico terminar (com sucesso OU erro, tanto faz: o que
+// importa é que a resposta chegou, então nenhum reload forçado engoliu o
+// clique). Mesmo padrão de "comparar estado anterior durante o render" já
+// usado abaixo pro banner específico do swap.
+function useClearPendingActionOnSettle(fetcherState: string) {
+  const [prevState, setPrevState] = useState(fetcherState);
+  if (fetcherState !== prevState) {
+    setPrevState(fetcherState);
+    if (fetcherState === "idle") clearPendingAction();
+  }
+}
+
 export default function PlanWeek() {
   const {
     hasShop,
@@ -417,6 +463,34 @@ export default function PlanWeek() {
   const objectiveFetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
   const promotionFetcher = useFetcher<typeof action>();
+
+  useClearPendingActionOnSettle(generateFetcher.state);
+  useClearPendingActionOnSettle(swapFetcher.state);
+  useClearPendingActionOnSettle(manageFetcher.state);
+  useClearPendingActionOnSettle(objectiveFetcher.state);
+  useClearPendingActionOnSettle(imageFetcher.state);
+  useClearPendingActionOnSettle(promotionFetcher.state);
+
+  // Lido uma vez, na montagem (inicializador preguiçoso, não efeito — evita
+  // o cascading render que a regra set-state-in-effect aponta): se sobrou
+  // um rastro de uma ação anterior nunca confirmada, é porque a página
+  // recarregou no meio dela (ver comentário de markPendingAction acima) —
+  // mostra um aviso persistente pedindo pra tentar de novo, já que o
+  // clique original se perdeu. Roda também no render do servidor, onde
+  // sessionStorage não existe — o try/catch cobre esse caso normalmente.
+  const [recoveredPendingActionLabel, setRecoveredPendingActionLabel] = useState<string | null>(
+    () => {
+      try {
+        const raw = sessionStorage.getItem(PENDING_ACTION_KEY);
+        if (!raw) return null;
+        sessionStorage.removeItem(PENDING_ACTION_KEY);
+        const parsed = JSON.parse(raw) as { label: string; ts: number };
+        return Date.now() - parsed.ts < 5 * 60 * 1000 ? parsed.label : null;
+      } catch {
+        return null;
+      }
+    },
+  );
 
   const [swapChoices, setSwapChoices] = useState<Record<string, string>>({});
   const [scheduleChoices, setScheduleChoices] = useState<
@@ -491,6 +565,7 @@ export default function PlanWeek() {
   const regeneratingImageContentItemId = submittingContentItemId(imageFetcher);
 
   const generateWeek = () => {
+    markPendingAction("generate this week's plan");
     const formData = new FormData();
     formData.set("intent", "generate");
     plannedObjectives.forEach((objective) => formData.append("objective", objective));
@@ -500,6 +575,7 @@ export default function PlanWeek() {
   const swapProduct = (contentItemId: string) => {
     const newProductId = swapChoices[contentItemId];
     if (!newProductId) return;
+    markPendingAction("swap this post's product");
     setLastSwapAttemptId(contentItemId);
     setStalledSwapContentItemId((current) => (current === contentItemId ? null : current));
     swapFetcher.submit(
@@ -532,6 +608,7 @@ export default function PlanWeek() {
 
   const regenerateImage = (contentItemId: string) => {
     const feedback = imageFeedback[contentItemId]?.trim();
+    markPendingAction("regenerate this post's image");
     imageFetcher.submit(
       { intent: "regenerate-image", contentItemId, ...(feedback ? { feedback } : {}) },
       { method: "POST" },
@@ -541,6 +618,7 @@ export default function PlanWeek() {
   const changeObjective = (contentItemId: string) => {
     const objective = objectiveChoices[contentItemId];
     if (!objective) return;
+    markPendingAction("change this post's objective");
     objectiveFetcher.submit(
       { intent: "change-objective", contentItemId, objective },
       { method: "POST" },
@@ -552,17 +630,22 @@ export default function PlanWeek() {
   // automaticamente") — sem precisar de um botão "Save time" separado.
   const saveSchedule = (contentItemId: string, weekday: number, time: string) => {
     const [hour, minute] = time.split(":");
+    markPendingAction("change this post's schedule");
     manageFetcher.submit(
       { intent: "reschedule", contentItemId, weekday: String(weekday), hour, minute },
       { method: "POST" },
     );
   };
 
-  const approveSlot = (contentItemId: string) =>
+  const approveSlot = (contentItemId: string) => {
+    markPendingAction("approve this post");
     manageFetcher.submit({ intent: "approve", contentItemId }, { method: "POST" });
+  };
 
-  const cancelSlot = (contentItemId: string) =>
+  const cancelSlot = (contentItemId: string) => {
+    markPendingAction("cancel this post");
     manageFetcher.submit({ intent: "cancel", contentItemId }, { method: "POST" });
+  };
 
   const swapFailure =
     swapFetcher.data?.intent === "swap-product" && swapFetcher.data.result.status === "error"
@@ -603,6 +686,21 @@ export default function PlanWeek() {
     <s-page heading="Weekly plan">
       <OnboardingStepper status={onboardingStatus} currentStepHref="/app/plan-week" />
 
+      {recoveredPendingActionLabel && (
+        <s-banner
+          tone="warning"
+          dismissible
+          onDismiss={() => setRecoveredPendingActionLabel(null)}
+        >
+          <s-paragraph>
+            This page reloaded before we could confirm your last action (
+            {recoveredPendingActionLabel}) — this usually happens when your
+            session needs to refresh. It probably didn&apos;t go through.
+            Please try it again.
+          </s-paragraph>
+        </s-banner>
+      )}
+
       <s-section heading="Seasonal or promotional campaign">
         {activePromotionName ? (
           <s-paragraph>
@@ -625,7 +723,10 @@ export default function PlanWeek() {
             </s-button>
           </>
         ) : (
-          <promotionFetcher.Form method="post">
+          <promotionFetcher.Form
+            method="post"
+            onSubmit={() => markPendingAction("build this promotional campaign")}
+          >
             <input type="hidden" name="intent" value="promotion" />
             <s-stack direction="block" gap="base">
               <s-stack direction="inline" gap="base">

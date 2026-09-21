@@ -500,11 +500,35 @@ export default function PlanWeek() {
   const swapProduct = (contentItemId: string) => {
     const newProductId = swapChoices[contentItemId];
     if (!newProductId) return;
+    setLastSwapAttemptId(contentItemId);
+    setStalledSwapContentItemId((current) => (current === contentItemId ? null : current));
     swapFetcher.submit(
       { intent: "swap-product", contentItemId, newProductId },
       { method: "POST" },
     );
   };
+
+  // Achado ao vivo, 21/09/2026: "ja faz bastante tempo que cliquei swap e
+  // nada mudou" — o banco não tinha nenhum rastro da tentativa, ou seja o
+  // fetcher voltou pra idle sem nunca receber a resposta da action (o
+  // suspeito de sempre nesta sessão: token de sessão embutida expirado
+  // derrubando o POST antes de chegar no server). swapFailure só cobre o
+  // caso em que a action rodou e devolveu {status:"error"} — isso aqui cobre
+  // o caso em que ela nem chegou a rodar, comparando o que foi submetido
+  // com o que voltou.
+  const [lastSwapAttemptId, setLastSwapAttemptId] = useState<string | null>(null);
+  const [syncedSwapFetcherState, setSyncedSwapFetcherState] = useState(swapFetcher.state);
+  const [stalledSwapContentItemId, setStalledSwapContentItemId] = useState<string | null>(null);
+  if (swapFetcher.state !== syncedSwapFetcherState) {
+    setSyncedSwapFetcherState(swapFetcher.state);
+    if (swapFetcher.state === "idle" && lastSwapAttemptId) {
+      const reachedServer =
+        swapFetcher.data?.intent === "swap-product" &&
+        swapFetcher.data.contentItemId === lastSwapAttemptId;
+      setStalledSwapContentItemId(reachedServer ? null : lastSwapAttemptId);
+      setLastSwapAttemptId(null);
+    }
+  }
 
   const regenerateImage = (contentItemId: string) => {
     const feedback = imageFeedback[contentItemId]?.trim();
@@ -578,6 +602,152 @@ export default function PlanWeek() {
   return (
     <s-page heading="Weekly plan">
       <OnboardingStepper status={onboardingStatus} currentStepHref="/app/plan-week" />
+
+      <s-section heading="Seasonal or promotional campaign">
+        {activePromotionName ? (
+          <s-paragraph>
+            <strong>{activePromotionName}</strong> is running now — every
+            post above belongs to it. It&apos;ll end on its own and hand
+            control back to the regular weekly plan.
+          </s-paragraph>
+        ) : !showPromotionForm ? (
+          <>
+            <s-paragraph>
+              Start a campaign like Black Friday or Christmas — it replaces
+              this week&apos;s regular content with posts about it, and
+              nothing new publishes once it ends.
+            </s-paragraph>
+            <s-button
+              onClick={() => setShowPromotionForm(true)}
+              {...(!canGenerate ? { disabled: true } : {})}
+            >
+              Start a seasonal campaign
+            </s-button>
+          </>
+        ) : (
+          <promotionFetcher.Form method="post">
+            <input type="hidden" name="intent" value="promotion" />
+            <s-stack direction="block" gap="base">
+              <s-stack direction="inline" gap="base">
+                <select
+                  name="occasionPreset"
+                  value={occasionPreset}
+                  onChange={(e) => setOccasionPreset(e.target.value)}
+                  style={{ padding: 8 }}
+                >
+                  {OCCASION_PRESETS.map((preset) => (
+                    <option key={preset} value={preset}>
+                      {preset}
+                    </option>
+                  ))}
+                </select>
+                {occasionPreset === "Other" && (
+                  <input
+                    type="text"
+                    name="customOccasionName"
+                    placeholder="Campaign name"
+                    style={{ padding: 8, flex: 1 }}
+                  />
+                )}
+              </s-stack>
+
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <input
+                  type="number"
+                  name="discountPct"
+                  min="1"
+                  max="90"
+                  placeholder="Discount"
+                  style={{ width: 100, padding: 8 }}
+                />
+                <s-text>% off</s-text>
+              </s-stack>
+
+              <s-stack direction="inline" gap="base">
+                <select
+                  name="scopeType"
+                  value={promotionScopeType}
+                  onChange={(e) =>
+                    setPromotionScopeType(e.target.value as "store" | "collection")
+                  }
+                  style={{ padding: 8 }}
+                >
+                  <option value="store">Whole store</option>
+                  <option value="collection">One collection</option>
+                </select>
+                {promotionScopeType === "collection" && (
+                  <select name="scopeValue" style={{ padding: 8 }}>
+                    {productCollections.length === 0 ? (
+                      <option value="">No collections found</option>
+                    ) : (
+                      productCollections.map((collection) => (
+                        <option key={collection} value={collection}>
+                          {collection}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                )}
+              </s-stack>
+
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <label>
+                  Starts <input type="date" name="startsAt" style={{ padding: 8 }} />
+                </label>
+                <label>
+                  Ends <input type="date" name="endsAt" style={{ padding: 8 }} />
+                </label>
+              </s-stack>
+
+              <s-stack direction="inline" gap="base">
+                <button
+                  type="submit"
+                  disabled={isSubmittingPromotion}
+                  style={{
+                    display: "inline-block",
+                    alignSelf: "flex-start",
+                    padding: "8px 16px",
+                    border: "1px solid #000",
+                    borderRadius: 8,
+                    background: "#000",
+                    color: "#fff",
+                    fontWeight: 500,
+                    opacity: isSubmittingPromotion ? 0.5 : 1,
+                    cursor: isSubmittingPromotion ? "default" : "pointer",
+                  }}
+                >
+                  {isSubmittingPromotion ? "Building…" : "Build my promotional campaign"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPromotionForm(false)}
+                  disabled={isSubmittingPromotion}
+                  style={{
+                    display: "inline-block",
+                    alignSelf: "flex-start",
+                    padding: "8px 16px",
+                    border: "1px solid #a8abae",
+                    borderRadius: 8,
+                    background: "transparent",
+                    fontWeight: 500,
+                  }}
+                >
+                  Cancel
+                </button>
+              </s-stack>
+
+              {isSubmittingPromotion && (
+                <GeneratingProgressBar label="Building this campaign's posts…" />
+              )}
+              {promotionFailure && (
+                <s-paragraph>
+                  <strong>{promotionFailure}</strong>
+                </s-paragraph>
+              )}
+            </s-stack>
+          </promotionFetcher.Form>
+        )}
+      </s-section>
 
       <s-section heading="This week's content, picked for you">
         <s-paragraph>
@@ -835,6 +1005,14 @@ export default function PlanWeek() {
                         </strong>
                       </s-paragraph>
                     )}
+                    {stalledSwapContentItemId === slot.contentItemId && (
+                      <s-paragraph>
+                        <strong>
+                          The swap didn&apos;t go through — this can happen when your session
+                          expires. Please reload the page and try again.
+                        </strong>
+                      </s-paragraph>
+                    )}
                     {manageFailure?.contentItemId === slot.contentItemId && (
                       <s-paragraph>
                         <strong>
@@ -928,6 +1106,14 @@ export default function PlanWeek() {
                             Swap
                           </s-button>
                         </s-stack>
+                        {/* Trocar produto gera uma editorial nova pro produto
+                            escolhido (mesma cadeia de IA de gerar imagem) —
+                            sem esse indicador, a demora parecia travamento
+                            (achado ao vivo, 22/09/2026: "cliquei para trocar
+                            o produto ele nao atualizou"). */}
+                        {isSwapping && (
+                          <GeneratingProgressBar label="Swapping product and building its new image…" />
+                        )}
 
                         <s-stack direction="inline" gap="small" alignItems="center">
                           <s-select
@@ -1032,156 +1218,6 @@ export default function PlanWeek() {
               </s-paragraph>
             )}
           </s-stack>
-        )}
-      </s-section>
-
-      {/* Movido de app.content-pillars.tsx (Patricia, 20/09/2026) — antes só
-          dava pra criar uma campanha promocional ANTES de os pilares
-          existirem (ou seja, só uma vez, no onboarding). Agora fica sempre
-          acessível aqui, junto com o resto das ações da semana. */}
-      <s-section heading="Seasonal or promotional campaign">
-        {activePromotionName ? (
-          <s-paragraph>
-            <strong>{activePromotionName}</strong> is running now — every
-            post above belongs to it. It&apos;ll end on its own and hand
-            control back to the regular weekly plan.
-          </s-paragraph>
-        ) : !showPromotionForm ? (
-          <>
-            <s-paragraph>
-              Start a campaign like Black Friday or Christmas — it replaces
-              this week&apos;s regular content with posts about it, and
-              nothing new publishes once it ends.
-            </s-paragraph>
-            <s-button
-              onClick={() => setShowPromotionForm(true)}
-              {...(!canGenerate ? { disabled: true } : {})}
-            >
-              Start a seasonal campaign
-            </s-button>
-          </>
-        ) : (
-          <promotionFetcher.Form method="post">
-            <input type="hidden" name="intent" value="promotion" />
-            <s-stack direction="block" gap="base">
-              <s-stack direction="inline" gap="base">
-                <select
-                  name="occasionPreset"
-                  value={occasionPreset}
-                  onChange={(e) => setOccasionPreset(e.target.value)}
-                  style={{ padding: 8 }}
-                >
-                  {OCCASION_PRESETS.map((preset) => (
-                    <option key={preset} value={preset}>
-                      {preset}
-                    </option>
-                  ))}
-                </select>
-                {occasionPreset === "Other" && (
-                  <input
-                    type="text"
-                    name="customOccasionName"
-                    placeholder="Campaign name"
-                    style={{ padding: 8, flex: 1 }}
-                  />
-                )}
-              </s-stack>
-
-              <s-stack direction="inline" gap="base" alignItems="center">
-                <input
-                  type="number"
-                  name="discountPct"
-                  min="1"
-                  max="90"
-                  placeholder="Discount"
-                  style={{ width: 100, padding: 8 }}
-                />
-                <s-text>% off</s-text>
-              </s-stack>
-
-              <s-stack direction="inline" gap="base">
-                <select
-                  name="scopeType"
-                  value={promotionScopeType}
-                  onChange={(e) =>
-                    setPromotionScopeType(e.target.value as "store" | "collection")
-                  }
-                  style={{ padding: 8 }}
-                >
-                  <option value="store">Whole store</option>
-                  <option value="collection">One collection</option>
-                </select>
-                {promotionScopeType === "collection" && (
-                  <select name="scopeValue" style={{ padding: 8 }}>
-                    {productCollections.length === 0 ? (
-                      <option value="">No collections found</option>
-                    ) : (
-                      productCollections.map((collection) => (
-                        <option key={collection} value={collection}>
-                          {collection}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                )}
-              </s-stack>
-
-              <s-stack direction="inline" gap="base" alignItems="center">
-                <label>
-                  Starts <input type="date" name="startsAt" style={{ padding: 8 }} />
-                </label>
-                <label>
-                  Ends <input type="date" name="endsAt" style={{ padding: 8 }} />
-                </label>
-              </s-stack>
-
-              <s-stack direction="inline" gap="base">
-                <button
-                  type="submit"
-                  disabled={isSubmittingPromotion}
-                  style={{
-                    display: "inline-block",
-                    alignSelf: "flex-start",
-                    padding: "8px 16px",
-                    border: "1px solid #000",
-                    borderRadius: 8,
-                    background: "#000",
-                    color: "#fff",
-                    fontWeight: 500,
-                    opacity: isSubmittingPromotion ? 0.5 : 1,
-                    cursor: isSubmittingPromotion ? "default" : "pointer",
-                  }}
-                >
-                  {isSubmittingPromotion ? "Building…" : "Build my promotional campaign"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPromotionForm(false)}
-                  disabled={isSubmittingPromotion}
-                  style={{
-                    display: "inline-block",
-                    alignSelf: "flex-start",
-                    padding: "8px 16px",
-                    border: "1px solid #a8abae",
-                    borderRadius: 8,
-                    background: "transparent",
-                    fontWeight: 500,
-                  }}
-                >
-                  Cancel
-                </button>
-              </s-stack>
-
-              {isSubmittingPromotion && (
-                <GeneratingProgressBar label="Building this campaign's posts…" />
-              )}
-              {promotionFailure && (
-                <s-paragraph>
-                  <strong>{promotionFailure}</strong>
-                </s-paragraph>
-              )}
-            </s-stack>
-          </promotionFetcher.Form>
         )}
       </s-section>
 

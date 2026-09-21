@@ -443,6 +443,17 @@ export interface CategoryRepertoire {
   // mostra (ver checkImageComposition) e pra checagem de descompasso
   // estrutural (ver hasStructuralMismatch) — cada categoria informa os seus.
   sceneOptionIds: { actions: string[]; environments: string[]; framings: string[] };
+  // Achado ao vivo, 21/09/2026: buildCarousel reaproveita uma editorial já
+  // gerada pro mesmo produto pra economizar crédito de IA — mas nunca
+  // rechecava se o ambiente pedido NAQUELA geração ainda faz sentido pro
+  // produto. Uma editorial gerada ANTES do guardrail de requiresOpenFootwear
+  // existir (mocassim preto fechado numa cena de praia/resort — o exato
+  // caso que motivou aquele guardrail) continuava sendo reaproveitada pra
+  // sempre depois disso, porque passedFidelityCheck/passedCompositionCheck
+  // são sobre FIDELIDADE ao produto e qualidade editorial, nunca sobre
+  // coerência de cenário. Opcional (default: sempre válido) porque só
+  // calçado tem essa regra dura hoje.
+  isEnvironmentStillValid?(productTitle: string, environmentId: string): boolean;
 }
 
 // Extraída ipsis litteris do prompt condicional que existia em
@@ -453,6 +464,17 @@ export interface CategoryRepertoire {
 // solta dentro do prompt universal.
 const FOOTWEAR_PROMPT_RULES = `- Frame the footwear so its side silhouette is visible (never toe pointed straight at camera, which foreshortens it). Any pants, skirt, or dress hem MUST end above the ankle, leaving the ankle bare — never a long/midi/maxi length that covers the ankle or shoe, even partially. The shoe needs to occupy a real, noticeable portion of the frame, not just be a small detail at the bottom of a full-body shot — if the environment is spacious (a large room, an architectural exterior), move the camera close enough that the product still dominates the frame instead of shrinking into a wide establishing shot. BOTH shoes/feet must be fully and clearly inside the frame — never let one foot get cut off at the edge of the image. This still applies fully in a walking/motion pose: choose the instant in the stride where the shoe is clearest (front foot planted or the trailing foot's side profile clearly visible), in sharp focus, not blurred by motion and not the leg turned away from camera.`;
 
+// Mesma regra de selectFootwearScene (linha ~404), aplicada de novo na hora
+// de REAPROVEITAR uma editorial já existente, não só na hora de gerar uma
+// nova — um ambiente de praia/resort exige calçado aberto, sempre, não só no
+// dia em que foi gerado.
+function isFootwearEnvironmentStillValid(productTitle: string, environmentId: string): boolean {
+  const environment = FOOTWEAR_ENVIRONMENTS.find((e) => e.id === environmentId);
+  if (!environment) return true; // ID de um ambiente antigo/removido do repertório — não é o que este guardrail checa
+  if (environment.requiresOpenFootwear && !isOpenFootwear(productTitle)) return false;
+  return true;
+}
+
 export const footwearRepertoire: CategoryRepertoire = {
   id: "footwear",
   selectScene: selectFootwearScene,
@@ -462,4 +484,5 @@ export const footwearRepertoire: CategoryRepertoire = {
     environments: FOOTWEAR_ENVIRONMENTS.map((e) => e.id),
     framings: FOOTWEAR_FRAMINGS.map((f) => f.id),
   },
+  isEnvironmentStillValid: isFootwearEnvironmentStillValid,
 };

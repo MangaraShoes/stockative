@@ -14,7 +14,15 @@ import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
 
 const POSTS_PER_WEEK = 3;
-const AVOID_REUSE_WITHIN_DAYS = 7;
+// Achado ao vivo, 21/09/2026: com isso igual a WEEKLY_PLAN_INTERVAL_DAYS (7),
+// um produto usado nesta semana chega EXATAMENTE sem penalidade no instante
+// em que a próxima semana é gerada (daysSinceLastUsed=7, e a checagem é
+// "< 7") — na prática a rejeição de reuso nunca protegia contra repetir o
+// mesmo produto de uma semana pra outra, só dentro da mesma semana (troca
+// manual, geração repetida). Maior que o intervalo semanal por uma margem
+// real (quase o dobro) garante que o produto da semana passada ainda chega
+// penalizado -100 na nova rodada, dando espaço pro resto do catálogo entrar.
+const AVOID_REUSE_WITHIN_DAYS = 13;
 
 export interface WeeklyPlanImage {
   position: number;

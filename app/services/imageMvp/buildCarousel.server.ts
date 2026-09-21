@@ -1,6 +1,8 @@
 import prisma from "../../db.server";
 import { generateProductImage } from "./generateProductImage.server";
 import type { CommercialObjective } from "../decisionEngine/constants";
+import { getRepertoireForInteraction } from "./categoryDispatch.server";
+import type { VisualCategory, ProductInteraction } from "./productClassification.server";
 
 interface BuildCarouselParams {
   shopId: string;
@@ -47,6 +49,10 @@ export async function buildCarousel(
 ): Promise<BuildCarouselResult> {
   const maxStills = params.maxStills ?? 3;
 
+  const product = await prisma.productCache.findUnique({
+    where: { id: params.productId },
+  });
+
   const usedHeroRows = await prisma.contentItemImage.findMany({
     where: {
       position: 1,
@@ -72,18 +78,36 @@ export async function buildCarousel(
           generationLog: { passedFidelityCheck: true, passedCompositionCheck: true },
         },
         orderBy: { createdAt: "desc" },
+        include: { generationLog: true },
       });
 
-  let heroAssetId = existingEditorials.find(
+  // Achado ao vivo, 21/09/2026 (Patricia: uma loafer preta fechada, "de
+  // outono", reaproveitada numa cena de praia/verão): passedFidelityCheck/
+  // passedCompositionCheck acima só atestam fidelidade ao produto e
+  // qualidade editorial — nunca se o AMBIENTE pedido naquela geração ainda
+  // faz sentido pra este produto (ex.: praia exige calçado aberto, ver
+  // isFootwearEnvironmentStillValid). Uma editorial gerada antes desse
+  // guardrail existir ficava reaproveitável pra sempre depois. Recheca
+  // aqui, na hora do reaproveitamento, não só na hora da geração original.
+  const validEditorials = product
+    ? existingEditorials.filter((asset) => {
+        const log = asset.generationLog;
+        if (!log?.category || !log.requestedEnvironment) return true;
+        const repertoire = getRepertoireForInteraction(
+          log.category as VisualCategory,
+          (log.interaction as ProductInteraction | null) ?? "worn",
+        );
+        return repertoire.isEnvironmentStillValid?.(product.title, log.requestedEnvironment) ?? true;
+      })
+    : existingEditorials;
+
+  let heroAssetId = validEditorials.find(
     (asset) => !usedHeroAssetIds.has(asset.id),
   )?.id;
-  let heroUrl = existingEditorials.find((a) => a.id === heroAssetId)?.imageUrl;
+  let heroUrl = validEditorials.find((a) => a.id === heroAssetId)?.imageUrl;
   const heroWasReused = Boolean(heroAssetId);
 
   if (!heroAssetId) {
-    const product = await prisma.productCache.findUnique({
-      where: { id: params.productId },
-    });
     if (!product?.imageUrl) {
       return {
         status: "fallback",

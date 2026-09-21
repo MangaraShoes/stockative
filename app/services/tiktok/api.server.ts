@@ -4,14 +4,18 @@ export const TIKTOK_USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/";
 export const TIKTOK_INBOX_UPLOAD_INIT_URL =
   "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/";
 
-// user.info.basic pro perfil da conta conectada (username, exibido em
-// app.social.tsx); video.upload pra colocar o Reel na caixa de rascunhos do
-// TikTok da lojista — modo que NÃO exige a auditoria de Direct Post da
-// Content Posting API (Patricia, 20/09/2026: mitigação enquanto a auditoria
-// não sai, mesmo raciocínio já usado pro Instagram em ARCHITECTURE.md).
-// video.publish (postar direto, sem a lojista confirmar no app) fica de fora
-// de propósito até a auditoria ser aprovada.
-export const TIKTOK_SCOPES = ["user.info.basic", "video.upload"].join(",");
+// Achado ao vivo, 22/09/2026: "user.info.basic" e "video.upload" não
+// existem como escopos de usuário de verdade neste app (nem aparecem na
+// lista de "Add scopes" do TikTok for Developers) — pedir eles na
+// autorização derrubava o login inteiro com um erro genérico de
+// "client_key" que na real era o escopo sendo rejeitado. user.info.profile
+// é o único que existe e já cobre open_id + username (o que
+// getTikTokAccount usa). O direito de enviar pra caixa de rascunhos do
+// TikTok (Content Posting API em modo inbox, sem a auditoria de Direct
+// Post) vem de o PRODUTO Content Posting API estar habilitado no app, não
+// de um escopo separado do usuário — por isso não falta nada aqui pra
+// uploadVideoToInbox funcionar.
+export const TIKTOK_SCOPES = ["user.info.profile"].join(",");
 
 export class TikTokApiError extends Error {
   code: string | null;

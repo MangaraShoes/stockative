@@ -542,6 +542,27 @@ export async function planWeeklyContent(
     const shop = await prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
     const timeZone = shop.ianaTimezone ?? "UTC";
 
+    // Produtos do lote que está sendo descartado agora — capturados ANTES
+    // do cancelamento, pra excluir da nova rodada de verdade (Patricia,
+    // 22/09/2026: "when regenerating no one of the previous products can be
+    // showed again"). getProductUsageStats só enxerga posts PUBLICADOS
+    // (decisão deliberada de 12/09/2026, pra não penalizar um rascunho
+    // abandonado nunca mostrado pra audiência) — mas isso deixava
+    // regenerações sucessivas do MESMO rascunho ainda não publicado livres
+    // pra escolher os mesmos produtos de novo e de novo, já que nada
+    // contava como "usado" até publicar de verdade.
+    const cancelledProductIds = (
+      await prisma.contentItem.findMany({
+        where: {
+          shopId,
+          weekBatchId: { not: null },
+          status: { notIn: ["published", "publishing", "partial", "cancelled"] },
+          productId: { not: null },
+        },
+        select: { productId: true },
+      })
+    ).map((item) => item.productId as string);
+
     await prisma.contentItem.updateMany({
       where: {
         shopId,
@@ -556,7 +577,7 @@ export async function planWeeklyContent(
     const pillarsForSlots = await allocatePillarsForWeek(shopId, POSTS_PER_WEEK);
     const schedule = await resolveWeeklySchedule(shopId);
 
-    const usedProductIds = new Set<string>();
+    const usedProductIds = new Set<string>(cancelledProductIds);
     const slots: WeeklyPlanSlot[] = [];
     for (let index = 0; index < POSTS_PER_WEEK; index++) {
       const objectiveForSlot = forcedObjectives?.length

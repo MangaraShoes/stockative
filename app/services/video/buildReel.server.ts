@@ -69,8 +69,17 @@ async function resolveFfmpegPath(): Promise<string> {
 async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void> {
   const ffmpegPath = await resolveFfmpegPath();
   const zoomFrames = Math.round(SECONDS_PER_IMAGE * FPS);
-  const superWidth = CANVAS_WIDTH * 2;
-  const superHeight = CANVAS_HEIGHT * 2;
+  // Achado ao vivo, 22/09/2026: numa loja real, gerar o Reel obrigatório da
+  // semana matou o processo do ffmpeg no meio (code:null — morto por sinal,
+  // não erro de codec: os heartbeats de progresso paravam sem mensagem
+  // nenhuma, "frame=0" pelos ~7s inteiros antes de sumir). O supersample
+  // de 2x (4x os pixels do canvas final) pra cada branch zoompan, RODANDO
+  // EM PARALELO pra cada imagem do carrossel, é pesado demais pro container
+  // de produção. 1.3x ainda cobre o zoom máximo de 1.15x com folga (evita
+  // upscaling visível no crop final) por uma fração do custo de memória/CPU.
+  const SUPERSAMPLE_FACTOR = 1.3;
+  const superWidth = Math.round(CANVAS_WIDTH * SUPERSAMPLE_FACTOR);
+  const superHeight = Math.round(CANVAS_HEIGHT * SUPERSAMPLE_FACTOR);
 
   // Sem "-t" aqui: o loop fica infinito e cada branch é cortado no número
   // exato de frames pelo "trim" abaixo. Limitar a duração já na leitura do
@@ -148,9 +157,18 @@ async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void
       stderr += chunk.toString();
     });
     proc.on("error", reject);
-    proc.on("close", (code) => {
+    proc.on("close", (code, signal) => {
       if (code === 0) resolve();
-      else reject(new Error(`ffmpeg saiu com código ${code}: ${stderr.slice(-2000)}`));
+      // code=null + signal preenchido = processo morto por sinal externo
+      // (o caso real de 22/09/2026 era SIGKILL, provável OOM) — sem logar o
+      // signal, "código null" sozinho não dava pra distinguir isso de um
+      // crash normal do próprio ffmpeg.
+      else
+        reject(
+          new Error(
+            `ffmpeg saiu com código ${code}${signal ? ` (sinal ${signal})` : ""}: ${stderr.slice(-2000)}`,
+          ),
+        );
     });
   });
 }

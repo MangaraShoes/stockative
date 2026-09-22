@@ -11,6 +11,18 @@ import type {
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+// Achado ao vivo, 22/09/2026: uma geração semanal ficou travada mais de 50
+// minutos — CPU e memória do container ociosos o tempo inteiro (sinal claro
+// de estar esperando uma resposta que nunca chega, não processando nada) —
+// e segurou o lock de geração da semana (weeklyPlanGeneratingAt) o tempo
+// todo, mesmo passando bem do limite de 15min que devia liberar retry. O
+// fetch() aqui não tinha timeout nenhum: se o OpenRouter aceita a conexão e
+// nunca responde nem fecha, a Promise nunca resolve nem rejeita, e todo o
+// pipeline (texto, imagem, checagem de fidelidade/composição — todos
+// passam por request()) trava pra sempre. 2 minutos é generoso pro pior
+// caso já observado neste ambiente (chamadas de até ~100s), mas finito.
+const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
+
 type MessageContent =
   | string
   | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
@@ -76,14 +88,27 @@ export class OpenRouterProvider implements AIProvider {
   ) {}
 
   private async request(body: Record<string, unknown>): Promise<OpenRouterResponse> {
-    const response = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ model: this.model, ...body }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: this.model, ...body }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new Error(`OpenRouter request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();

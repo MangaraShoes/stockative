@@ -66,90 +66,7 @@ async function resolveFfmpegPath(): Promise<string> {
   return ffmpegStatic.default as unknown as string;
 }
 
-async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void> {
-  const ffmpegPath = await resolveFfmpegPath();
-  const zoomFrames = Math.round(SECONDS_PER_IMAGE * FPS);
-  // Achado ao vivo, 22/09/2026: numa loja real, gerar o Reel obrigatório da
-  // semana matou o processo do ffmpeg no meio (code:null — morto por sinal,
-  // não erro de codec: os heartbeats de progresso paravam sem mensagem
-  // nenhuma, "frame=0" pelos ~7s inteiros antes de sumir). O supersample
-  // de 2x (4x os pixels do canvas final) pra cada branch zoompan, RODANDO
-  // EM PARALELO pra cada imagem do carrossel, é pesado demais pro container
-  // de produção. 1.3x ainda cobre o zoom máximo de 1.15x com folga (evita
-  // upscaling visível no crop final) por uma fração do custo de memória/CPU.
-  const SUPERSAMPLE_FACTOR = 1.3;
-  const superWidth = Math.round(CANVAS_WIDTH * SUPERSAMPLE_FACTOR);
-  const superHeight = Math.round(CANVAS_HEIGHT * SUPERSAMPLE_FACTOR);
-
-  // Sem "-t" aqui: o loop fica infinito e cada branch é cortado no número
-  // exato de frames pelo "trim" abaixo. Limitar a duração já na leitura do
-  // input (como fazia antes) faz o demuxer entregar várias cópias do frame
-  // em timestamps diferentes, e o zoompan trata cada uma como uma imagem
-  // nova — multiplicando "d" por frame de entrada em vez de gerar só um
-  // ciclo de zoom (bug real, encontrado testando com imagens reais: um
-  // reel de 2 imagens de 7s saía com 10min16s).
-  const inputArgs: string[] = [];
-  imagePaths.forEach((imgPath) => {
-    inputArgs.push("-loop", "1", "-i", imgPath);
-  });
-
-  const filterBranches: string[] = [];
-  const branchLabels: string[] = [];
-  imagePaths.forEach((_, index) => {
-    // Alterna zoom-in/zoom-out entre imagens pra não repetir sempre o mesmo
-    // movimento (mesmo princípio de variar composição do CLAUDE.md da Mangará).
-    const zoomingIn = index % 2 === 0;
-    const zoomExpr = zoomingIn
-      ? "min(zoom+0.0015,1.15)"
-      : "if(eq(on,0),1.15,max(zoom-0.0015,1.0))";
-    const label = `v${index}`;
-    filterBranches.push(
-      `[${index}:v]scale=${superWidth}:${superHeight}:force_original_aspect_ratio=increase,` +
-        `crop=${superWidth}:${superHeight},` +
-        `zoompan=z='${zoomExpr}':d=${zoomFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${CANVAS_WIDTH}x${CANVAS_HEIGHT}:fps=${FPS},` +
-        `setsar=1,trim=start_frame=0:end_frame=${zoomFrames},setpts=PTS-STARTPTS[${label}]`,
-    );
-    branchLabels.push(`[${label}]`);
-  });
-
-  const concatFilter = `${branchLabels.join("")}concat=n=${imagePaths.length}:v=1:a=0[vconcat]`;
-  const totalDuration = SECONDS_PER_IMAGE * imagePaths.length;
-  const fadeOutStart = Math.max(totalDuration - 0.5, 0);
-  const fadeFilter = `[vconcat]fade=t=in:st=0:d=0.4,fade=t=out:st=${fadeOutStart}:d=0.5[vout]`;
-
-  const filterComplex = [...filterBranches, concatFilter, fadeFilter].join(";");
-
-  // Instagram Reels exige uma trilha de áudio no container — sem música
-  // licenciada ainda (fica pra depois), gera uma trilha muda do tamanho do vídeo.
-  const audioInputIndex = imagePaths.length;
-
-  const args = [
-    ...inputArgs,
-    "-f",
-    "lavfi",
-    "-i",
-    "anullsrc=channel_layout=stereo:sample_rate=44100",
-    "-filter_complex",
-    filterComplex,
-    "-map",
-    "[vout]",
-    "-map",
-    `${audioInputIndex}:a`,
-    "-shortest",
-    "-c:v",
-    "libx264",
-    "-pix_fmt",
-    "yuv420p",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "128k",
-    "-movflags",
-    "+faststart",
-    "-y",
-    outputPath,
-  ];
-
+function runFfmpegCommand(ffmpegPath: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegPath, args);
     let stderr = "";
@@ -171,4 +88,110 @@ async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void
         );
     });
   });
+}
+
+// Achado ao vivo, 22/09/2026, DUAS VEZES seguidas: gerar o Reel obrigatório
+// da semana matou o processo do ffmpeg no meio por SIGKILL (OOM) — mesmo
+// depois de já ter cortado o supersample de 2x pra 1.3x na primeira
+// tentativa. O problema real não era só a resolução: era rodar os branches
+// de zoompan de TODAS as imagens (decode + filtro em resolução alta) AO
+// MESMO TEMPO dentro de um único filter_complex. Agora cada imagem vira um
+// clipe pequeno numa chamada de ffmpeg SEPARADA e SEQUENCIAL (nunca mais de
+// uma decodificação grande ativa por vez — derruba o pico de memória em
+// ~N vezes, N = imagens do reel), e só a etapa final de concatenar +
+// aplicar fade trabalha com os clipes já pequenos, bem mais barata.
+async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void> {
+  const ffmpegPath = await resolveFfmpegPath();
+  const zoomFrames = Math.round(SECONDS_PER_IMAGE * FPS);
+  const SUPERSAMPLE_FACTOR = 1.3;
+  const superWidth = Math.round(CANVAS_WIDTH * SUPERSAMPLE_FACTOR);
+  const superHeight = Math.round(CANVAS_HEIGHT * SUPERSAMPLE_FACTOR);
+  const workDir = path.dirname(outputPath);
+
+  // Etapa 1: um clipe silencioso por imagem, um de cada vez.
+  const clipPaths: string[] = [];
+  for (let index = 0; index < imagePaths.length; index++) {
+    // Alterna zoom-in/zoom-out entre imagens pra não repetir sempre o mesmo
+    // movimento (mesmo princípio de variar composição do CLAUDE.md da Mangará).
+    const zoomingIn = index % 2 === 0;
+    const zoomExpr = zoomingIn
+      ? "min(zoom+0.0015,1.15)"
+      : "if(eq(on,0),1.15,max(zoom-0.0015,1.0))";
+    const clipPath = path.join(workDir, `clip-${index}.mp4`);
+    const filter =
+      `scale=${superWidth}:${superHeight}:force_original_aspect_ratio=increase,` +
+      `crop=${superWidth}:${superHeight},` +
+      `zoompan=z='${zoomExpr}':d=${zoomFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${CANVAS_WIDTH}x${CANVAS_HEIGHT}:fps=${FPS},` +
+      `setsar=1,trim=start_frame=0:end_frame=${zoomFrames},setpts=PTS-STARTPTS`;
+
+    await runFfmpegCommand(ffmpegPath, [
+      // Sem "-t" aqui: o loop fica infinito e o "-frames:v" + "trim" abaixo
+      // cortam no número exato de frames. Limitar a duração já na leitura
+      // do input faz o demuxer entregar várias cópias do frame em
+      // timestamps diferentes, e o zoompan trata cada uma como uma imagem
+      // nova — multiplicando "d" por frame de entrada em vez de gerar só
+      // um ciclo de zoom (bug real, encontrado testando com imagens reais:
+      // um reel de 2 imagens de 7s saía com 10min16s).
+      "-loop",
+      "1",
+      "-i",
+      imagePaths[index],
+      "-vf",
+      filter,
+      "-frames:v",
+      String(zoomFrames),
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-pix_fmt",
+      "yuv420p",
+      "-y",
+      clipPath,
+    ]);
+    clipPaths.push(clipPath);
+  }
+
+  // Etapa 2: concatena os clipes já pequenos (mesma resolução final, sem
+  // supersample) + aplica fade in/out + adiciona a trilha muda exigida
+  // pelo Instagram Reels (sem música licenciada ainda, fica pra depois).
+  const concatInputArgs: string[] = [];
+  clipPaths.forEach((clipPath) => concatInputArgs.push("-i", clipPath));
+  const concatFilter =
+    clipPaths.map((_, index) => `[${index}:v]`).join("") +
+    `concat=n=${clipPaths.length}:v=1:a=0[vconcat]`;
+  const totalDuration = SECONDS_PER_IMAGE * clipPaths.length;
+  const fadeOutStart = Math.max(totalDuration - 0.5, 0);
+  const fadeFilter = `[vconcat]fade=t=in:st=0:d=0.4,fade=t=out:st=${fadeOutStart}:d=0.5[vout]`;
+  const filterComplex = [concatFilter, fadeFilter].join(";");
+  const audioInputIndex = clipPaths.length;
+
+  await runFfmpegCommand(ffmpegPath, [
+    ...concatInputArgs,
+    "-f",
+    "lavfi",
+    "-i",
+    "anullsrc=channel_layout=stereo:sample_rate=44100",
+    "-filter_complex",
+    filterComplex,
+    "-map",
+    "[vout]",
+    "-map",
+    `${audioInputIndex}:a`,
+    "-shortest",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "128k",
+    "-movflags",
+    "+faststart",
+    "-y",
+    outputPath,
+  ]);
 }

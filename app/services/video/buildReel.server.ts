@@ -5,9 +5,10 @@ import path from "node:path";
 
 // Monta um Reel (MP4 vertical) a partir de imagens JÁ geradas e aprovadas
 // pela checagem de fidelidade (ver generateProductImage.server.ts). Nunca
-// gera pixel novo — só aplica movimento (Ken Burns) e corte às imagens
-// existentes, então não reabre o risco de fidelidade que já levou a
-// abandonar stills gerados por IA na Mangará real (ver
+// gera pixel novo — só corta e segura cada imagem existente por um tempo
+// fixo (sem pan/zoom animado, ver comentário de runFfmpeg abaixo pro
+// motivo), então não reabre o risco de fidelidade que já levou a abandonar
+// stills gerados por IA na Mangará real (ver
 // /Users/patriciacossettin/Mangara-Nano-Banana/CLAUDE.md).
 
 const CANVAS_WIDTH = 1080;
@@ -90,56 +91,46 @@ function runFfmpegCommand(ffmpegPath: string, args: string[]): Promise<void> {
   });
 }
 
-// Achado ao vivo, 22/09/2026, DUAS VEZES seguidas: gerar o Reel obrigatório
-// da semana matou o processo do ffmpeg no meio por SIGKILL (OOM) — mesmo
-// depois de já ter cortado o supersample de 2x pra 1.3x na primeira
-// tentativa. O problema real não era só a resolução: era rodar os branches
-// de zoompan de TODAS as imagens (decode + filtro em resolução alta) AO
-// MESMO TEMPO dentro de um único filter_complex. Agora cada imagem vira um
-// clipe pequeno numa chamada de ffmpeg SEPARADA e SEQUENCIAL (nunca mais de
-// uma decodificação grande ativa por vez — derruba o pico de memória em
-// ~N vezes, N = imagens do reel), e só a etapa final de concatenar +
-// aplicar fade trabalha com os clipes já pequenos, bem mais barata.
+// Achado ao vivo, 22/09/2026, TRÊS VEZES seguidas: gerar o Reel obrigatório
+// da semana matava o processo do ffmpeg no meio por SIGKILL. Primeiro
+// suspeito foi resolução (cortado supersample de 2x pra 1.3x), depois
+// paralelismo (processar as N imagens ao mesmo tempo num único
+// filter_complex, corrigido pra sequencial) — nenhum dos dois resolveu:
+// mesmo já sequencial e em resolução final (sem supersample), uma ÚNICA
+// imagem com zoompan ainda travava em "frame=0" por mais de 20s antes de
+// ser morta, com CPU e memória do container dentro do limite (não bateu no
+// teto de 1024MB nem de 2 vCPU) — ou seja, não é falta de recurso, é o
+// FILTRO zoompan em si que trava/degenera nesse binário de produção
+// (ffmpeg instalado via apk no Alpine, versão não fixada). Testado local
+// com ffmpeg-static (build diferente) e funcionou instantâneo — reforça
+// que é specífico do binário/ambiente de produção, não do comando em si.
+// Removido zoompan inteiramente: cada imagem agora é um plano estático
+// (scale+crop, sem pan/zoom animado, sem avaliação de expressão por
+// frame), a forma mais simples e testada de segurar uma imagem por um
+// tempo fixo. Perde o efeito Ken Burns, mas para de derrubar o Reel
+// obrigatório da semana — pode ser revisitado depois com um ffmpeg com
+// versão fixada, se fizer sentido.
 async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void> {
   const ffmpegPath = await resolveFfmpegPath();
-  const zoomFrames = Math.round(SECONDS_PER_IMAGE * FPS);
-  const SUPERSAMPLE_FACTOR = 1.3;
-  const superWidth = Math.round(CANVAS_WIDTH * SUPERSAMPLE_FACTOR);
-  const superHeight = Math.round(CANVAS_HEIGHT * SUPERSAMPLE_FACTOR);
   const workDir = path.dirname(outputPath);
 
-  // Etapa 1: um clipe silencioso por imagem, um de cada vez.
+  // Etapa 1: um plano estático por imagem, um de cada vez.
   const clipPaths: string[] = [];
   for (let index = 0; index < imagePaths.length; index++) {
-    // Alterna zoom-in/zoom-out entre imagens pra não repetir sempre o mesmo
-    // movimento (mesmo princípio de variar composição do CLAUDE.md da Mangará).
-    const zoomingIn = index % 2 === 0;
-    const zoomExpr = zoomingIn
-      ? "min(zoom+0.0015,1.15)"
-      : "if(eq(on,0),1.15,max(zoom-0.0015,1.0))";
     const clipPath = path.join(workDir, `clip-${index}.mp4`);
     const filter =
-      `scale=${superWidth}:${superHeight}:force_original_aspect_ratio=increase,` +
-      `crop=${superWidth}:${superHeight},` +
-      `zoompan=z='${zoomExpr}':d=${zoomFrames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${CANVAS_WIDTH}x${CANVAS_HEIGHT}:fps=${FPS},` +
-      `setsar=1,trim=start_frame=0:end_frame=${zoomFrames},setpts=PTS-STARTPTS`;
+      `scale=${CANVAS_WIDTH}:${CANVAS_HEIGHT}:force_original_aspect_ratio=increase,` +
+      `crop=${CANVAS_WIDTH}:${CANVAS_HEIGHT},setsar=1,fps=${FPS}`;
 
     await runFfmpegCommand(ffmpegPath, [
-      // Sem "-t" aqui: o loop fica infinito e o "-frames:v" + "trim" abaixo
-      // cortam no número exato de frames. Limitar a duração já na leitura
-      // do input faz o demuxer entregar várias cópias do frame em
-      // timestamps diferentes, e o zoompan trata cada uma como uma imagem
-      // nova — multiplicando "d" por frame de entrada em vez de gerar só
-      // um ciclo de zoom (bug real, encontrado testando com imagens reais:
-      // um reel de 2 imagens de 7s saía com 10min16s).
       "-loop",
       "1",
+      "-t",
+      String(SECONDS_PER_IMAGE),
       "-i",
       imagePaths[index],
       "-vf",
       filter,
-      "-frames:v",
-      String(zoomFrames),
       "-c:v",
       "libx264",
       "-preset",

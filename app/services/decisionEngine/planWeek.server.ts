@@ -973,30 +973,16 @@ export async function rescheduleWeeklyPlanSlot(params: {
   return { status: "success", scheduledAt: scheduledAt.toISOString() };
 }
 
-export type ApproveResult =
-  | { status: "success" }
-  | { status: "error"; reason: string };
-
-// Aprovar é só um sinal de que a lojista revisou o post — não é obrigatório
-// pra ele sair no ar. Se ela não interagir de jeito nenhum, o post continua
-// "draft" e ainda assim publica no horário agendado (ver
-// publishDueContentItems em publishContentItem.server.ts): "caso ele nao
-// interaja com o app vamos seguir postando os produtos definidos pelo app
-// nos dias e horarios tbem pre definidos" (Patricia, 12/09/2026).
-export async function approveWeeklyPlanSlot(params: {
-  shopId: string;
-  contentItemId: string;
-}): Promise<ApproveResult> {
-  const result = await prisma.contentItem.updateMany({
-    where: { id: params.contentItemId, shopId: params.shopId, status: "draft" },
-    data: { status: "approved" },
-  });
-  if (result.count === 0) {
-    return { status: "error", reason: "This post can no longer be approved (already reviewed or published)." };
-  }
-  return { status: "success" };
-}
-
+// Removido o passo de "Approve" (Patricia, 22/09/2026: "nao acho que
+// precisamos deste step... a ideia é que o app funcione sem a necessidade
+// de muita interacao") — ele nunca foi um gate de verdade pra publicação
+// (um post "draft" já publicava sozinho no horário agendado, ver
+// publishDueContentItems em publishContentItem.server.ts, comportamento
+// intencional desde 12/09/2026), só mudava o texto de um badge na tela. Sem
+// nenhum efeito prático, o botão só adicionava um clique que o app foi
+// desenhado pra não exigir. Um ContentItem antigo com status="approved" no
+// banco continua funcionando normalmente (isEditable/STATUS_LABELS ainda
+// reconhecem esse valor) — só ninguém mais chega nele por aqui.
 export type CancelResult =
   | { status: "success" }
   | { status: "error"; reason: string };

@@ -8,7 +8,6 @@ import {
   getCurrentWeekBatch,
   swapWeeklyPlanSlotProduct,
   rescheduleWeeklyPlanSlot,
-  approveWeeklyPlanSlot,
   cancelWeeklyPlanSlot,
   changeWeeklyPlanSlotObjective,
   regenerateWeeklyPlanSlotImage,
@@ -247,12 +246,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       minute,
     });
     return { intent: "reschedule" as const, contentItemId, result };
-  }
-
-  if (intent === "approve") {
-    const contentItemId = String(formData.get("contentItemId"));
-    const result = await approveWeeklyPlanSlot({ shopId: shop.id, contentItemId });
-    return { intent: "approve" as const, contentItemId, result };
   }
 
   if (intent === "cancel") {
@@ -637,11 +630,6 @@ export default function PlanWeek() {
     );
   };
 
-  const approveSlot = (contentItemId: string) => {
-    markPendingAction("approve this post");
-    manageFetcher.submit({ intent: "approve", contentItemId }, { method: "POST" });
-  };
-
   const cancelSlot = (contentItemId: string) => {
     markPendingAction("cancel this post");
     manageFetcher.submit({ intent: "cancel", contentItemId }, { method: "POST" });
@@ -654,9 +642,7 @@ export default function PlanWeek() {
 
   const manageFailure =
     manageFetcher.data &&
-    (manageFetcher.data.intent === "reschedule" ||
-      manageFetcher.data.intent === "approve" ||
-      manageFetcher.data.intent === "cancel") &&
+    (manageFetcher.data.intent === "reschedule" || manageFetcher.data.intent === "cancel") &&
     manageFetcher.data.result.status === "error"
       ? manageFetcher.data
       : null;
@@ -1256,15 +1242,6 @@ export default function PlanWeek() {
                             ))}
                           </s-select>
                           {isManaging && <s-badge tone="info">Saving…</s-badge>}
-                          {slot.status === "draft" && (
-                            <s-button
-                              variant="secondary"
-                              onClick={() => approveSlot(slot.contentItemId)}
-                              {...(isManaging ? { loading: true } : {})}
-                            >
-                              Approve
-                            </s-button>
-                          )}
                           <s-button
                             variant="secondary"
                             tone="critical"

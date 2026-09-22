@@ -15,6 +15,17 @@ const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1920;
 const FPS = 30;
 const SECONDS_PER_IMAGE = 3.5;
+// Achado ao vivo, 22/09/2026, depois de 3 tentativas erradas (resolução,
+// paralelismo, zoompan): o stderr do x264 revelou "threads=60" — o ffmpeg
+// autodetecta o número de threads pela CONTAGEM DE CPU DA MÁQUINA FÍSICA
+// por trás do container (60), não pelo limite real de 2 vCPU do cgroup do
+// Railway. x264 pré-aloca buffers de lookahead/referência PROPORCIONAIS a
+// esse número de threads antes de codificar o primeiro frame — por isso
+// toda tentativa morria em "frame=0", mesmo num encode trivial sem
+// zoompan: travava na alocação de memória do encoder, não na codificação
+// em si. Limitar threads explicitamente corrige na raiz, sem precisar
+// adivinhar limite de memória/resolução de novo.
+const FFMPEG_THREADS = 2;
 
 export interface BuildReelParams {
   // Buffers já resolvidos (não URLs) — quem chama decide de onde vêm
@@ -91,25 +102,16 @@ function runFfmpegCommand(ffmpegPath: string, args: string[]): Promise<void> {
   });
 }
 
-// Achado ao vivo, 22/09/2026, TRÊS VEZES seguidas: gerar o Reel obrigatório
-// da semana matava o processo do ffmpeg no meio por SIGKILL. Primeiro
-// suspeito foi resolução (cortado supersample de 2x pra 1.3x), depois
-// paralelismo (processar as N imagens ao mesmo tempo num único
-// filter_complex, corrigido pra sequencial) — nenhum dos dois resolveu:
-// mesmo já sequencial e em resolução final (sem supersample), uma ÚNICA
-// imagem com zoompan ainda travava em "frame=0" por mais de 20s antes de
-// ser morta, com CPU e memória do container dentro do limite (não bateu no
-// teto de 1024MB nem de 2 vCPU) — ou seja, não é falta de recurso, é o
-// FILTRO zoompan em si que trava/degenera nesse binário de produção
-// (ffmpeg instalado via apk no Alpine, versão não fixada). Testado local
-// com ffmpeg-static (build diferente) e funcionou instantâneo — reforça
-// que é specífico do binário/ambiente de produção, não do comando em si.
-// Removido zoompan inteiramente: cada imagem agora é um plano estático
-// (scale+crop, sem pan/zoom animado, sem avaliação de expressão por
-// frame), a forma mais simples e testada de segurar uma imagem por um
-// tempo fixo. Perde o efeito Ken Burns, mas para de derrubar o Reel
-// obrigatório da semana — pode ser revisitado depois com um ffmpeg com
-// versão fixada, se fizer sentido.
+// Histórico de 22/09/2026: 3 tentativas erradas antes de achar a causa raiz
+// de verdade (ver FFMPEG_THREADS acima — threads=60 do x264). Nessa ordem:
+// (1) supersample 2x→1.3x, (2) branches de zoompan em paralelo→sequencial,
+// (3) removido zoompan (efeito Ken Burns) inteiramente, achando que o
+// FILTRO era o problema. Nenhuma resolveu — a 4ª tentativa (essa) foi a
+// primeira a realmente ler o stderr do x264 até o fim em vez de só olhar
+// "SIGKILL" e assumir OOM por resolução/paralelismo. O zoompan foi
+// removido antes da causa raiz ficar clara; deixado assim por ora (plano
+// estático por imagem) — pode voltar a ter o efeito de zoom se fizer
+// sentido, agora que o -threads devia resolver o crash de verdade.
 async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void> {
   const ffmpegPath = await resolveFfmpegPath();
   const workDir = path.dirname(outputPath);
@@ -135,6 +137,8 @@ async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void
       "libx264",
       "-preset",
       "veryfast",
+      "-threads",
+      String(FFMPEG_THREADS),
       "-pix_fmt",
       "yuv420p",
       "-y",
@@ -174,6 +178,8 @@ async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void
     "libx264",
     "-preset",
     "veryfast",
+    "-threads",
+    String(FFMPEG_THREADS),
     "-pix_fmt",
     "yuv420p",
     "-c:a",

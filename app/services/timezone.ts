@@ -44,12 +44,27 @@ function offsetMinutesAt(date: Date, timeZone: string): number {
 // navegador) — devolve o instante UTC correspondente, pronto pra gravar em
 // scheduledAt. weekday: 0=domingo. Se hoje já é o dia mas a hora já passou,
 // pula pra semana seguinte.
+// Reagendar manualmente pra um horário que já passou nesta semana não deve
+// esperar 7 dias — a lojista claramente quer "o quanto antes" (achado ao
+// vivo, 23/09/2026: "se for terça as 14 e eu programar terça as 14:05 ele
+// deve postar em 5 minutos... precisamos mudar esta regra" — em vez disso,
+// escolher hoje/um dia já passado nesta semana empurrava silenciosamente
+// pra semana seguinte). Empurrar pra semana seguinte só faz sentido pro
+// planejamento automático da PRÓXIMA semana (planWeeklyContent), nunca pra
+// um reagendamento manual de um post que já existe — ver rescheduleWeeklyPlanSlot.
+const SOON_BUFFER_MS = 2 * 60 * 1000;
+
 export function nextWeeklyOccurrenceInTimezone(
   weekday: number,
   hour: number,
   minute: number,
   timeZone: string,
   from: Date = new Date(),
+  // "next-week" (padrão, usado no planejamento automático): se o horário já
+  // passou nesta semana, pula pra semana seguinte. "soon": em vez de pular
+  // uma semana inteira, agenda pra daqui a pouco (usado no reagendamento
+  // manual, onde a lojista quer o post o mais breve possível, não daqui a 7 dias).
+  pastBehavior: "next-week" | "soon" = "next-week",
 ): Date {
   const todayParts = partsOf(from, timeZone);
   const todayWeekday = WEEKDAY_INDEX[todayParts.weekday] ?? 0;
@@ -77,7 +92,7 @@ export function nextWeeklyOccurrenceInTimezone(
   // destino. Resolver de novo a partir da data-calendário (daysUntil + 7)
   // corrige o offset certo pra semana seguinte.
   if (result <= from) {
-    result = resolve(daysUntil + 7);
+    result = pastBehavior === "soon" ? new Date(from.getTime() + SOON_BUFFER_MS) : resolve(daysUntil + 7);
   }
   return result;
 }

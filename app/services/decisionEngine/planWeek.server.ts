@@ -984,11 +984,17 @@ export async function rescheduleWeeklyPlanSlot(params: {
   }
 
   const shop = await prisma.shop.findUniqueOrThrow({ where: { id: params.shopId } });
+  // "soon", não "next-week" — reagendamento manual de um post que já
+  // existe (Patricia, 23/09/2026: escolher um dia/horário que já passou
+  // nesta semana não deve empurrar pra semana seguinte, e sim agendar pro
+  // quanto antes; ver comentário em nextWeeklyOccurrenceInTimezone).
   const scheduledAt = nextWeeklyOccurrenceInTimezone(
     params.weekday,
     params.hour,
     params.minute,
     shop.ianaTimezone ?? "UTC",
+    new Date(),
+    "soon",
   );
   await prisma.contentItem.update({ where: { id: item.id }, data: { scheduledAt } });
   return { status: "success", scheduledAt: scheduledAt.toISOString() };

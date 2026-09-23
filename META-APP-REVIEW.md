@@ -2,12 +2,26 @@
 
 Rascunho de submissão pra liberar publicação automática no Instagram (`instagram_content_publish`) e insights (`instagram_manage_insights`) pra qualquer lojista, não só contas cadastradas como tester no app da Meta. Verificado contra a documentação oficial da Meta em 23/09/2026 — os nomes de escopo abaixo já foram confirmados atuais (ver `app/services/meta/graphApi.server.ts` pro histórico de por que isso já mudou antes).
 
+## Descoberta em 23/09/2026: também precisa virar Tech Provider
+
+Além do App Review normal, a Meta agora exige que qualquer app que publique em nome de VÁRIOS negócios diferentes (não só o seu próprio) seja identificado como **Tech Provider** — processo separado, independente do App Review (ver [Tech Providers](https://developers.facebook.com/docs/development/release/tech-providers)). Sem isso, nenhuma das 7 permissões abaixo pode ser concedida por um lojista que não tenha papel no app.
+
+No App Dashboard: Dashboard → **Become a Tech Provider** → confirmar "Yes, I'm a Tech Provider" (decisão irreversível, mas obrigatória pro modelo de negócio da Stockative) → isso libera 3 sub-etapas:
+1. **Business verification** — já estava ✅ (Mangará aparece "Verified" no painel, ID 164885676118621).
+2. **Access verification** — formulário próprio (categoria do negócio = SaaS Platform; descrição de uso; portfolio único; link do site). Meta revisa em até 5 dias.
+3. **App Review** — as 7 permissões abaixo.
+
 ## Antes de submeter (bloqueadores reais)
 
-- [ ] **Business Verification** — separado do App Review, exigido pra QUALQUER app pedindo Advanced Access. Precisa de documento legal da empresa (Stockative/Mangará). Pode levar dias — iniciar em paralelo, não depois.
-- [ ] **Política de Privacidade** publicada com URL real (a Meta exige o link no painel do app).
-- [ ] **Data Deletion Instructions** — URL ou processo descrito de como o usuário pede exclusão de dados (exigido separado da política de privacidade).
+- [x] **Business Verification** — já feita (Mangará verificada no painel da Meta).
+- [x] **Política de Privacidade** — já publicada em stockative.com/privacy (atualizada 11/09/2026).
+- [x] **Terms of Service** — já publicado em stockative.com/terms (atualizado 20/09/2026).
+- [x] **Data Deletion Instructions** — coberto na própria Privacy Policy (webhook de desinstalação + pedido manual via privacy@stockative.com).
 - [ ] Confirmar que a conta da Mangará continua funcionando como tester enquanto o review não sai (não bloqueia o piloto).
+
+## Nota sobre posicionamento (23/09/2026)
+
+As descrições abaixo diziam "small fashion/footwear brands", seguindo o texto mais antigo do CLAUDE.md ("vertical, não genérico"). Um comentário no código de 14/09/2026 registra que isso mudou ("queremos vender o app para todo o tipo de loja", `imagingCategory` já suporta apparel/jewelry/home_decor além de footwear) — o CLAUDE.md ainda não foi atualizado pra refletir essa decisão. As descrições de uso abaixo já foram ajustadas pra "small e-commerce brands" (mais amplo, evita ter que resubmeter depois), mas vale confirmar/fechar essa mudança de posicionamento no CLAUDE.md separadamente.
 
 ## Fluxo de conexão usado no app
 
@@ -18,7 +32,7 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 ## `instagram_basic`
 
 **Descrição de uso:**
-> Stockative is a Shopify app that helps small fashion/footwear brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic to read the connected Instagram Business account's basic profile info (username, ID, profile picture) right after the merchant connects their account in our "Social accounts" settings screen, so we can confirm the correct account was linked and display it back to the merchant in our app.
+> Stockative is a Shopify app that helps small e-commerce brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic to read the connected Instagram Business account's basic profile info (username, ID, profile picture) right after the merchant connects their account in our "Social accounts" settings screen, so we can confirm the correct account was linked and display it back to the merchant in our app.
 
 **Screencast:** login completo do Instagram no app (Social accounts → Connect → dialog OAuth → volta pro app mostrando username/foto da conta conectada).
 
@@ -83,9 +97,10 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 
 ## Checklist de submissão
 
-- [ ] Business Verification concluída
-- [ ] Privacy Policy publicada + URL cadastrada no painel do app
-- [ ] Data Deletion Instructions publicada + URL/processo cadastrado
+- [x] Business Verification concluída
+- [x] Privacy Policy publicada + URL cadastrada no painel do app
+- [x] Data Deletion Instructions cobertas na Privacy Policy
+- [x] Tech Provider confirmado (irreversível) + Access Verification submetida em 23/09/2026, "In review", resposta em até 5 dias (prazo final pra completar: 22/11/2026)
 - [ ] Screencast principal gravado (login → post gerado → publicado)
 - [ ] Screencast do Facebook Page mirror gravado
 - [ ] Screencast do Performance/insights gravado

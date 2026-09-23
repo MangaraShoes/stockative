@@ -148,16 +148,24 @@ async function runFfmpeg(imagePaths: string[], outputPath: string): Promise<void
   }
 
   // Etapa 2: concatena os clipes já pequenos (mesma resolução final, sem
-  // supersample) + aplica fade in/out + adiciona a trilha muda exigida
-  // pelo Instagram Reels (sem música licenciada ainda, fica pra depois).
+  // supersample) + aplica fade out no final + adiciona a trilha muda
+  // exigida pelo Instagram Reels (sem música licenciada ainda, fica pra
+  // depois). Ver comentário do fadeFilter abaixo pro motivo de não ter
+  // fade-in.
   const concatInputArgs: string[] = [];
   clipPaths.forEach((clipPath) => concatInputArgs.push("-i", clipPath));
   const concatFilter =
     clipPaths.map((_, index) => `[${index}:v]`).join("") +
     `concat=n=${clipPaths.length}:v=1:a=0[vconcat]`;
+  // Achado ao vivo, 23/09/2026: o fade-in deixava o frame 0 do vídeo
+  // literalmente preto — e tanto o Instagram quanto o TikTok usam esse
+  // primeiro frame como capa automática do Reel, então a capa saía preta
+  // (visível na grade do perfil) e o primeiro segundo de reprodução também
+  // aparecia preto antes de revelar a imagem. Mantido só o fade-out (não
+  // afeta o frame inicial nem a capa).
   const totalDuration = SECONDS_PER_IMAGE * clipPaths.length;
   const fadeOutStart = Math.max(totalDuration - 0.5, 0);
-  const fadeFilter = `[vconcat]fade=t=in:st=0:d=0.4,fade=t=out:st=${fadeOutStart}:d=0.5[vout]`;
+  const fadeFilter = `[vconcat]fade=t=out:st=${fadeOutStart}:d=0.5[vout]`;
   const filterComplex = [concatFilter, fadeFilter].join(";");
   const audioInputIndex = clipPaths.length;
 

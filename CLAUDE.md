@@ -161,3 +161,4 @@ Isso substitui a regra geral de "só commitar quando pedido" só para este proje
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — arquitetura técnica do MVP (stack, AI Provider Layer, modelo de dados, fluxo OAuth, Decision Engine em dois estágios, Image MVP).
 - [MARKETING-KNOWLEDGE.md](MARKETING-KNOWLEDGE.md) — arquétipos criativos e frameworks narrativos que alimentam o Estágio 2 do Decision Engine.
+- [META-APP-REVIEW.md](META-APP-REVIEW.md) — rascunhos de submissão pro Meta App Review (descrições de uso + roteiro de screencast por permissão), checklist de bloqueadores (Business Verification, Privacy Policy, Data Deletion Instructions).

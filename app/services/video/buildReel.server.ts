@@ -14,7 +14,11 @@ import path from "node:path";
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1920;
 const FPS = 30;
-const SECONDS_PER_IMAGE = 3.5;
+// Baixado de 3.5s pra 1.8s (Patricia, 24/09/2026: "o reel esta demorando
+// muito em cada imagem") — sem o efeito de zoom (removido antes por travar
+// o ffmpeg, ver comentário abaixo), 3.5s parado numa imagem estática ficava
+// lento de mais pro ritmo normal de Reel/TikTok.
+const SECONDS_PER_IMAGE = 1.8;
 // Achado ao vivo, 22/09/2026, depois de 3 tentativas erradas (resolução,
 // paralelismo, zoompan): o stderr do x264 revelou "threads=60" — o ffmpeg
 // autodetecta o número de threads pela CONTAGEM DE CPU DA MÁQUINA FÍSICA

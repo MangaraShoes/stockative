@@ -21,7 +21,7 @@ import {
   OBJECTIVE_LABELS,
   type CommercialObjective,
 } from "../services/decisionEngine/constants";
-import { weekdayInTimezone, timeInTimezone } from "../services/timezone";
+import { weekdayInTimezone, timeInTimezone, nextWeeklyOccurrenceInTimezone } from "../services/timezone";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
@@ -436,14 +436,34 @@ function slotTime(slot: WeeklyPlanSlot, timeZone: string): string {
 
 // Sempre formatado no fuso da LOJA, não no de quem está olhando a tela —
 // pra não mostrar um horário diferente do que de fato vai ser publicado
-// pra uma lojista revisando de outro fuso (ex.: viajando).
+// pra uma lojista revisando de outro fuso (ex.: viajando). Inclui a data
+// (não só o dia da semana, Patricia, 24/09/2026: "o app fala os dias da
+// semana mas nao as datas") — "Thursday" sozinho não deixa claro SE QUAL
+// semana, e isso já causou confusão real ao reagendar (ver
+// nextWeeklyOccurrenceInTimezone, que pode escolher esta semana ou a
+// seguinte dependendo do dia/hora escolhidos).
 function formatScheduledAt(iso: string, timeZone: string): string {
   return new Date(iso).toLocaleString(undefined, {
     timeZone,
     weekday: "long",
+    day: "numeric",
+    month: "short",
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+// Data resolvida que ESTE dropdown de dia realmente vai escolher se
+// clicado agora, com a hora já selecionada no dropdown de horário ao lado
+// — mesma semântica "soon" do reagendamento de verdade (ver
+// rescheduleWeeklyPlanSlot), pra nunca mostrar uma data diferente da que
+// vai ser salva de fato. Existe pra nunca mais repetir a confusão real de
+// 23/09/2026 ("não entendi por que pulou pra semana seguinte") — agora a
+// data aparece no próprio dropdown, antes de clicar.
+function resolvedDateLabel(weekday: number, time: string, timeZone: string): string {
+  const [hour, minute] = time.split(":").map(Number);
+  const resolved = nextWeeklyOccurrenceInTimezone(weekday, hour, minute, timeZone, new Date(), "soon");
+  return resolved.toLocaleDateString(undefined, { timeZone, day: "numeric", month: "short" });
 }
 
 // Achado ao vivo, 21/09/2026: uma lojista trocou o produto de um post,
@@ -1352,7 +1372,7 @@ export default function PlanWeek() {
                           >
                             {WEEKDAY_OPTIONS.map((option) => (
                               <s-option key={option.value} value={String(option.value)}>
-                                {option.label}
+                                {option.label} ({resolvedDateLabel(option.value, currentTime, shopTimezone)})
                               </s-option>
                             ))}
                           </s-select>

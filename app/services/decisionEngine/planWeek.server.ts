@@ -636,24 +636,47 @@ export interface GenerateDueWeeklyPlansOutcome {
 }
 
 // Gera sozinho o plano da PRÓXIMA semana pra toda loja que já passou do
-// intervalo desde a última geração — distinto de publishDueContentItems,
-// que só publica um plano já existente (achado de revisão externa,
-// 12/09/2026: "there is also a distinction between publishing an existing
-// plan automatically and creating the next plan automatically... no
-// recurring weekly-plan generation path"). Pensado pra ser chamado pelo
-// mesmo tipo de cron externo que chama /cron/publish-scheduled, mas em
-// intervalo maior (uma vez por dia já cobre o caso de uso).
+// intervalo desde a última geração, OU cujo lote atual já esgotou (sem
+// nenhum post pendente) mesmo antes do prazo — distinto de
+// publishDueContentItems, que só publica um plano já existente (achado de
+// revisão externa, 12/09/2026: "there is also a distinction between
+// publishing an existing plan automatically and creating the next plan
+// automatically... no recurring weekly-plan generation path"). Pensado
+// pra ser chamado pelo mesmo tipo de cron externo que chama
+// /cron/publish-scheduled, mas em intervalo maior (uma vez por dia já
+// cobre o caso de uso).
 export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOutcome[]> {
   const cutoff = new Date(Date.now() - WEEKLY_PLAN_INTERVAL_DAYS * 24 * 60 * 60 * 1000);
 
-  const dueShops = await prisma.shop.findMany({
+  const candidateShops = await prisma.shop.findMany({
     where: {
       uninstalledAt: null,
-      OR: [{ lastWeeklyPlanGeneratedAt: null }, { lastWeeklyPlanGeneratedAt: { lte: cutoff } }],
       socialAccounts: { some: { platform: "instagram", igBusinessAccountId: { not: null } } },
     },
-    select: { id: true },
+    select: { id: true, lastWeeklyPlanGeneratedAt: true },
   });
+
+  // Achado ao vivo, 24/09/2026: o timer de 7 dias sozinho deixa a lojista
+  // sem NENHUM post agendado por dias sempre que o lote atual esgota antes
+  // do prazo (reagendamento manual comprimiu os 3 posts da semana em
+  // ~36h) — "se a cliente olhar não vai entender". Além do timer, uma
+  // loja também entra na fila assim que o lote atual não tem mais post
+  // pendente (draft/approved) nenhum, mesmo que os 7 dias não tenham
+  // passado — nunca deixa a tela do Weekly Plan vazia à toa.
+  const dueShops: { id: string }[] = [];
+  for (const shop of candidateShops) {
+    const timerDue = !shop.lastWeeklyPlanGeneratedAt || shop.lastWeeklyPlanGeneratedAt <= cutoff;
+    if (timerDue) {
+      dueShops.push(shop);
+      continue;
+    }
+    const pendingCount = await prisma.contentItem.count({
+      where: { shopId: shop.id, weekBatchId: { not: null }, status: { in: ["draft", "approved"] } },
+    });
+    if (pendingCount === 0) {
+      dueShops.push(shop);
+    }
+  }
 
   // Uma loja com erro (IA, produto com dado faltando etc.) não pode travar
   // a geração de TODAS as outras lojas do dia — isolar por loja (Patricia,

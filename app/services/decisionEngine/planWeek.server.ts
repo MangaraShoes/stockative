@@ -12,6 +12,7 @@ import { maxPrimaryCaptionChars } from "./captionFormat";
 import type { CommercialObjective, ContentLanguageCode } from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
+import { currentSeasonInTimezone, seasonScoreBoost } from "./seasonality.server";
 
 const POSTS_PER_WEEK = 3;
 // Qual dos POSTS_PER_WEEK slots é sempre reservado como Reel (Patricia,
@@ -202,7 +203,16 @@ async function allocatePillarsForWeek(
 // Corrigido o texto pra não prometer mais do que o código faz; usar
 // PerformanceSignal pra influenciar a escolha fica como trabalho futuro,
 // quando houver dado comparável suficiente (hoje é 1 snapshot pra 9 posts).
-async function rankProductsForWeek(shopId: string, forcedObjective?: CommercialObjective) {
+async function rankProductsForWeek(
+  shopId: string,
+  forcedObjective?: CommercialObjective,
+  // Fuso real da loja — decide a estação atual (Patricia, 24/09/2026: "nao
+  // esta considerando a estação do ano... precisa mesclar com produtos de
+  // outono"). Opcional só pra não quebrar nenhum outro caller hipotético;
+  // sem ele, cai em UTC (hemisfério norte) como já era antes desse sinal
+  // existir.
+  timeZone: string = "UTC",
+) {
   // status: "active" sozinho não bastava — Patricia, 11/09/2026: "selects
   // active products without excluding zero inventory" — um produto ativo
   // mas esgotado não deveria concorrer por um slot da semana.
@@ -211,6 +221,7 @@ async function rankProductsForWeek(shopId: string, forcedObjective?: CommercialO
     include: { commerceSignal: true },
   });
   const usageStats = await getProductUsageStats(shopId);
+  const season = currentSeasonInTimezone(timeZone);
 
   const now = Date.now();
   const scored = products.map((product) => {
@@ -268,6 +279,14 @@ async function rankProductsForWeek(shopId: string, forcedObjective?: CommercialO
         // por produto) — critério padrão de sempre.
         score = salesVelocity * 10 + (isSlowMover ? tiedUpCapitalWeight : 0) - recentPenalty;
     }
+
+    // Empurrão de estação, igual em qualquer objetivo (Patricia,
+    // 24/09/2026) — mesma escala do resto do ranking: não é forte o
+    // bastante pra sozinho vencer um sinal comercial real (ex.: "Clear
+    // excess stock" ainda prioriza estoque parado de verdade acima disso),
+    // mas é o bastante pra, entre candidatos parecidos, o lote da semana
+    // tender a misturar categorias em vez de ficar todo de uma estação só.
+    score += seasonScoreBoost(product.productType, season);
 
     return { product, score, usedRecently };
   });
@@ -587,7 +606,7 @@ export async function planWeeklyContent(
       // Reranqueia por slot (não uma vez só pra semana inteira) — cada
       // objetivo pode preferir um produto diferente, e sem isso o segundo
       // objetivo escolhido nunca influenciava produto nenhum.
-      const ranked = await rankProductsForWeek(shopId, objectiveForSlot);
+      const ranked = await rankProductsForWeek(shopId, objectiveForSlot, timeZone);
       const candidate = ranked.find((entry) => !usedProductIds.has(entry.product.id));
       if (!candidate) break; // catálogo elegível menor que POSTS_PER_WEEK
 

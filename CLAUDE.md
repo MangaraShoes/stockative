@@ -134,7 +134,7 @@ Substituiu a hipótese original de um único plano "Starter" a €9,90/mês (09/
 
 Custo real (COGS) do Basic ≈ €10,65/mês (8 imagem + 4 Reel gerados, mais a cota de regeneração se usada por completo) → **margem ≈54% depois da taxa de 2,9% da Shopify** (o único corte real da Shopify em receita de app abaixo de $1M vitalício — acima disso sobe pra 15%, ver [Shopify App Store revenue share](https://shopify.dev/docs/apps/launch/distribution/revenue-share)), antes de imposto (IVA/imposto de renda — depende do registro da empresa na Bélgica, confirmar com contador antes de fechar o número líquido final).
 
-**Grow e Plus ainda não têm preço fechado** — só a cadência (5/semana e 7/semana respectivamente, ver `planTiers.server.ts`), preço deve seguir a mesma lógica de custo real × margem quando ela decidir.
+**Grow — €37,90/mês** (5 posts/semana — 13 imagem + 9 Reel/mês, mesma cortesia de 4 imagem + 2 Reel de regeneração grátis) e **Plus — €49,90/mês** (7 posts/semana — 17 imagem + 13 Reel/mês) fechados em 25/09/2026, com **desconto de volume proposital** (margem ~45-47%, abaixo dos ~54% do Basic — decisão de Patricia: tier maior compensa MENOS por post que o Basic, de propósito, como incentivo real de upgrade, não só "mais posts pelo mesmo preço por unidade"). Preço médio por unidade cai conforme sobe de tier: Basic ≈€2,08/post, Grow ≈€1,72/post, Plus ≈€1,66/post. COGS: Grow ≈€19,09/mês, Plus ≈€25,84/mês (mesmo cálculo do Basic acima, ver `planTiers.server.ts` pra cadência exata).
 
 **Plano Custom (preço por unidade fechado em 25/09/2026)**: a lojista escolhe posts/Reels por mês livremente (`Shop.customPostsPerMonth`/`customReelsPerMonth`), preço calculado em `customPlanPricing.ts`:
 - Imagem: €0,20/post (~45% de margem sobre custo real)

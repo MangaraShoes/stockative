@@ -26,13 +26,13 @@ const PLAN_OPTIONS = [
   },
   {
     value: "grow",
-    label: "Grow",
-    description: "5 posts/week — 3 image posts + 2 reels weekly. Pricing not set yet.",
+    label: "Grow — €37.90/month",
+    description: "5 posts/week — 3 image posts + 2 reels weekly.",
   },
   {
     value: "plus",
-    label: "Plus",
-    description: "7 posts/week — 4 image posts + 3 reels weekly. Pricing not set yet.",
+    label: "Plus — €49.90/month",
+    description: "7 posts/week — 4 image posts + 3 reels weekly.",
   },
   {
     value: "custom",

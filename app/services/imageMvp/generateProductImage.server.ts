@@ -305,6 +305,11 @@ export async function generateProductImage(
         // 1 crédito = 1 imagem válida ENTREGUE ao merchant, nunca 1 chamada
         // de API — tentativa rejeitada por qualquer guardrail não é cobrada.
         countsAsCredit: passed && !isStructuralHold,
+        // O correctionNote ORIGINAL da lojista (nunca a nota interna de
+        // retry estrutural, que muta a variável local `correctionNote` no
+        // loop acima) — é o sinal real de "o que ela pediu pra mudar" numa
+        // regeneração, null pra uma geração normal (Patricia, 24/09/2026).
+        regenerationReason: params.correctionNote ?? null,
         shopId: params.shopId,
         productId: params.productId,
         category: classification.category,

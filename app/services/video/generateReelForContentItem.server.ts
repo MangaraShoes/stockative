@@ -34,4 +34,18 @@ export async function generateReelForContentItem(contentItemId: string, shopId: 
     where: { id: contentItemId },
     data: { videoUrl: videoDataUrl, videoGeneratedAt: new Date(), format: "reel" },
   });
+
+  // 1 crédito = 1 Reel entregue (mesmo princípio já usado pra imagem, ver
+  // generateProductImage.server.ts) — sem checagem de qualidade pro vídeo
+  // hoje, então toda chamada bem-sucedida conta. countsAgainst a cota
+  // MENSAL de vídeo (Fase 3, ver creditUsage.server.ts).
+  await prisma.generationLog.create({
+    data: {
+      contentItemId,
+      shopId,
+      taskType: "video",
+      model: "ffmpeg",
+      countsAsCredit: true,
+    },
+  });
 }

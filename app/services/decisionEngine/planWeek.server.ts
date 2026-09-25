@@ -13,6 +13,7 @@ import type { CommercialObjective, ContentLanguageCode } from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
 import { currentSeasonInTimezone, seasonScoreBoost } from "./seasonality.server";
+import { getRemainingCredits } from "./creditUsage.server";
 import { getWeeklySlotPlan } from "./planTiers.server";
 
 // Usado só por planPromotionalWeek (campanhas tipo Black Friday) — o plano
@@ -879,13 +880,20 @@ export type RegenerateImageResult =
 export async function regenerateWeeklyPlanSlotImage(params: {
   shopId: string;
   contentItemId: string;
-  // O que a lojista pediu especificamente pra melhorar, opcional (Patricia,
-  // 13/09/2026: "opção de dizer o que ela gostaria que melhorasse, como
-  // opcional") — mesmo mecanismo de correctionNote já usado nas correções
-  // manuais de imagem em app.create-content.tsx.
+  // O que a lojista pediu especificamente pra melhorar — OBRIGATÓRIO quando
+  // já existe uma imagem sendo substituída (regeneração de verdade, Patricia
+  // 24/09/2026: "cada vez que ele regenerar ele precisa explicar pq quer
+  // regenerar o que quer mudar", pra virar sinal de aprendizado real, ver
+  // GenerationLog.regenerationReason). O mesmo botão também gera a PRIMEIRA
+  // imagem de um slot que ainda não tem nenhuma (ex.: geração automática
+  // falhou) — aí não é regeneração, não exige explicação nem consome a cota
+  // de regeneração, só a geração normal do plano.
   feedback?: string;
 }): Promise<RegenerateImageResult> {
-  const item = await prisma.contentItem.findUnique({ where: { id: params.contentItemId } });
+  const item = await prisma.contentItem.findUnique({
+    where: { id: params.contentItemId },
+    include: { images: { select: { id: true } } },
+  });
   if (!item || item.shopId !== params.shopId) {
     return { status: "error", reason: "This post is no longer part of the current plan." };
   }
@@ -901,6 +909,28 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     return { status: "error", reason: "This post has no saved strategy to regenerate an image from." };
   }
 
+  const isRegeneration = item.images.length > 0;
+  const trimmedFeedback = params.feedback?.trim() ?? "";
+  if (isRegeneration && !trimmedFeedback) {
+    return { status: "error", reason: "Explain what you'd like to change before regenerating." };
+  }
+
+  // Cota mensal de regeneração de imagem, espelhando a cota de geração do
+  // plano da loja (Patricia, 24/09/2026: "regeneração inclui regenerar X
+  // numeros por mes... nao 1X cada") — nunca deixa a chamada de IA rodar
+  // sem crédito disponível. Só se aplica à regeneração de verdade, nunca à
+  // primeira geração de um slot vazio.
+  if (isRegeneration) {
+    const shop = await prisma.shop.findUniqueOrThrow({ where: { id: params.shopId } });
+    const remainingCredits = await getRemainingCredits(shop, "image");
+    if (remainingCredits <= 0) {
+      return {
+        status: "error",
+        reason: "You've used all your image regenerations for this month. Buy extra credit to keep regenerating.",
+      };
+    }
+  }
+
   await prisma.contentItemImage.deleteMany({ where: { contentItemId: item.id } });
 
   const result = await buildCarousel({
@@ -911,7 +941,7 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     creativeAngle: brief.creativeAngle,
     format: brief.format,
     forceNewHero: true,
-    correctionNote: params.feedback?.trim() || undefined,
+    correctionNote: trimmedFeedback || undefined,
   });
 
   if (result.status !== "success") {

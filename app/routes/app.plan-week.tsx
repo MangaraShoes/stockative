@@ -19,13 +19,16 @@ import {
 import {
   COMMERCIAL_OBJECTIVES,
   OBJECTIVE_LABELS,
+  REGENERATION_REASON_SUGGESTIONS,
   type CommercialObjective,
+  type ContentLanguageCode,
 } from "../services/decisionEngine/constants";
 import { weekdayInTimezone, timeInTimezone, nextWeeklyOccurrenceInTimezone } from "../services/timezone";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
 import { generateReelForContentItem } from "../services/video/generateReelForContentItem.server";
+import { getRemainingCredits } from "../services/decisionEngine/creditUsage.server";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -144,11 +147,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ),
   ).sort();
 
+  // Cota mensal de regeneração restante (Fase 3, ver creditUsage.server.ts)
+  // e sugestões de motivo traduzidas pro idioma de conteúdo da loja —
+  // ambos mostrados perto do botão Regenerate antes de clicar.
+  const remainingImageCredits = shop ? await getRemainingCredits(shop, "image") : 0;
+  const remainingReelCredits = shop ? await getRemainingCredits(shop, "video") : 0;
+  const regenerationReasonSuggestions =
+    REGENERATION_REASON_SUGGESTIONS[(shop?.contentLanguagePrimary as ContentLanguageCode) ?? "en"] ??
+    REGENERATION_REASON_SUGGESTIONS.en;
+
   return {
     hasShop: Boolean(shop),
     isInstagramConnected: Boolean(socialAccount?.igBusinessAccountId),
     products,
     productCollections,
+    remainingImageCredits,
+    remainingReelCredits,
+    regenerationReasonSuggestions,
     // Fuso horário real da loja (Patricia, 12/09/2026: "precisamos
     // considerar sim o fuso horario da loja") — usado pra mostrar e editar
     // dia/horário na perspectiva da loja, não na de quem está com o
@@ -243,6 +258,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         intent: "generate-reel" as const,
         contentItemId,
         result: { status: "error" as const, reason: "This post has no images yet to build a reel from." },
+      };
+    }
+    // Cota mensal de vídeo, mesmo princípio da Fase 3 pra imagem — nunca
+    // deixa o ffmpeg rodar sem crédito de reel disponível.
+    const remainingReelCredits = await getRemainingCredits(shop, "video");
+    if (remainingReelCredits <= 0) {
+      return {
+        intent: "generate-reel" as const,
+        contentItemId,
+        result: {
+          status: "error" as const,
+          reason: "You've used all your reel credits for this month. Buy extra credit to keep going.",
+        },
       };
     }
     try {
@@ -521,6 +549,9 @@ export default function PlanWeek() {
     shopTimezone,
     onboardingStatus,
     slots,
+    remainingImageCredits,
+    remainingReelCredits,
+    regenerationReasonSuggestions,
   } = useLoaderData<typeof loader>();
 
   // Mostrar na ordem em que os posts realmente saem no ar (Patricia,
@@ -1120,54 +1151,104 @@ export default function PlanWeek() {
                       </s-stack>
                     )}
 
+                    {editable && (() => {
+                      // Pra quando ela gosta do post e do produto, só não
+                      // gosta da imagem (ou ainda não tem nenhuma) — mesma
+                      // ação serve os dois casos, sem precisar ir até
+                      // "Create content" pra gerar na mão (Patricia,
+                      // 13/09/2026). Só a REGENERAÇÃO de verdade (já existe
+                      // imagem sendo substituída) exige explicação e conta
+                      // contra a cota mensal — a primeira geração de um slot
+                      // vazio continua livre (Patricia, 24/09/2026: "nada é
+                      // obrigatório a ponto de pausar os posts").
+                      const isRegeneration = slot.images.length > 0;
+                      const feedbackValue = imageFeedback[slot.contentItemId] ?? "";
+                      const feedbackMissing = isRegeneration && !feedbackValue.trim();
+                      const outOfCredits = isRegeneration && remainingImageCredits <= 0;
+                      return (
+                        <div>
+                          {isRegeneration && (
+                            <div style={{ marginBottom: 8 }}>
+                              <s-stack direction="inline" gap="small">
+                                {regenerationReasonSuggestions.map((suggestion) => (
+                                  <button
+                                    key={suggestion}
+                                    type="button"
+                                    onClick={() =>
+                                      setImageFeedback((current) => ({
+                                        ...current,
+                                        [slot.contentItemId]: suggestion,
+                                      }))
+                                    }
+                                    style={{
+                                      padding: "4px 10px",
+                                      border: "1px solid #a8abae",
+                                      borderRadius: 999,
+                                      background: feedbackValue === suggestion ? "#202223" : "#f1f2f3",
+                                      color: feedbackValue === suggestion ? "#ffffff" : "#202223",
+                                      fontSize: 12,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    {suggestion}
+                                  </button>
+                                ))}
+                              </s-stack>
+                            </div>
+                          )}
+                          <textarea
+                            value={feedbackValue}
+                            onChange={(e) =>
+                              setImageFeedback((current) => ({
+                                ...current,
+                                [slot.contentItemId]: e.target.value,
+                              }))
+                            }
+                            placeholder={
+                              isRegeneration
+                                ? "Required: what should change? (e.g. walking outdoors, show more of the shoe)"
+                                : "Optional: tell us what to show (e.g. walking outdoors, show more of the shoe)"
+                            }
+                            rows={2}
+                            style={{ width: "100%", padding: 8, marginBottom: 4 }}
+                          />
+                          {isRegeneration && (
+                            <p style={{ fontSize: 12, color: outOfCredits ? "#d72c0d" : "#6d7175", marginTop: 0, marginBottom: 8 }}>
+                              {outOfCredits
+                                ? "You've used all your image regenerations for this month — buy extra credit to keep going."
+                                : `${remainingImageCredits} image regeneration${remainingImageCredits === 1 ? "" : "s"} left this month`}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => regenerateImage(slot.contentItemId)}
+                            disabled={isRegeneratingImage || feedbackMissing || outOfCredits}
+                            style={{
+                              display: "inline-block",
+                              padding: "8px 16px",
+                              border: "1px solid #a8abae",
+                              borderRadius: 8,
+                              background: "#c9cccf",
+                              color: "#202223",
+                              fontWeight: 500,
+                              opacity: isRegeneratingImage || feedbackMissing || outOfCredits ? 0.5 : 1,
+                              cursor: isRegeneratingImage || feedbackMissing || outOfCredits ? "default" : "pointer",
+                            }}
+                          >
+                            {isRegeneratingImage
+                              ? "Building image…"
+                              : isRegeneration
+                                ? "Regenerate image only"
+                                : "Generate image now"}
+                          </button>
+                          {isRegeneratingImage && (
+                            <GeneratingProgressBar label="Building a new image for this post…" />
+                          )}
+                        </div>
+                      );
+                    })()}
                     {editable && (
                       <div>
-                        {/* Pra quando ela gosta do post e do produto, só não
-                            gosta da imagem (ou ainda não tem nenhuma) —
-                            mesma ação serve os dois casos, sem precisar ir
-                            até "Create content" pra gerar na mão (Patricia,
-                            13/09/2026: "e agora o próximo post se eu quiser
-                            que ele já apareça as imagens?"). Comentário é
-                            opcional — mesmo padrão de "regenerate with
-                            feedback" já usado no store voice e content
-                            pillars. */}
-                        <textarea
-                          value={imageFeedback[slot.contentItemId] ?? ""}
-                          onChange={(e) =>
-                            setImageFeedback((current) => ({
-                              ...current,
-                              [slot.contentItemId]: e.target.value,
-                            }))
-                          }
-                          placeholder="Optional: tell us what to show (e.g. walking outdoors, show more of the shoe)"
-                          rows={2}
-                          style={{ width: "100%", padding: 8, marginBottom: 8 }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => regenerateImage(slot.contentItemId)}
-                          disabled={isRegeneratingImage}
-                          style={{
-                            display: "inline-block",
-                            padding: "8px 16px",
-                            border: "1px solid #a8abae",
-                            borderRadius: 8,
-                            background: "#c9cccf",
-                            color: "#202223",
-                            fontWeight: 500,
-                            opacity: isRegeneratingImage ? 0.5 : 1,
-                            cursor: isRegeneratingImage ? "default" : "pointer",
-                          }}
-                        >
-                          {isRegeneratingImage
-                            ? "Building image…"
-                            : slot.images.length > 0
-                              ? "Regenerate image only"
-                              : "Generate image now"}
-                        </button>
-                        {isRegeneratingImage && (
-                          <GeneratingProgressBar label="Building a new image for this post…" />
-                        )}
                         {/* Além do único slot que o plano já reserva pra
                             Reel toda semana, a lojista pode escolher
                             manualmente virar QUALQUER post num Reel, ou
@@ -1176,33 +1257,42 @@ export default function PlanWeek() {
                             gera imagem nova — só monta o vídeo a partir das
                             imagens que o post já tem. */}
                         {slot.images.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              slot.format === "reel"
-                                ? discardReel(slot.contentItemId)
-                                : makeReel(slot.contentItemId)
-                            }
-                            disabled={isMakingReel}
-                            style={{
-                              display: "inline-block",
-                              marginLeft: 8,
-                              padding: "8px 16px",
-                              border: "1px solid #a8abae",
-                              borderRadius: 8,
-                              background: "#c9cccf",
-                              color: "#202223",
-                              fontWeight: 500,
-                              opacity: isMakingReel ? 0.5 : 1,
-                              cursor: isMakingReel ? "default" : "pointer",
-                            }}
-                          >
-                            {isMakingReel
-                              ? "Building reel…"
-                              : slot.format === "reel"
-                                ? "Undo reel, keep as image post"
-                                : "🎬 Make this a reel"}
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                slot.format === "reel"
+                                  ? discardReel(slot.contentItemId)
+                                  : makeReel(slot.contentItemId)
+                              }
+                              disabled={isMakingReel || (slot.format !== "reel" && remainingReelCredits <= 0)}
+                              style={{
+                                display: "inline-block",
+                                marginLeft: 8,
+                                padding: "8px 16px",
+                                border: "1px solid #a8abae",
+                                borderRadius: 8,
+                                background: "#c9cccf",
+                                color: "#202223",
+                                fontWeight: 500,
+                                opacity: isMakingReel || (slot.format !== "reel" && remainingReelCredits <= 0) ? 0.5 : 1,
+                                cursor: isMakingReel || (slot.format !== "reel" && remainingReelCredits <= 0) ? "default" : "pointer",
+                              }}
+                            >
+                              {isMakingReel
+                                ? "Building reel…"
+                                : slot.format === "reel"
+                                  ? "Undo reel, keep as image post"
+                                  : "🎬 Make this a reel"}
+                            </button>
+                            {slot.format !== "reel" && (
+                              <span style={{ marginLeft: 8, fontSize: 12, color: remainingReelCredits <= 0 ? "#d72c0d" : "#6d7175" }}>
+                                {remainingReelCredits <= 0
+                                  ? "No reel credit left this month"
+                                  : `${remainingReelCredits} reel${remainingReelCredits === 1 ? "" : "s"} left this month`}
+                              </span>
+                            )}
+                          </>
                         )}
                         {isMakingReel && (
                           <GeneratingProgressBar label="Building the reel video from this post's images…" />

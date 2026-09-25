@@ -27,7 +27,6 @@ import { weekdayInTimezone, timeInTimezone, nextWeeklyOccurrenceInTimezone } fro
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
-import { generateReelForContentItem } from "../services/video/generateReelForContentItem.server";
 import { getRemainingCredits } from "../services/decisionEngine/creditUsage.server";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
@@ -151,7 +150,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // e sugestões de motivo traduzidas pro idioma de conteúdo da loja —
   // ambos mostrados perto do botão Regenerate antes de clicar.
   const remainingImageCredits = shop ? await getRemainingCredits(shop, "image") : 0;
-  const remainingReelCredits = shop ? await getRemainingCredits(shop, "video") : 0;
   const regenerationReasonSuggestions =
     REGENERATION_REASON_SUGGESTIONS[(shop?.contentLanguagePrimary as ContentLanguageCode) ?? "en"] ??
     REGENERATION_REASON_SUGGESTIONS.en;
@@ -162,7 +160,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     products,
     productCollections,
     remainingImageCredits,
-    remainingReelCredits,
     regenerationReasonSuggestions,
     // Fuso horário real da loja (Patricia, 12/09/2026: "precisamos
     // considerar sim o fuso horario da loja") — usado pra mostrar e editar
@@ -231,84 +228,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }
     return { intent: "regenerate-image" as const, contentItemId, result };
-  }
-
-  // Deixa a lojista escolher manualmente que ESTE post vira Reel, além do
-  // único slot que o plano já reserva automaticamente toda semana (Patricia,
-  // 22/09/2026: "tem como a pessoa escolher mudar o post para reel?") —
-  // mesmo par generate-reel/discard-reel já usado em Create Content, só que
-  // agora também disponível direto na tela do plano semanal. Nunca gera
-  // pixel novo, só monta o vídeo a partir das imagens que o post já tem
-  // (ver buildReel.server.ts).
-  if (intent === "generate-reel") {
-    const contentItemId = String(formData.get("contentItemId"));
-    const item = await prisma.contentItem.findFirst({
-      where: { id: contentItemId, shopId: shop.id },
-      include: { images: true },
-    });
-    if (!item) {
-      return {
-        intent: "generate-reel" as const,
-        contentItemId,
-        result: { status: "error" as const, reason: "This post is no longer part of the current plan." },
-      };
-    }
-    if (item.images.length === 0) {
-      return {
-        intent: "generate-reel" as const,
-        contentItemId,
-        result: { status: "error" as const, reason: "This post has no images yet to build a reel from." },
-      };
-    }
-    // Cota mensal de vídeo, mesmo princípio da Fase 3 pra imagem — nunca
-    // deixa o ffmpeg rodar sem crédito de reel disponível.
-    const remainingReelCredits = await getRemainingCredits(shop, "video");
-    if (remainingReelCredits <= 0) {
-      return {
-        intent: "generate-reel" as const,
-        contentItemId,
-        result: {
-          status: "error" as const,
-          reason: "You've used all your reel credits for this month. Buy extra credit to keep going.",
-        },
-      };
-    }
-    try {
-      await generateReelForContentItem(contentItemId, shop.id);
-      return {
-        intent: "generate-reel" as const,
-        contentItemId,
-        result: { status: "success" as const },
-      };
-    } catch (error) {
-      console.error("Failed to generate reel:", error);
-      return {
-        intent: "generate-reel" as const,
-        contentItemId,
-        result: {
-          status: "error" as const,
-          reason: error instanceof Error ? error.message : "Something went wrong building the reel.",
-        },
-      };
-    }
-  }
-
-  // Desfaz "generate-reel" — volta o post a publicar como imagem normal,
-  // sem descartar as imagens já geradas nem o vídeo (fica só sem uso).
-  if (intent === "discard-reel") {
-    const contentItemId = String(formData.get("contentItemId"));
-    const result = await prisma.contentItem.updateMany({
-      where: { id: contentItemId, shopId: shop.id },
-      data: { format: "post", videoUrl: null, videoGeneratedAt: null },
-    });
-    if (result.count === 0) {
-      return {
-        intent: "discard-reel" as const,
-        contentItemId,
-        result: { status: "error" as const, reason: "This post is no longer part of the current plan." },
-      };
-    }
-    return { intent: "discard-reel" as const, contentItemId, result: { status: "success" as const } };
   }
 
   if (intent === "change-objective") {
@@ -550,7 +469,6 @@ export default function PlanWeek() {
     onboardingStatus,
     slots,
     remainingImageCredits,
-    remainingReelCredits,
     regenerationReasonSuggestions,
   } = useLoaderData<typeof loader>();
 
@@ -573,7 +491,6 @@ export default function PlanWeek() {
   const objectiveFetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
   const promotionFetcher = useFetcher<typeof action>();
-  const reelFetcher = useFetcher<typeof action>();
 
   useClearPendingActionOnSettle(generateFetcher.state);
   useClearPendingActionOnSettle(swapFetcher.state);
@@ -581,7 +498,6 @@ export default function PlanWeek() {
   useClearPendingActionOnSettle(objectiveFetcher.state);
   useClearPendingActionOnSettle(imageFetcher.state);
   useClearPendingActionOnSettle(promotionFetcher.state);
-  useClearPendingActionOnSettle(reelFetcher.state);
 
   // Lido uma vez, na montagem (inicializador preguiçoso, não efeito — evita
   // o cascading render que a regra set-state-in-effect aponta): se sobrou
@@ -675,17 +591,6 @@ export default function PlanWeek() {
   const managingContentItemId = submittingContentItemId(manageFetcher);
   const changingObjectiveContentItemId = submittingContentItemId(objectiveFetcher);
   const regeneratingImageContentItemId = submittingContentItemId(imageFetcher);
-  const reelContentItemId = submittingContentItemId(reelFetcher);
-
-  const makeReel = (contentItemId: string) => {
-    markPendingAction("turn this post into a reel");
-    reelFetcher.submit({ intent: "generate-reel", contentItemId }, { method: "POST" });
-  };
-
-  const discardReel = (contentItemId: string) => {
-    markPendingAction("undo this post's reel");
-    reelFetcher.submit({ intent: "discard-reel", contentItemId }, { method: "POST" });
-  };
 
   const generateWeek = () => {
     markPendingAction("generate this week's plan");
@@ -786,13 +691,6 @@ export default function PlanWeek() {
   const imageFailure =
     imageFetcher.data?.intent === "regenerate-image" && imageFetcher.data.result.status === "error"
       ? imageFetcher.data
-      : null;
-
-  const reelFailure =
-    reelFetcher.data &&
-    (reelFetcher.data.intent === "generate-reel" || reelFetcher.data.intent === "discard-reel") &&
-    reelFetcher.data.result.status === "error"
-      ? reelFetcher.data
       : null;
 
   const generateFailure =
@@ -1065,7 +963,6 @@ export default function PlanWeek() {
               const isManaging = managingContentItemId === slot.contentItemId;
               const isChangingObjective = changingObjectiveContentItemId === slot.contentItemId;
               const isRegeneratingImage = regeneratingImageContentItemId === slot.contentItemId;
-              const isMakingReel = reelContentItemId === slot.contentItemId;
               const swapOptions = products.filter(
                 (product) =>
                   product.id !== slot.productId &&
@@ -1247,71 +1144,11 @@ export default function PlanWeek() {
                         </div>
                       );
                     })()}
-                    {editable && (
-                      <div>
-                        {/* Além do único slot que o plano já reserva pra
-                            Reel toda semana, a lojista pode escolher
-                            manualmente virar QUALQUER post num Reel, ou
-                            desfazer (Patricia, 22/09/2026: "tem como a
-                            pessoa escolher mudar o post para reel?"). Nunca
-                            gera imagem nova — só monta o vídeo a partir das
-                            imagens que o post já tem. */}
-                        {slot.images.length > 0 && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                slot.format === "reel"
-                                  ? discardReel(slot.contentItemId)
-                                  : makeReel(slot.contentItemId)
-                              }
-                              disabled={isMakingReel || (slot.format !== "reel" && remainingReelCredits <= 0)}
-                              style={{
-                                display: "inline-block",
-                                marginLeft: 8,
-                                padding: "8px 16px",
-                                border: "1px solid #a8abae",
-                                borderRadius: 8,
-                                background: "#c9cccf",
-                                color: "#202223",
-                                fontWeight: 500,
-                                opacity: isMakingReel || (slot.format !== "reel" && remainingReelCredits <= 0) ? 0.5 : 1,
-                                cursor: isMakingReel || (slot.format !== "reel" && remainingReelCredits <= 0) ? "default" : "pointer",
-                              }}
-                            >
-                              {isMakingReel
-                                ? "Building reel…"
-                                : slot.format === "reel"
-                                  ? "Undo reel, keep as image post"
-                                  : "🎬 Make this a reel"}
-                            </button>
-                            {slot.format !== "reel" && (
-                              <span style={{ marginLeft: 8, fontSize: 12, color: remainingReelCredits <= 0 ? "#d72c0d" : "#6d7175" }}>
-                                {remainingReelCredits <= 0
-                                  ? "No reel credit left this month"
-                                  : `${remainingReelCredits} reel${remainingReelCredits === 1 ? "" : "s"} left this month`}
-                              </span>
-                            )}
-                          </>
-                        )}
-                        {isMakingReel && (
-                          <GeneratingProgressBar label="Building the reel video from this post's images…" />
-                        )}
-                      </div>
-                    )}
                     {imageFailure?.contentItemId === slot.contentItemId && (
                       <s-paragraph>
                         <strong>
                           Couldn&apos;t regenerate image:{" "}
                           {imageFailure.result.status === "error" ? imageFailure.result.reason : ""}
-                        </strong>
-                      </s-paragraph>
-                    )}
-                    {reelFailure?.contentItemId === slot.contentItemId && (
-                      <s-paragraph>
-                        <strong>
-                          Couldn&apos;t update reel:{" "}
-                          {reelFailure.result.status === "error" ? reelFailure.result.reason : ""}
                         </strong>
                       </s-paragraph>
                     )}

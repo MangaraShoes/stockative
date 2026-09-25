@@ -13,14 +13,14 @@ import type { CommercialObjective, ContentLanguageCode } from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
 import { currentSeasonInTimezone, seasonScoreBoost } from "./seasonality.server";
+import { getWeeklySlotPlan } from "./planTiers.server";
 
+// Usado só por planPromotionalWeek (campanhas tipo Black Friday) — o plano
+// semanal REGULAR (planWeeklyContent) passou a usar getWeeklySlotPlan(shop)
+// (Patricia, 24/09/2026: cadência 3/5/7 e mix de Reel por plano), ver
+// planTiers.server.ts. Campanha promocional continua fixa em 3 por
+// enquanto — não fazia parte do pedido de tornar isso configurável.
 const POSTS_PER_WEEK = 3;
-// Qual dos POSTS_PER_WEEK slots é sempre reservado como Reel (Patricia,
-// 22/09/2026: "toda semana tenha um reel que va para o IG e tiktok") —
-// índice 0 = o primeiro produto escolhido pelo ranking da semana, sempre,
-// independente de qual pilar caiu nesse slot (ver forceReel em
-// planOneSlot). Não depende de nenhum pilar existir com idealFormat="reel".
-const REEL_SLOT_INDEX = 0;
 // Achado ao vivo, 21/09/2026: com isso igual a WEEKLY_PLAN_INTERVAL_DAYS (7),
 // um produto usado nesta semana chega EXATAMENTE sem penalidade no instante
 // em que a próxima semana é gerada (daysSinceLastUsed=7, e a checagem é
@@ -593,12 +593,13 @@ export async function planWeeklyContent(
 
     const weekBatchId = crypto.randomUUID();
 
-    const pillarsForSlots = await allocatePillarsForWeek(shopId, POSTS_PER_WEEK);
+    const weeklySlotPlan = getWeeklySlotPlan(shop);
+    const pillarsForSlots = await allocatePillarsForWeek(shopId, weeklySlotPlan.postsPerWeek);
     const schedule = await resolveWeeklySchedule(shopId);
 
     const usedProductIds = new Set<string>(cancelledProductIds);
     const slots: WeeklyPlanSlot[] = [];
-    for (let index = 0; index < POSTS_PER_WEEK; index++) {
+    for (let index = 0; index < weeklySlotPlan.postsPerWeek; index++) {
       const objectiveForSlot = forcedObjectives?.length
         ? forcedObjectives[index % forcedObjectives.length]
         : undefined;
@@ -608,7 +609,7 @@ export async function planWeeklyContent(
       // objetivo escolhido nunca influenciava produto nenhum.
       const ranked = await rankProductsForWeek(shopId, objectiveForSlot, timeZone);
       const candidate = ranked.find((entry) => !usedProductIds.has(entry.product.id));
-      if (!candidate) break; // catálogo elegível menor que POSTS_PER_WEEK
+      if (!candidate) break; // catálogo elegível menor que o plano dessa loja pede
 
       usedProductIds.add(candidate.product.id);
 
@@ -627,7 +628,7 @@ export async function planWeeklyContent(
         weekBatchId,
         objectiveForSlot,
         undefined,
-        index === REEL_SLOT_INDEX,
+        weeklySlotPlan.reelSlotIndices.includes(index),
       );
       slots.push(slot);
     }

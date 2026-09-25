@@ -3,7 +3,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { estimateCustomPlanPriceCents } from "../services/decisionEngine/customPlanPricing";
+import { CUSTOM_PLAN_PRICING, estimateCustomPlanPriceCents } from "../services/decisionEngine/customPlanPricing";
 
 // Mesma conta de resolveCustomPlan em planTiers.server.ts (que continua
 // sendo a fonte real usada na geração, ver Fase 2) — duplicada aqui, pura,
@@ -36,8 +36,8 @@ const PLAN_OPTIONS = [
   },
   {
     value: "custom",
-    label: "Custom",
-    description: "Pick your own monthly posts and reels — priced accordingly.",
+    label: `Custom — €${(CUSTOM_PLAN_PRICING.pricePerPostCents / 100).toFixed(2)}/image, €${(CUSTOM_PLAN_PRICING.pricePerReelCents / 100).toFixed(2)}/reel`,
+    description: "Pick your own monthly posts and reels — priced per unit.",
   },
 ] as const;
 

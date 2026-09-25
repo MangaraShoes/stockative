@@ -48,9 +48,31 @@ model Shop {
   id            String    @id @default(cuid())
   shopifyDomain String    @unique
   accessToken   String
-  plan          String    @default("starter")
+  // "basic" | "grow" | "plus" | "custom" (Patricia, 24/09/2026: 4 planos
+  // com cadência/mix de formato fixos por plano, exceto "custom" — ver
+  // customPostsPerMonth/customReelsPerMonth e planTiers.server.ts). Campo
+  // já existia como "starter" mas nunca foi lido em lugar nenhum do código
+  // até agora — reaproveitado em vez de criar um novo.
+  plan          String    @default("basic")
   installedAt   DateTime  @default(now())
   uninstalledAt DateTime?
+
+  // Só usados quando plan = "custom" (Patricia, 24/09/2026: "a pessoa
+  // escolhe o numero de reels ou postas mensal e vamos gerar um valor de
+  // acordo") — null pra qualquer outro plano, e também null até a lojista
+  // configurar o custom pela primeira vez (cai no default do "basic" nesse
+  // meio-tempo, nunca trava a geração automática).
+  customPostsPerMonth Int?
+  customReelsPerMonth Int?
+
+  // Preferência de ESTILO de imagem, capturada uma vez no onboarding
+  // (Patricia, 24/09/2026: "podemos tbem perguntar que tipo de imagem a
+  // pessoa deseja... para ja começarmos a criar de forma asseritva...sem
+  // precisar regenerar tantas vezes") — "lifestyle" | "still" | "held" |
+  // "studio", ou null (= deixa a IA decidir por objetivo comercial, o
+  // comportamento de sempre, ver MODE_PREFERENCE_BY_OBJECTIVE em
+  // visualMode.server.ts). Nunca obrigatório preencher.
+  imageStylePreference String?
 
   // Brand Intelligence (Camada 1) — onboarding curto por questionário, ver
   // CLAUDE.md. Ainda não tem análise automática de site/logo (Phase 2).
@@ -432,6 +454,13 @@ model GenerationLog {
   passedFidelityCheck    Boolean? // só relevante para taskType = image — produto bate com o original?
   passedCompositionCheck Boolean? // só relevante para taskType = image — composição é editorial, não genérica/sem graça?
   countsAsCredit         Boolean      @default(false)
+  // Explicação que a lojista deu (sugestão clicada ou texto livre) do que
+  // queria mudar nesta regeneração (Patricia, 24/09/2026: "cada vez que
+  // ele regenerar o app aprende ele precisa explicar pq quer regenerar") —
+  // null pra uma geração normal, primeira vez, sem ser regeneração de nada.
+  // Existe pra virar sinal de aprendizado de verdade, não só um prompt
+  // descartado depois de usado uma vez.
+  regenerationReason     String?
   createdAt              DateTime     @default(now())
 
   // Piloto de diversidade criativa (Patricia, 12/09/2026, discussão sobre o

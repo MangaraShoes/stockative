@@ -1,15 +1,19 @@
-// Fórmula de preço do plano Custom — AINDA NÃO DEFINIDA por Patricia (só
-// confirmou em 24/09/2026 que Reel pesa mais no cálculo que post/carrossel,
-// sem número real: "teremos um quarto plano custom onde a pessoa escolhe o
-// numero de reels ou postas mensal e vamos gerar um valor de acordo").
-// Isolado neste arquivo, sozinho, de propósito — pra ficar fácil de trocar
-// pelos valores reais assim que ela decidir, sem precisar mexer na tela nem
-// no resto do cálculo. Nunca usado pra cobrar de verdade ainda — não existe
-// integração de cobrança real (Fase 7, Shopify Billing, fica de fora deste
-// plano de implementação).
+// Fórmula de preço do plano Custom (Patricia, 25/09/2026) — derivada do
+// custo real por unidade (Gemini 2.5 Flash Image ~$0,04/imagem + Claude
+// Sonnet 5 pros guardrails de fidelidade/composição ~$0,11 por post entregue
+// no total; Reel via API de vídeo externa, $1,80/reel cotado por ela) com
+// margem aplicada em cima desse custo — mesmo raciocínio usado pra fechar o
+// preço do Basic em €24,90/mês (~54% de margem líquida da taxa de 2,9% da
+// Shopify, que é o único corte real da Shopify abaixo de $1M de receita
+// vitalícia do app). Reel ficou com margem mais enxuta (~20%) de propósito
+// — ela achou a margem equivalente ao Basic (~47%, ~€2,97) cara demais pra
+// cobrar por unidade avulsa. Isolado neste arquivo, sozinho, pra ficar fácil
+// de revisar se o custo da API de vídeo mudar. Nunca usado pra cobrar de
+// verdade ainda — não existe integração de cobrança real (Fase 7, Shopify
+// Billing, fica de fora do plano de implementação original).
 export const CUSTOM_PLAN_PRICING = {
-  pricePerPostCents: 0, // TODO(Patricia): preencher com o valor real
-  pricePerReelCents: 0, // TODO(Patricia): preencher — deve ficar MAIOR que pricePerPostCents
+  pricePerPostCents: 20, // €0,20/imagem
+  pricePerReelCents: 199, // €1,99/reel
 };
 
 export function estimateCustomPlanPriceCents(totalPostsPerMonth: number, reelsPerMonth: number): number {

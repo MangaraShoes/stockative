@@ -117,28 +117,37 @@ Gargalos que não são de dinheiro, são de tempo/processo:
 
 Custo variável a monitorar desde o dia 1: geração de imagem (agora dentro do Phase 1, ver Image MVP em [ARCHITECTURE.md](ARCHITECTURE.md)) pode corroer a margem se não houver limite de créditos por plano — logar custo por geração (`generation_logs`) desde o MVP, e contar custo real por chamada, não por imagem aprovada (se o merchant clica Regenerate 3x, foram 4 gerações pra entregar 1 imagem útil).
 
-### Hipótese de preço do plano Starter (09/09/2026 — validar com dados reais antes de fixar)
+### Planos: Basic/Grow/Plus/Custom (preço do Basic fechado em 25/09/2026, com base em custo real)
 
-| Starter — €9,90/mês | Incluído |
+Substituiu a hipótese original de um único plano "Starter" a €9,90/mês (09/09/2026) — o cálculo abaixo é o primeiro preço fechado a partir de custo real por unidade, não mais um chute. Cadência e mix de formato (Basic/Grow/Plus fixos, Custom configurável) já implementados desde 24/09/2026, ver `getWeeklySlotPlan` em [ARCHITECTURE.md](ARCHITECTURE.md) e `planTiers.server.ts`.
+
+**Custo real por unidade (25/09/2026, preços de API confirmados)**: gerar 1 imagem entregue custa ≈$0,11 (Gemini 2.5 Flash Image ~$0,04/tentativa + guardrails de fidelidade/composição via Claude Sonnet 5, com média real de 1,84 tentativas por imagem entregue, medida em produção — não o pior caso de "4x" citado antes). Um Reel custa ≈$1,80 (API de vídeo externa cotada por Patricia — o Reel parte direto do produto, não precisa gerar uma imagem antes) + a mesma decisão/legenda comuns a todo post (~$0,012). Reel domina o custo: ~90% do COGS de um plano vem dele, não da imagem.
+
+| Basic — €24,90/mês | Incluído |
 |---|---|
-| Posts gerados | ~12/mês |
-| Frequência sugerida | 3/semana |
-| AI images | ~5/mês |
-| Posts usando foto existente do Shopify | ilimitados, dentro dos 12 |
-| Regenerar legenda/objetivo | ilimitado, não consome quota (só conta quando o conteúdo entra no calendário) |
+| Posts gerados | 3/semana (~12/mês) — 8 imagem + 4 Reel |
+| Regenerar imagem | 8x/mês (pool mensal, espelha a geração — ver `creditUsage.server.ts`) |
+| Regenerar Reel | 4x/mês |
+| Regenerar legenda/objetivo | ilimitado, não consome cota |
 | Instagram + Facebook, Content Decision Engine, calendário comercial, scheduling, brand profile, performance tracking | ✓ |
-| Imagens extras além das 5 | compradas separadamente, cobrança pontual |
+| Crédito extra além da cota | comprado separadamente, cobrança pontual |
 
-**Esses números são hipótese, não preço fechado.** A lógica de 12 posts/3 por semana é o equilíbrio entre "o merchant sente que o app está cuidando de verdade das redes" e "não incentivar conteúdo ruim só pra preencher calendário". Os números exatos (5? 8? 3?) só devem ser fixados depois de medir o custo real por imagem via `generation_logs` durante o piloto.
+Custo real (COGS) do Basic ≈ €10,65/mês (8 imagem + 4 Reel gerados, mais a cota de regeneração se usada por completo) → **margem ≈54% depois da taxa de 2,9% da Shopify** (o único corte real da Shopify em receita de app abaixo de $1M vitalício — acima disso sobe pra 15%, ver [Shopify App Store revenue share](https://shopify.dev/docs/apps/launch/distribution/revenue-share)), antes de imposto (IVA/imposto de renda — depende do registro da empresa na Bélgica, confirmar com contador antes de fechar o número líquido final).
 
-**Regra de ouro sobre imagem, mudou em 09/09/2026: nunca postar só a foto still isolada — fica pobre (Patricia).** Todo post sempre tem uma imagem editorial (com ambiente/modelo, gerada por IA) na posição 1; as fotos still do Shopify, quando existem, entram depois dela, nunca sozinhas. Isso NÃO significa gerar uma imagem nova a cada post: a editorial pode ser **reaproveitada** de uma geração anterior do mesmo produto, desde que ainda não tenha sido usada como capa de nenhum post daquele produto — só gera uma nova quando todas as existentes já foram usadas (ver "Alocação de crédito de imagem" em [ARCHITECTURE.md](ARCHITECTURE.md), atualizado com a mesma data). As 5 imagens de IA por ~12 posts/mês ainda partem da ideia de nem todo post exigir uma **geração nova** — mas todo post exige *ter* uma editorial, nova ou reaproveitada.
+**Grow e Plus ainda não têm preço fechado** — só a cadência (5/semana e 7/semana respectivamente, ver `planTiers.server.ts`), preço deve seguir a mesma lógica de custo real × margem quando ela decidir.
+
+**Plano Custom (preço por unidade fechado em 25/09/2026)**: a lojista escolhe posts/Reels por mês livremente (`Shop.customPostsPerMonth`/`customReelsPerMonth`), preço calculado em `customPlanPricing.ts`:
+- Imagem: €0,20/post (~45% de margem sobre custo real)
+- Reel: €1,99/post (~20% de margem — Patricia achou a margem equivalente ao Basic, ~€2,97, cara demais pra cobrar por unidade avulsa)
+
+**Regra de ouro sobre imagem, mudou em 09/09/2026: nunca postar só a foto still isolada — fica pobre (Patricia).** Todo post sempre tem uma imagem editorial (com ambiente/modelo, gerada por IA) na posição 1; as fotos still do Shopify, quando existem, entram depois dela, nunca sozinhas. Isso NÃO significa gerar uma imagem nova a cada post: a editorial pode ser **reaproveitada** de uma geração anterior do mesmo produto, desde que ainda não tenha sido usada como capa de nenhum post daquele produto — só gera uma nova quando todas as existentes já foram usadas (ver "Alocação de crédito de imagem" em [ARCHITECTURE.md](ARCHITECTURE.md), atualizado com a mesma data). A cota de 8 créditos de imagem/mês do Basic (ver tabela acima) ainda parte da ideia de nem todo post exigir uma **geração nova** — reaproveitar uma editorial não consome crédito — mas todo post exige *ter* uma editorial, nova ou reaproveitada.
 
 **Posicionamento de venda**: não vender como "12 posts", vender como plano de conteúdo pronto. Exemplo de semana que o app monta sozinho:
 - Segunda: produto estratégico (prioridade por Commerce Intelligence) + editorial reaproveitada de uma geração anterior + stills existentes
 - Quarta: conteúdo de engagement/storytelling (arquétipo Behind the Scenes/Founder Story) + editorial reaproveitada
 - Sexta: conteúdo comercial (arquétipo Urgency/Social Proof) + imagem de IA **nova** (o "hero" da semana, dentro do orçamento de crédito)
 
-Na semana seguinte a estratégia muda conforme estoque, calendário, objetivo e resultados anteriores. Linha de venda: **"€9.90/month — AI decides what to promote, creates your posts and includes 5 AI product creatives every month."**
+Na semana seguinte a estratégia muda conforme estoque, calendário, objetivo e resultados anteriores. Linha de venda: **"€24.90/month — AI decides what to promote, creates your posts and includes 8 AI product images and 4 reels every month."**
 
 **Validação concreta planejada com a própria Mangará**: o sistema decide promover uma sandália com estoque alto, escolhe o arquétipo "Product Benefit" com ângulo comfort + summer versatility, gera a legenda e uma imagem lifestyle mantendo o sapato fiel ao original. Esse é o teste real do produto completo (decisão + copy + imagem fiel), não uma versão cortada dele.
 

@@ -21,18 +21,18 @@ function previewCustomWeeklyPlan(totalPostsPerMonth: number, reelsPerMonth: numb
 const PLAN_OPTIONS = [
   {
     value: "basic",
-    label: "Basic",
+    label: "Basic — €24.90/month",
     description: "3 posts/week (~12/month) — 2 image posts + 1 reel weekly.",
   },
   {
     value: "grow",
     label: "Grow",
-    description: "5 posts/week — 3 image posts + 2 reels weekly.",
+    description: "5 posts/week — 3 image posts + 2 reels weekly. Pricing not set yet.",
   },
   {
     value: "plus",
     label: "Plus",
-    description: "7 posts/week — 4 image posts + 3 reels weekly.",
+    description: "7 posts/week — 4 image posts + 3 reels weekly. Pricing not set yet.",
   },
   {
     value: "custom",

@@ -1,4 +1,4 @@
-import type { CommercialObjective } from "../decisionEngine/constants";
+import type { CommercialObjective, ImageStylePreference } from "../decisionEngine/constants";
 import type { ProductInteraction } from "./productClassification.server";
 
 // Segunda dimensão, ORTOGONAL à interação (ver productClassification.server.ts)
@@ -62,19 +62,46 @@ export interface SelectedVisualStrategy {
   mode: VisualMode;
 }
 
+// Como cada preferência de estilo da loja (ver IMAGE_STYLE_PREFERENCES em
+// constants.ts) se traduz nas duas dimensões que este pipeline já entende.
+// "held" e "studio" só mudam UMA dimensão cada (interação e modo,
+// respectivamente) — a outra continua decidida pela lógica de sempre.
+const STYLE_PREFERENCE_OVERRIDES: Partial<Record<ImageStylePreference, { mode?: VisualMode; interaction?: ProductInteraction }>> = {
+  lifestyle: { mode: "lifestyle" },
+  still: { mode: "styled_still_life", interaction: "standalone" },
+  held: { interaction: "held", mode: "product_hero" },
+  studio: { mode: "product_hero" },
+};
+
 // Ponto único de decisão: dado o objetivo comercial do post e o que É
 // REALMENTE válido pra este produto (ver getOrClassifyProductVisuals),
-// escolhe UMA interação e UM modo compatíveis entre si.
+// escolhe UMA interação e UM modo compatíveis entre si. `shopPreference`
+// (Patricia, 24/09/2026) dá um ponto de partida mais assertivo quando a
+// loja já disse que tipo de imagem prefere — nunca trava nem força algo
+// incompatível com o produto: cai pro comportamento de sempre quando a
+// preferência não é válida pra este produto específico, ou quando
+// `undefined`/`"ai_decide"`/`null`.
 export function selectVisualStrategy(
   objective: CommercialObjective,
   validInteractions: ProductInteraction[],
+  shopPreference?: ImageStylePreference | null,
 ): SelectedVisualStrategy {
+  const override = shopPreference ? STYLE_PREFERENCE_OVERRIDES[shopPreference] : undefined;
+
+  const forcedInteraction =
+    override?.interaction && validInteractions.includes(override.interaction) ? override.interaction : undefined;
+
   const interaction =
+    forcedInteraction ??
     INTERACTION_PRIORITY.find((candidate) => validInteractions.includes(candidate)) ??
     validInteractions[0] ??
     "standalone";
 
-  const preferredMode = MODE_PREFERENCE_BY_OBJECTIVE[objective];
+  const preferredMode =
+    override?.mode && isModeCompatibleWithInteraction(override.mode, interaction)
+      ? override.mode
+      : MODE_PREFERENCE_BY_OBJECTIVE[objective];
+
   const mode = isModeCompatibleWithInteraction(preferredMode, interaction)
     ? preferredMode
     : interaction === "standalone"

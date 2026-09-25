@@ -6,7 +6,7 @@ import prisma from "../db.server";
 import { draftBrandVoice } from "../services/decisionEngine/draftBrandVoice.server";
 import { fetchBrandSources } from "../services/brandSources.server";
 import { prepareLogo, LogoNotTransparentError } from "../services/imageMvp/logoOverlay.server";
-import { CONTENT_LANGUAGES } from "../services/decisionEngine/constants";
+import { CONTENT_LANGUAGES, IMAGE_STYLE_PREFERENCES } from "../services/decisionEngine/constants";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
@@ -43,6 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     brandDescription: shop?.brandDescription ?? "",
     brandTone: shop?.brandTone ?? "",
     brandAvoid: shop?.brandAvoid ?? "",
+    imageStylePreference: shop?.imageStylePreference ?? "ai_decide",
     logoUrl: shop?.logoUrl ?? null,
     applyLogoOverlay: shop?.applyLogoOverlay ?? false,
     productCount,
@@ -164,10 +165,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const brandTone = String(formData.get("brandTone") ?? "").trim();
   const brandAvoid = String(formData.get("brandAvoid") ?? "").trim();
   const applyLogoOverlay = formData.get("applyLogoOverlay") === "true";
+  const imageStylePreference = String(formData.get("imageStylePreference") ?? "ai_decide");
 
   await prisma.shop.update({
     where: { shopifyDomain: session.shop },
-    data: { brandDescription, brandTone, brandAvoid, applyLogoOverlay },
+    data: { brandDescription, brandTone, brandAvoid, applyLogoOverlay, imageStylePreference },
   });
 
   // Leva direto pra próxima tela quando é a única coisa que falta pra essa
@@ -192,6 +194,7 @@ export default function StoreVoice() {
   const [brandDescription, setBrandDescription] = useState(data.brandDescription);
   const [brandTone, setBrandTone] = useState(data.brandTone);
   const [brandAvoid, setBrandAvoid] = useState(data.brandAvoid);
+  const [imageStylePreference, setImageStylePreference] = useState(data.imageStylePreference);
   const [applyLogoOverlay, setApplyLogoOverlay] = useState(data.applyLogoOverlay);
   const [contentLanguagePrimary, setContentLanguagePrimary] = useState(data.contentLanguagePrimary);
   const [contentLanguageSecondary, setContentLanguageSecondary] = useState(data.contentLanguageSecondary);
@@ -251,6 +254,7 @@ export default function StoreVoice() {
         brandDescription,
         brandTone,
         brandAvoid,
+        imageStylePreference,
         applyLogoOverlay: String(applyLogoOverlay),
       },
       { method: "POST" },
@@ -475,6 +479,29 @@ export default function StoreVoice() {
               rows={2}
               style={{ width: "100%", padding: 8 }}
             />
+          </div>
+
+          <div>
+            <s-paragraph>What kind of product photo do you have in mind?</s-paragraph>
+            <s-paragraph>
+              Some brands (like Mangará) show the product on a model in a
+              real setting; others want just the product on a surface, held
+              in someone&apos;s hand, or on a plain studio background. Telling
+              us upfront means we start with the right look for your brand,
+              instead of you regenerating images until it matches what you
+              had in mind.
+            </s-paragraph>
+            <select
+              value={imageStylePreference}
+              onChange={(e) => setImageStylePreference(e.target.value)}
+              style={{ padding: 8 }}
+            >
+              {IMAGE_STYLE_PREFERENCES.map((style) => (
+                <option key={style.value} value={style.value}>
+                  {style.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {canDraft && (hasDraft || hasSavedBefore) && (

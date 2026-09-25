@@ -52,6 +52,24 @@ export const OBJECTIVE_LABELS: Record<CommercialObjective, string> = {
   inventory: "Clear excess stock",
 };
 
+// Preferência de ESTILO de imagem da loja, capturada no onboarding
+// (Patricia, 24/09/2026: "podemos tbem perguntar que tipo de imagem a
+// pessoa deseja... para ja começarmos a criar de forma asseritva... sem
+// precisar regenerar tantas vezes"). Mapeia quase 1:1 pras dimensões já
+// existentes do Image MVP — ver STYLE_PREFERENCE_OVERRIDES em
+// visualMode.server.ts. "ai_decide" (ou null, ainda não respondido) nunca
+// muda o comportamento atual — só entra quando a lojista escolhe de
+// verdade uma das 4 opções reais.
+export const IMAGE_STYLE_PREFERENCES = [
+  { value: "lifestyle", label: "Lifestyle with a model" },
+  { value: "still", label: "Still editorial, product on a surface" },
+  { value: "held", label: "Held in someone's hand" },
+  { value: "studio", label: "Studio, neutral background" },
+  { value: "ai_decide", label: "Let AI decide" },
+] as const;
+
+export type ImageStylePreference = (typeof IMAGE_STYLE_PREFERENCES)[number]["value"];
+
 export const CONTENT_LANGUAGES = [
   { code: "en", label: "English" },
   { code: "fr", label: "French" },

@@ -7,7 +7,7 @@ import { getOrClassifyProductVisuals } from "./productClassification.server";
 import { getRepertoireForInteraction } from "./categoryDispatch.server";
 import { selectVisualStrategy, VISUAL_MODE_GUIDANCE } from "./visualMode.server";
 import { getFidelityConstraints, describeFidelityConstraints, type FidelityConstraints } from "./fidelityConstraints.server";
-import type { CommercialObjective } from "../decisionEngine/constants";
+import type { CommercialObjective, ImageStylePreference } from "../decisionEngine/constants";
 
 // Sobe quando a arquitetura de decisão visual muda de forma relevante —
 // registrada em todo GenerationLog (ver comentário lá) pra nunca perder de
@@ -224,7 +224,11 @@ export async function generateProductImage(
   const shop = await prisma.shop.findUnique({ where: { id: params.shopId } });
 
   const classification = await getOrClassifyProductVisuals(params.productId);
-  const { interaction, mode } = selectVisualStrategy(params.objective, classification.validInteractions);
+  const { interaction, mode } = selectVisualStrategy(
+    params.objective,
+    classification.validInteractions,
+    shop?.imageStylePreference as ImageStylePreference | null,
+  );
   const hasModel = interaction !== "standalone";
   const repertoire: CategoryRepertoire = getRepertoireForInteraction(classification.category, interaction);
   const fidelityConstraints: FidelityConstraints = getFidelityConstraints(classification.category);

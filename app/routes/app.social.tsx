@@ -12,6 +12,10 @@ import {
   buildAuthorizeUrl as buildTikTokAuthorizeUrl,
   isTikTokConfigured,
 } from "../services/tiktok/oauth.server";
+import {
+  buildAuthorizeUrl as buildYouTubeAuthorizeUrl,
+  isYouTubeConfigured,
+} from "../services/youtube/oauth.server";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 
@@ -49,6 +53,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : null;
 
+  const youtubeAccount = shop
+    ? await prisma.socialAccount.findUnique({
+        where: { shopId_platform: { shopId: shop.id, platform: "youtube" } },
+      })
+    : null;
+
   const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
 
   return {
@@ -65,6 +75,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     isTikTokConfigured: isTikTokConfigured(),
     tiktokAuthorizeUrl: isTikTokConfigured() ? buildTikTokAuthorizeUrl(session.shop) : null,
     tiktokUsername: tiktokAccount?.tiktokUsername ?? null,
+    isYouTubeConfigured: isYouTubeConfigured(),
+    youtubeAuthorizeUrl: isYouTubeConfigured() ? buildYouTubeAuthorizeUrl(session.shop) : null,
+    youtubeChannelTitle: youtubeAccount?.youtubeChannelTitle ?? null,
   };
 };
 
@@ -88,6 +101,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { intent, error: null };
   }
 
+  if (intent === "disconnect-youtube") {
+    await prisma.socialAccount.deleteMany({ where: { shopId: shop.id, platform: "youtube" } });
+    return { intent, error: null };
+  }
+
   // Instagram e Facebook usam a mesma linha (o Facebook não tem conexão
   // própria, publica via fbPageId salvo junto com a conta Instagram), então
   // desconectar aqui desliga os dois de uma vez.
@@ -105,6 +123,7 @@ export default function Social() {
   const disconnectPinterestFetcher = useFetcher<typeof action>();
   const disconnectInstagramFetcher = useFetcher<typeof action>();
   const disconnectTikTokFetcher = useFetcher<typeof action>();
+  const disconnectYouTubeFetcher = useFetcher<typeof action>();
   const revalidator = useRevalidator();
 
   // O popup de OAuth (Instagram/Pinterest) roda fora deste iframe e o
@@ -129,6 +148,7 @@ export default function Social() {
   const connectedUsername = searchParams.get("connected");
   const pinterestConnectedUsername = searchParams.get("pinterestConnected");
   const tiktokConnectedUsername = searchParams.get("tiktokConnected");
+  const youtubeConnectedUsername = searchParams.get("youtubeConnected");
   const error = searchParams.get("error");
 
   const disconnectPinterest = () =>
@@ -139,6 +159,9 @@ export default function Social() {
 
   const disconnectTikTok = () =>
     disconnectTikTokFetcher.submit({ intent: "disconnect-tiktok" }, { method: "POST" });
+
+  const disconnectYouTube = () =>
+    disconnectYouTubeFetcher.submit({ intent: "disconnect-youtube" }, { method: "POST" });
 
   return (
     <s-page heading="Social accounts">
@@ -288,6 +311,55 @@ export default function Social() {
             <>
               <s-button href={data.tiktokAuthorizeUrl} target="_blank" variant="primary">
                 Connect TikTok
+              </s-button>
+              <s-paragraph>
+                Opens in a new tab — this page updates automatically once
+                connected.
+              </s-paragraph>
+            </>
+          )
+        )}
+      </s-section>
+
+      <s-section heading="YouTube">
+        <s-paragraph>
+          Connect your YouTube channel so Reels also go out as Shorts.
+          Shorts publish immediately and publicly — there&apos;s no
+          draft/review step like TikTok&apos;s.
+        </s-paragraph>
+
+        {!data.isYouTubeConfigured && (
+          <s-paragraph>
+            <strong>
+              YouTube connection isn&apos;t set up yet — YOUTUBE_CLIENT_ID
+              and YOUTUBE_CLIENT_SECRET need to be configured first.
+            </strong>
+          </s-paragraph>
+        )}
+
+        {youtubeConnectedUsername && (
+          <s-paragraph>
+            <strong>Connected! YouTube channel linked successfully.</strong>
+          </s-paragraph>
+        )}
+
+        {data.youtubeChannelTitle ? (
+          <s-stack direction="inline" gap="base">
+            <s-paragraph>YouTube channel connected ({data.youtubeChannelTitle}).</s-paragraph>
+            <s-button
+              variant="secondary"
+              onClick={disconnectYouTube}
+              {...(disconnectYouTubeFetcher.state !== "idle" ? { loading: true } : {})}
+            >
+              Disconnect
+            </s-button>
+          </s-stack>
+        ) : (
+          data.isYouTubeConfigured &&
+          data.youtubeAuthorizeUrl && (
+            <>
+              <s-button href={data.youtubeAuthorizeUrl} target="_blank" variant="primary">
+                Connect YouTube
               </s-button>
               <s-paragraph>
                 Opens in a new tab — this page updates automatically once

@@ -12,6 +12,8 @@ import { getOrCreateBoardForCategory } from "../pinterest/boards.server";
 import { createPin } from "../pinterest/publish.server";
 import { uploadVideoToInbox } from "../tiktok/publish.server";
 import { getValidTikTokAccessToken } from "../tiktok/oauth.server";
+import { uploadShort } from "../youtube/publish.server";
+import { getValidYouTubeAccessToken } from "../youtube/oauth.server";
 import { uploadGeneratedImageToProduct } from "../shopify/uploadProductImage.server";
 import { unauthenticated } from "../../shopify.server";
 import { getOrCreateTrackedLink, buildTrackedUrl } from "../trackedLink.server";
@@ -56,6 +58,16 @@ export type TikTokPublishOutcome =
   | { status: "published"; publishId: string }
   | { status: "failed"; reason: string };
 
+// Best-effort igual aos outros — só tentado pra post format="reel" (Shorts
+// é vídeo vertical curto). Diferente do TikTok, o YouTube não exige
+// auditoria pra publicação direta: sucesso aqui já É publicação real e
+// pública (privacyStatus: "public", decisão de Patricia, 25/09/2026), sem
+// a nuance de "entregue mas não publicado" que o TikTok tem.
+export type YouTubePublishOutcome =
+  | { status: "not_attempted"; reason?: string }
+  | { status: "published"; videoId: string }
+  | { status: "failed"; reason: string };
+
 export type PublishResult =
   | {
       status: "success";
@@ -64,6 +76,7 @@ export type PublishResult =
       facebook: FacebookPublishOutcome;
       pinterest: PinterestPublishOutcome;
       tiktok: TikTokPublishOutcome;
+      youtube: YouTubePublishOutcome;
     }
   | { status: "error"; reason: string };
 
@@ -330,6 +343,40 @@ export async function publishContentItemToInstagram(
       }
     }
 
+    // Espelha o Reel como YouTube Short — só tentado pra post format="reel",
+    // best-effort igual ao TikTok/Pinterest. Diferente do TikTok, publica
+    // público e direto de verdade (sem passo de confirmação manual), então
+    // "published" aqui significa a mesma coisa que no Instagram/Facebook.
+    let youtube: YouTubePublishOutcome = contentItem.youtubeExternalPostId
+      ? { status: "published", videoId: contentItem.youtubeExternalPostId }
+      : { status: "not_attempted" };
+    if (youtube.status === "not_attempted" && contentItem.format === "reel") {
+      const youtubeAccount = await prisma.socialAccount.findFirst({
+        where: { shopId: contentItem.shopId, platform: "youtube" },
+      });
+      if (youtubeAccount) {
+        try {
+          const accessToken = await getValidYouTubeAccessToken(youtubeAccount);
+          const base64Video = contentItem.videoUrl!.split(",")[1];
+          const videoBuffer = Buffer.from(base64Video, "base64");
+          const videoId = await uploadShort(
+            { accessToken },
+            videoBuffer,
+            { title: contentItem.product?.title ?? "New arrival", description: caption },
+          );
+          youtube = { status: "published", videoId };
+        } catch (youtubeError) {
+          youtube = {
+            status: "failed",
+            reason:
+              youtubeError instanceof Error
+                ? youtubeError.message
+                : "Unknown error uploading to YouTube.",
+          };
+        }
+      }
+    }
+
     await prisma.contentItem.update({
       where: { id: contentItemId },
       data: {
@@ -340,6 +387,7 @@ export async function publishContentItemToInstagram(
         facebookExternalPostId: facebook.status === "published" ? facebook.postId : null,
         pinterestExternalPostId: pinterest.status === "published" ? pinterest.pinId : null,
         tiktokExternalPostId: tiktok.status === "published" ? tiktok.publishId : null,
+        youtubeExternalPostId: youtube.status === "published" ? youtube.videoId : null,
       },
     });
 
@@ -374,7 +422,7 @@ export async function publishContentItemToInstagram(
       }
     }
 
-    return { status: "success", igMediaId, story, facebook, pinterest, tiktok };
+    return { status: "success", igMediaId, story, facebook, pinterest, tiktok, youtube };
   } catch (error) {
     // Se o Instagram já tinha sido publicado (igMediaId setado) antes do
     // erro, "partial" preserva isso e permite reconciliar no próximo retry

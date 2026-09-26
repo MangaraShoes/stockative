@@ -205,7 +205,7 @@ model SocialAccount {
   id                  String    @id @default(cuid())
   shopId              String
   shop                Shop      @relation(fields: [shopId], references: [id])
-  platform            String // instagram | facebook | pinterest | tiktok
+  platform            String // instagram | facebook | pinterest | tiktok | youtube
   accessToken         String
   expiresAt           DateTime?
   igBusinessAccountId String?
@@ -215,6 +215,8 @@ model SocialAccount {
   pinterestUsername   String?
   tiktokOpenId        String? // identificador estável da conta TikTok (não muda, diferente do username)
   tiktokUsername      String?
+  youtubeChannelId    String? // identificador estável do canal (não muda, diferente do título)
+  youtubeChannelTitle String?
 
   @@unique([shopId, platform])
   @@index([shopId])
@@ -369,6 +371,10 @@ model ContentItem {
   // post format="reel"; a lojista precisa abrir o TikTok e confirmar a
   // publicação de lá, o app só entrega o vídeo pronto na caixa de entrada.
   tiktokExternalPostId String?
+  // ID do Short publicado no canal do YouTube — só existe pra post
+  // format="reel"; diferente do TikTok, é publicação pública direta e
+  // real, sem etapa de rascunho/confirmação manual (ver youtube/publish.server.ts).
+  youtubeExternalPostId String?
   // Quando a imagem hero foi subida pra galeria do produto no Shopify (ver
   // publishContentItem.server.ts). Sem isso, um retry de um item "partial"
   // (Instagram publicou, uma etapa depois falhou) subia a mesma imagem de

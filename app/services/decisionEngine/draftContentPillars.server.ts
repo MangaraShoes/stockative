@@ -60,6 +60,7 @@ export type ContentPillarDraft = z.infer<typeof pillarSchema>;
 // aprovado. Rascunho: a lojista revisa/edita/aprova antes de salvar, mesmo
 // padrão do draftBrandVoice.
 export async function draftContentPillars(
+  shopId: string,
   products: ProductSample[],
   brandVoice: BrandVoiceInput,
   languageCode: ContentLanguageCode,
@@ -92,6 +93,12 @@ Write every field in ${languageLabel}, consistently. Never mix languages within 
 
 Never use an em dash (—) anywhere in the output; use a comma, period, colon, or parentheses instead.`;
 
-  const result = await generateStructuredForTask("content_pillars", pillarsDraftSchema, prompt);
+  // Conta contra a cota mensal (mesmo motivo do brand_analysis, ver
+  // creditUsage.server.ts) — protege sobretudo contra reenvio repetido do
+  // formulário, já que esta tela não tem botão de regenerar de verdade.
+  const result = await generateStructuredForTask("content_pillars", pillarsDraftSchema, prompt, {
+    shopId,
+    countsAsCredit: true,
+  });
   return result.pillars;
 }

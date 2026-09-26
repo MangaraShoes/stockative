@@ -35,6 +35,7 @@ export type BrandDraft = z.infer<typeof brandDraftSchema>;
 // como evidência de fato material (o que o produto é de fato), nunca como
 // origem da história da marca.
 export async function draftBrandVoice(
+  shopId: string,
   products: ProductSample[],
   sources: BrandSources,
   // Comentário livre da lojista quando ela pede pra regenerar um rascunho
@@ -123,5 +124,11 @@ Draft the brand description, tone of voice, and things to avoid saying. Never us
       : ""
   }`;
 
-  return generateStructuredForTask("brand_analysis", brandDraftSchema, prompt);
+  // Conta contra a cota mensal (achado ao vivo, 26/09/2026: rodava
+  // ilimitado até aqui — o botão Regenerate fica disponível pra sempre na
+  // tela, não só no onboarding, ver getMonthlyLimit em creditUsage.server.ts).
+  return generateStructuredForTask("brand_analysis", brandDraftSchema, prompt, {
+    shopId,
+    countsAsCredit: true,
+  });
 }

@@ -6,7 +6,7 @@
 // do mesmo pool.
 import prisma from "../../db.server";
 
-export type CreditTaskType = "image" | "video";
+export type CreditTaskType = "image" | "video" | "brand_analysis" | "content_pillars";
 
 // Basic: 12 posts/mês = 8 carrossel/post + 4 reels — número fixo da
 // hipótese de preço em CLAUDE.md, não derivado por semana×4.33 (daria 9/4).
@@ -17,6 +17,18 @@ const MONTHLY_LIMITS: Record<string, { image: number; video: number }> = {
   basic: { image: 8, video: 4 },
   grow: { image: 13, video: 9 },
   plus: { image: 17, video: 13 },
+};
+
+// Cota de brand_analysis/content_pillars, achado ao vivo, 26/09/2026: essas
+// duas rodam ilimitado hoje (Store voice/Content pillars, botão
+// "Regenerate" disponível pra sempre, não só no onboarding) — custam bem
+// menos por chamada que imagem/reel (~$0,01-0,03 vs ~$0,11-1,99), então o
+// teto não precisa escalar por plano como imagem/reel escala: é só pra
+// cortar clique repetido sem controle, não pra limitar uso legítimo.
+// Números fixos, iguais em qualquer plano (Basic/Grow/Plus/Custom).
+const FLAT_MONTHLY_LIMITS: Record<"brand_analysis" | "content_pillars", number> = {
+  brand_analysis: 15,
+  content_pillars: 10,
 };
 
 type ShopPlanFields = {
@@ -37,6 +49,9 @@ function resolveCustomLimits(shop: ShopPlanFields): { image: number; video: numb
 }
 
 export function getMonthlyLimit(shop: ShopPlanFields, taskType: CreditTaskType): number {
+  if (taskType === "brand_analysis" || taskType === "content_pillars") {
+    return FLAT_MONTHLY_LIMITS[taskType];
+  }
   const limits = shop.plan === "custom" ? resolveCustomLimits(shop) : MONTHLY_LIMITS[shop.plan] ?? MONTHLY_LIMITS.basic;
   return limits[taskType];
 }

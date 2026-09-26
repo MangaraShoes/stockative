@@ -7,6 +7,7 @@ import { draftBrandVoice } from "../services/decisionEngine/draftBrandVoice.serv
 import { fetchBrandSources } from "../services/brandSources.server";
 import { prepareLogo, LogoNotTransparentError } from "../services/imageMvp/logoOverlay.server";
 import { CONTENT_LANGUAGES, IMAGE_STYLE_PREFERENCES } from "../services/decisionEngine/constants";
+import { getRemainingCredits } from "../services/decisionEngine/creditUsage.server";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
@@ -38,8 +39,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     : null;
 
   const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
+  const remainingBrandAnalysisCredits = shop ? await getRemainingCredits(shop, "brand_analysis") : 0;
 
   return {
+    remainingBrandAnalysisCredits,
     brandDescription: shop?.brandDescription ?? "",
     brandTone: shop?.brandTone ?? "",
     brandAvoid: shop?.brandAvoid ?? "",
@@ -75,6 +78,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       throw new Response("Connect Instagram first — see Social accounts.", { status: 400 });
     }
 
+    // Cota mensal (achado ao vivo, 26/09/2026: rodava ilimitado — ver
+    // creditUsage.server.ts). Checa ANTES de montar produtos/fontes, pra
+    // nunca gastar trabalho preparando uma chamada que vai ser recusada.
+    const remainingCredits = await getRemainingCredits(shop, "brand_analysis");
+    if (remainingCredits <= 0) {
+      return {
+        intent,
+        draft: null,
+        error: "You've used all your store voice regenerations for this month. Try again next month.",
+        sourcesFound: null,
+      };
+    }
+
     const products = await prisma.productCache.findMany({
       where: { shopId: shop.id },
       select: { title: true, description: true, productType: true, price: true },
@@ -88,7 +104,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // (já corrigido em parseJsonResponse), mas qualquer outra falha aqui
     // agora também vira um erro visível na tela, nunca um crash silencioso.
     try {
-      const draft = await draftBrandVoice(products, sources, feedback);
+      const draft = await draftBrandVoice(shop.id, products, sources, feedback);
       return {
         intent,
         draft,
@@ -517,6 +533,21 @@ export default function StoreVoice() {
                 rows={2}
                 style={{ width: "100%", padding: 8 }}
               />
+              {/* Achado ao vivo, 26/09/2026: rodava ilimitado até aqui —
+                  mostra a cota restante antes do clique, mesmo padrão já
+                  usado pra regenerar imagem em app.plan-week.tsx. */}
+              <p
+                style={{
+                  fontSize: 12,
+                  color: data.remainingBrandAnalysisCredits <= 0 ? "#d72c0d" : "#6d7175",
+                  marginTop: 4,
+                  marginBottom: 0,
+                }}
+              >
+                {data.remainingBrandAnalysisCredits <= 0
+                  ? "You've used all your store voice regenerations for this month."
+                  : `${data.remainingBrandAnalysisCredits} regeneration${data.remainingBrandAnalysisCredits === 1 ? "" : "s"} left this month`}
+              </p>
               {/* Fundo cinza de verdade — mesmo padrão do Skip em
                   app.competitors.tsx e do Save publishing language acima:
                   variant="secondary" do s-button não tem preenchimento
@@ -525,7 +556,7 @@ export default function StoreVoice() {
                 <button
                   type="button"
                   onClick={() => generateDraft(regenerateFeedback || undefined)}
-                  disabled={isDrafting}
+                  disabled={isDrafting || data.remainingBrandAnalysisCredits <= 0}
                   style={{
                     display: "inline-block",
                     padding: "8px 16px",
@@ -534,8 +565,8 @@ export default function StoreVoice() {
                     background: "#c9cccf",
                     color: "#202223",
                     fontWeight: 500,
-                    opacity: isDrafting ? 0.5 : 1,
-                    cursor: isDrafting ? "default" : "pointer",
+                    opacity: isDrafting || data.remainingBrandAnalysisCredits <= 0 ? 0.5 : 1,
+                    cursor: isDrafting || data.remainingBrandAnalysisCredits <= 0 ? "default" : "pointer",
                   }}
                 >
                   {isDrafting ? "Regenerating…" : "Regenerate"}

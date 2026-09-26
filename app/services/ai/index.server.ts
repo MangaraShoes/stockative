@@ -5,6 +5,12 @@ import type { AITaskType } from "./types.server";
 
 interface LogOptions {
   contentItemId?: string;
+  shopId?: string;
+  // 1 crédito = 1 chamada bem-sucedida, pro mesmo mecanismo de cota mensal
+  // já usado por imagem/reel (ver creditUsage.server.ts) — default false,
+  // só as tarefas que de fato têm teto (brand_analysis, content_pillars)
+  // passam true.
+  countsAsCredit?: boolean;
 }
 
 // Ponto de entrada público do AI Provider Layer: chama o provedor configurado
@@ -22,6 +28,8 @@ export async function generateTextForTask(
   await prisma.generationLog.create({
     data: {
       contentItemId: options.contentItemId,
+      shopId: options.shopId,
+      countsAsCredit: options.countsAsCredit ?? false,
       taskType,
       model: result.model,
       tokensUsed: result.tokensUsed,
@@ -45,6 +53,8 @@ export async function generateStructuredForTask<T>(
   await prisma.generationLog.create({
     data: {
       contentItemId: options.contentItemId,
+      shopId: options.shopId,
+      countsAsCredit: options.countsAsCredit ?? false,
       taskType,
       model: result.model,
       tokensUsed: result.tokensUsed,

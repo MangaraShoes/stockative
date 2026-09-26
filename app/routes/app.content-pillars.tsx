@@ -3,6 +3,7 @@ import { Form, redirect, useActionData, useLoaderData, useNavigation } from "rea
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { draftContentPillars } from "../services/decisionEngine/draftContentPillars.server";
+import { getRemainingCredits } from "../services/decisionEngine/creditUsage.server";
 import { planWeeklyContent } from "../services/decisionEngine/planWeek.server";
 import {
   COMMERCIAL_OBJECTIVES,
@@ -84,6 +85,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Connect Instagram first — see Social accounts." };
   }
 
+  // Cota mensal (achado ao vivo, 26/09/2026: sem teto até aqui — ver
+  // creditUsage.server.ts). Esta tela normalmente só chama isso 1x por
+  // loja (redireciona embora assim que os pilares existem), então o teto
+  // aqui é sobretudo proteção contra reenvio repetido do formulário, não
+  // um limite de uso normal.
+  const remainingCredits = await getRemainingCredits(shop, "content_pillars");
+  if (remainingCredits <= 0) {
+    return {
+      error: "You've used all your content strategy regenerations for this month. Try again next month.",
+    };
+  }
+
   const formData = await request.formData();
 
   // Nunca deixar uma falha aqui derrubar a tela em branco (achado ao vivo,
@@ -96,6 +109,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       select: { title: true, description: true, productType: true, price: true },
     });
     const draft = await draftContentPillars(
+      shop.id,
       products,
       {
         brandDescription: shop.brandDescription,

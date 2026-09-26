@@ -254,6 +254,12 @@ export async function publishContentItemToInstagram(
             : await publishToFacebookPage(facebookTarget, imageUrls, facebookCaption);
         facebook = { status: "published", postId: facebookPostId };
       } catch (facebookError) {
+        // Achado ao vivo, 26/09/2026: os 4 blocos best-effort (Facebook,
+        // Pinterest, TikTok, YouTube) capturavam a falha só no valor de
+        // retorno, sem log nenhum — uma queda ficava muda até alguém notar
+        // o post faltando na plataforma. Nunca derruba o resto (mesmo
+        // catch de sempre), só passa a deixar rastro nos logs do Railway.
+        console.error("Failed to mirror post to Facebook:", facebookError);
         facebook = {
           status: "failed",
           reason:
@@ -299,6 +305,7 @@ export async function publishContentItemToInstagram(
             );
             pinterest = { status: "published", pinId };
           } catch (pinterestError) {
+            console.error("Failed to mirror post to Pinterest:", pinterestError);
             pinterest = {
               status: "failed",
               reason:
@@ -332,6 +339,7 @@ export async function publishContentItemToInstagram(
           );
           tiktok = { status: "published", publishId };
         } catch (tiktokError) {
+          console.error("Failed to mirror post to TikTok:", tiktokError);
           tiktok = {
             status: "failed",
             reason:
@@ -366,6 +374,7 @@ export async function publishContentItemToInstagram(
           );
           youtube = { status: "published", videoId };
         } catch (youtubeError) {
+          console.error("Failed to mirror post to YouTube:", youtubeError);
           youtube = {
             status: "failed",
             reason:

@@ -10,6 +10,7 @@ import {
 } from "../services/pinterest/oauth.server";
 import {
   buildAuthorizeUrl as buildTikTokAuthorizeUrl,
+  getValidTikTokAccessToken,
   isTikTokConfigured,
 } from "../services/tiktok/oauth.server";
 import {
@@ -59,6 +60,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : null;
 
+  // Checagem proativa, não só "existe uma linha SocialAccount" — achado ao
+  // vivo, 26/09/2026: o refresh_token do TikTok pode ficar inválido
+  // (invalid_grant) sem nenhum aviso visível até um Reel falhar em
+  // silêncio na publicação. Chamar getValidTikTokAccessToken aqui tenta
+  // renovar de verdade quando o token local já expirou — se a renovação
+  // falhar, é sinal real de que precisa reconectar. Efeito colateral bom:
+  // isso também mantém o token renovado só de abrir esta tela.
+  let tiktokNeedsReconnect = false;
+  if (tiktokAccount) {
+    try {
+      await getValidTikTokAccessToken(tiktokAccount);
+    } catch {
+      tiktokNeedsReconnect = true;
+    }
+  }
+
   const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
 
   return {
@@ -75,6 +92,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     isTikTokConfigured: isTikTokConfigured(),
     tiktokAuthorizeUrl: isTikTokConfigured() ? buildTikTokAuthorizeUrl(session.shop) : null,
     tiktokUsername: tiktokAccount?.tiktokUsername ?? null,
+    tiktokNeedsReconnect,
     isYouTubeConfigured: isYouTubeConfigured(),
     youtubeAuthorizeUrl: isYouTubeConfigured() ? buildYouTubeAuthorizeUrl(session.shop) : null,
     youtubeChannelTitle: youtubeAccount?.youtubeChannelTitle ?? null,
@@ -294,7 +312,21 @@ export default function Social() {
           </s-paragraph>
         )}
 
-        {data.tiktokUsername ? (
+        {/* A conexão fica quebrada de tempos em tempos, do lado do TikTok
+            (refresh_token invalidado — achado recorrente, 26/09/2026):
+            manter a linha SocialAccount não significa que ainda funciona.
+            O loader já tenta renovar de verdade antes de decidir isso, pra
+            nunca mais falhar em silêncio até um Reel sumir sem explicação. */}
+        {data.tiktokUsername && data.tiktokNeedsReconnect && (
+          <s-paragraph>
+            <strong>
+              TikTok connection expired (@{data.tiktokUsername}) — Reels
+              stopped going out silently. Reconnect below to fix it.
+            </strong>
+          </s-paragraph>
+        )}
+
+        {data.tiktokUsername && !data.tiktokNeedsReconnect ? (
           <s-stack direction="inline" gap="base">
             <s-paragraph>TikTok account connected (@{data.tiktokUsername}).</s-paragraph>
             <s-button
@@ -310,7 +342,7 @@ export default function Social() {
           data.tiktokAuthorizeUrl && (
             <>
               <s-button href={data.tiktokAuthorizeUrl} target="_blank" variant="primary">
-                Connect TikTok
+                {data.tiktokNeedsReconnect ? "Reconnect TikTok" : "Connect TikTok"}
               </s-button>
               <s-paragraph>
                 Opens in a new tab — this page updates automatically once

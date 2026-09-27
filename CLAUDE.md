@@ -172,3 +172,4 @@ Isso substitui a regra geral de "só commitar quando pedido" só para este proje
 - [MARKETING-KNOWLEDGE.md](MARKETING-KNOWLEDGE.md) — arquétipos criativos e frameworks narrativos que alimentam o Estágio 2 do Decision Engine.
 - [META-APP-REVIEW.md](META-APP-REVIEW.md) — rascunhos de submissão pro Meta App Review (descrições de uso + roteiro de screencast por permissão), checklist de bloqueadores (Business Verification, Privacy Policy, Data Deletion Instructions).
 - [YOUTUBE-API-VERIFICATION.md](YOUTUBE-API-VERIFICATION.md) — setup do Google Cloud, modo Testing vs verificação OAuth completa, cota do `videos.insert` (5º canal de publicação, YouTube Shorts, adicionado 26/09/2026).
+- [TIKTOK-API-REVIEW.md](TIKTOK-API-REVIEW.md) — achado de 27/09/2026: o mirror do TikTok nunca publicou nem uma vez (0/4 reels), falta aprovação do escopo `video.upload` pelo próprio TikTok, não é problema de token/reconexão.

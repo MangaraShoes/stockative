@@ -433,6 +433,13 @@ export async function publishContentItemToInstagram(
 
     return { status: "success", igMediaId, story, facebook, pinterest, tiktok, youtube };
   } catch (error) {
+    // Mesma lacuna corrigida nos 4 espelhos best-effort (26/09/2026) —
+    // achado ao vivo de novo, 29/09/2026: o caminho PRINCIPAL (Instagram)
+    // também ficava mudo quando falhava, e "failed" nem entra na fila de
+    // retry automático do cron (publishDueContentItems só busca
+    // draft/approved/partial) — sem log, uma falha aqui só seria notada se
+    // alguém checasse manualmente o post faltando.
+    console.error("Failed to publish to Instagram:", error);
     // Se o Instagram já tinha sido publicado (igMediaId setado) antes do
     // erro, "partial" preserva isso e permite reconciliar no próximo retry
     // sem publicar de novo — só volta pra "failed" (nunca republicável sem

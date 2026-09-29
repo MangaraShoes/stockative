@@ -4,18 +4,18 @@ export const TIKTOK_USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/";
 export const TIKTOK_INBOX_UPLOAD_INIT_URL =
   "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/";
 
-// Achado ao vivo, 22/09/2026: "user.info.basic" e "video.upload" não
-// existem como escopos de usuário de verdade neste app (nem aparecem na
-// lista de "Add scopes" do TikTok for Developers) — pedir eles na
-// autorização derrubava o login inteiro com um erro genérico de
-// "client_key" que na real era o escopo sendo rejeitado. user.info.profile
-// é o único que existe e já cobre open_id + username (o que
-// getTikTokAccount usa). O direito de enviar pra caixa de rascunhos do
-// TikTok (Content Posting API em modo inbox, sem a auditoria de Direct
-// Post) vem de o PRODUTO Content Posting API estar habilitado no app, não
-// de um escopo separado do usuário — por isso não falta nada aqui pra
-// uploadVideoToInbox funcionar.
-export const TIKTOK_SCOPES = ["user.info.profile"].join(",");
+// video.upload é o que libera o upload pra caixa de rascunhos
+// (uploadVideoToInbox) — sem ele toda chamada falha com "The user did not
+// authorize the scope required" (0 de 4 reels publicados até 27/09/2026, ver
+// TIKTOK-API-REVIEW.md). O comentário antigo daqui (22/09/2026) dizia que
+// video.upload "não existia": na real o app ainda não tinha o produto
+// Content Posting API adicionado, então o escopo nem aparecia pra pedir, e
+// pedir um escopo que o app não tem derruba o login inteiro. Achado ao vivo,
+// 29/09/2026: com o produto adicionado no Sandbox, video.upload aparece na
+// lista de Scopes. Precisa do mesmo produto adicionado também em Production
+// (e aprovado na revisão) antes de usar as credenciais de produção.
+export const TIKTOK_SCOPES = ["user.info.profile", "video.upload"].join(",");
+export const TIKTOK_REQUIRED_PUBLISH_SCOPE = "video.upload";
 
 export class TikTokApiError extends Error {
   code: string | null;

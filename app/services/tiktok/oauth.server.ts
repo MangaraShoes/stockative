@@ -3,6 +3,7 @@ import type { SocialAccount } from "@prisma/client";
 import prisma from "../../db.server";
 import {
   TIKTOK_AUTHORIZE_BASE,
+  TIKTOK_REQUIRED_PUBLISH_SCOPE,
   TIKTOK_SCOPES,
   TIKTOK_TOKEN_URL,
   TIKTOK_USER_INFO_URL,
@@ -115,6 +116,17 @@ export async function exchangeCodeForToken(code: string): Promise<{
   };
   if (!response.ok || json.error) {
     throw new Error(json.error_description ?? `TikTok token exchange failed (${response.status})`);
+  }
+
+  // A tela de autorização do TikTok deixa a lojista desmarcar escopos
+  // individualmente — conectar sem video.upload "funciona", mas todo Reel
+  // depois falharia em silêncio. Melhor recusar a conexão já aqui, com uma
+  // mensagem que diz o que fazer.
+  const grantedScopes = (json.scope ?? "").split(",").map((scope) => scope.trim());
+  if (!grantedScopes.includes(TIKTOK_REQUIRED_PUBLISH_SCOPE)) {
+    throw new Error(
+      "TikTok was connected without permission to upload videos. Reconnect and keep the video upload permission checked.",
+    );
   }
 
   return {

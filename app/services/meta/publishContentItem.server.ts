@@ -68,6 +68,20 @@ export type YouTubePublishOutcome =
   | { status: "published"; videoId: string }
   | { status: "failed"; reason: string };
 
+// Retry automático de posts "failed" pelo cron (achado ao vivo, 29/09/2026:
+// o post que a lojista recuperou manualmente publicou de primeira no retry —
+// sinal de que a falha original foi transitória, rede/rate-limit da Meta
+// API, não um problema real do post — mas sem isso ficaria preso pra sempre,
+// já que publishDueContentItems nunca busca status "failed"). Teto de
+// tentativas + backoff crescente pra nunca virar loop infinito batendo na
+// Meta API pra um post genuinamente quebrado (imagem corrompida etc.) — esse
+// teto é o que diferencia isso de simplesmente adicionar "failed" à lista de
+// retry sem limite. Índice 0 = tempo de espera após a 1ª falha, índice 1 =
+// após a 2ª, etc. Depois de esgotar a lista (MAX tentativas), o post fica
+// "failed" definitivo, igual ao comportamento de hoje — só retry manual.
+export const PUBLISH_RETRY_BACKOFF_MINUTES = [15, 60, 240];
+export const MAX_PUBLISH_ATTEMPTS = PUBLISH_RETRY_BACKOFF_MINUTES.length;
+
 export type PublishResult =
   | {
       status: "success";
@@ -202,7 +216,11 @@ export async function publishContentItemToInstagram(
 
       await prisma.contentItem.update({
         where: { id: contentItemId },
-        data: { status: "partial", externalPostId: igMediaId },
+        // Instagram confirmou o post: zera o contador de retry, já que
+        // qualquer "failed" anterior deste item não tem mais nada a ver com
+        // a causa de uma falha futura (se houver) — cada incidente começa
+        // com o teto de tentativas cheio de novo.
+        data: { status: "partial", externalPostId: igMediaId, publishAttempts: 0, nextRetryAt: null },
       });
     }
 
@@ -433,20 +451,42 @@ export async function publishContentItemToInstagram(
 
     return { status: "success", igMediaId, story, facebook, pinterest, tiktok, youtube };
   } catch (error) {
-    // Mesma lacuna corrigida nos 4 espelhos best-effort (26/09/2026) —
-    // achado ao vivo de novo, 29/09/2026: o caminho PRINCIPAL (Instagram)
-    // também ficava mudo quando falhava, e "failed" nem entra na fila de
-    // retry automático do cron (publishDueContentItems só busca
-    // draft/approved/partial) — sem log, uma falha aqui só seria notada se
-    // alguém checasse manualmente o post faltando.
+    // Mesma lacuna corrigida nos 4 espelhos best-effort (26/09/2026) — o
+    // caminho PRINCIPAL (Instagram) também ficava mudo quando falhava. Log
+    // sempre roda, mesmo quando o post abaixo ainda vai ser retentado
+    // automaticamente (ver publishDueContentItems) — histórico de falhas
+    // transitórias continua útil nos logs do Railway.
     console.error("Failed to publish to Instagram:", error);
     // Se o Instagram já tinha sido publicado (igMediaId setado) antes do
     // erro, "partial" preserva isso e permite reconciliar no próximo retry
     // sem publicar de novo — só volta pra "failed" (nunca republicável sem
-    // checar primeiro) quando nem o Instagram chegou a sair.
+    // checar primeiro) quando nem o Instagram chegou a sair. Só "failed" real
+    // conta pro teto de retry automático — "partial" já é sempre retentado
+    // pelo cron de qualquer forma, sem precisar de contador.
+    let publishAttempts = contentItem.publishAttempts;
+    let nextRetryAt: Date | null = null;
+    if (!igMediaId) {
+      publishAttempts += 1;
+      if (publishAttempts <= MAX_PUBLISH_ATTEMPTS) {
+        const backoffMinutes = PUBLISH_RETRY_BACKOFF_MINUTES[publishAttempts - 1];
+        nextRetryAt = new Date(Date.now() + backoffMinutes * 60 * 1000);
+      } else {
+        // Esgotou o teto — fica "failed" definitivo, igual ao comportamento
+        // de hoje. Log com nível próprio pra dar pra distinguir de uma falha
+        // que ainda vai ser retentada, caso alguém monte um alerta em cima
+        // dos logs do Railway no futuro (hoje não existe nenhum alerta ativo).
+        console.error(
+          `Content item ${contentItemId} failed to publish ${publishAttempts} times — giving up on automatic retry, needs manual review.`,
+        );
+      }
+    }
     await prisma.contentItem.update({
       where: { id: contentItemId },
-      data: { status: igMediaId ? "partial" : "failed" },
+      data: {
+        status: igMediaId ? "partial" : "failed",
+        publishAttempts: igMediaId ? contentItem.publishAttempts : publishAttempts,
+        nextRetryAt: igMediaId ? null : nextRetryAt,
+      },
     });
     return {
       status: "error",
@@ -497,13 +537,26 @@ export async function publishDueContentItems(): Promise<DueContentItemOutcome[]>
       // "partial" entra junto: post que publicou no Instagram mas travou
       // antes de terminar Story/Facebook/Pinterest/a escrita final — precisa
       // ser retomado, não fica esperando um novo agendamento (já tem data
-      // no passado de qualquer forma).
-      status: { in: ["draft", "approved", "partial"] },
+      // no passado de qualquer forma). "failed" entra condicionalmente (ver
+      // OR abaixo, achado ao vivo 29/09/2026): só dentro do teto de
+      // MAX_PUBLISH_ATTEMPTS e só depois do backoff (nextRetryAt) — nunca
+      // solto na lista principal, senão um post genuinamente quebrado bateria
+      // na Meta API a cada ciclo do cron pra sempre, do mesmo jeito que o
+      // achado de 12/09/2026 sobre posts sem imagem (ver checagem abaixo).
+      status: { in: ["draft", "approved", "partial", "failed"] },
       scheduledAt: { lte: new Date() },
       // Corrigido em 12/09/2026 (achado de revisão externa: "the uninstall
       // handler... does not deactivate the shop... queued publication could
       // continue"). Loja desinstalada nunca mais é considerada aqui.
       shop: { uninstalledAt: null },
+      OR: [
+        { status: { not: "failed" } },
+        {
+          status: "failed",
+          publishAttempts: { lt: MAX_PUBLISH_ATTEMPTS },
+          nextRetryAt: { lte: new Date() },
+        },
+      ],
     },
     select: {
       id: true,

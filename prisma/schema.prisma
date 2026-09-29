@@ -386,6 +386,24 @@ model ContentItem {
   // sem isso, um retry remontava e resubia o vídeo do zero a cada tentativa.
   videoUrl             String?
   videoGeneratedAt      DateTime?
+  // Quantas vezes uma tentativa real de publicar terminou em "failed" (achado
+  // ao vivo, 29/09/2026: um post caiu em "failed" por uma falha transitória
+  // da Meta API — rede/rate-limit — e ficou parado pra sempre porque o cron
+  // não retenta esse status; só foi recuperado porque a lojista notou e pediu
+  // retry manual, que funcionou de primeira). Usado junto com nextRetryAt em
+  // publishDueContentItems pra permitir retry automático com teto — nunca
+  // vira loop infinito num post genuinamente quebrado (imagem corrompida,
+  // conta desconectada de verdade), porque esses casos nem chegam a "failed"
+  // hoje (viram "draft" antes de tentar, ver publishContentItemToInstagram).
+  // Resetado pra 0 assim que uma tentativa de publicação (manual ou via cron)
+  // volta a ter sucesso.
+  publishAttempts Int @default(0)
+  // Quando o próximo retry automático de um post "failed" pode ser tentado
+  // (backoff crescente por tentativa, ver PUBLISH_RETRY_BACKOFF_MINUTES em
+  // publishContentItem.server.ts). Null enquanto o status não é "failed", ou
+  // quando publishAttempts já bateu o teto (não há próxima tentativa
+  // automática — só retry manual, mesmo caminho de hoje).
+  nextRetryAt     DateTime?
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 

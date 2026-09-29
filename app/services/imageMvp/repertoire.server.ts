@@ -269,6 +269,19 @@ interface FootwearFraming extends RepertoireOption {
 const TRUNCATION_SAFETY =
   "this is a photographic crop of a complete, whole person — her body continues naturally beyond the frame exactly as in a real photograph, never an anatomically incomplete or truncated figure";
 
+// "close_crop_thigh_down" e "walking_motion_crop" removidos daqui de
+// propósito (Patricia, 29/09/2026: "isso precisa ser uma regra sem
+// exceção" — achado ao vivo de um Reel mostrando só pernas, sem corpo
+// nenhum em quadro). Já existia um comentário de 13/09/2026 registrando o
+// MESMO problema ("a pessoa do imagem so existe da cintura para baixo") —
+// o TRUNCATION_SAFETY tentava resolver só no texto do prompt ("a pessoa
+// continua além do quadro"), mas o próprio conceito de "thigh down"/"leg
+// mid-motion" já É pedir um enquadramento só-pernas por definição, então
+// não tem como respeitar as duas coisas ao mesmo tempo. Nunca mais pedir
+// esse enquadramento é mais confiável que tentar convencer o modelo a
+// "imaginar" um corpo que não está na imagem. mid_shot_knee_up continua
+// (corta embaixo do joelho, mas sempre mostra torso pra cima) e
+// seated_wide_environment também (mostra o ambiente inteiro).
 export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
   {
     id: "mid_shot_knee_up",
@@ -276,20 +289,9 @@ export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
     promptText: `framed from roughly the knee up (${TRUNCATION_SAFETY})`,
   },
   {
-    id: "close_crop_thigh_down",
-    compatibleWith: "any",
-    promptText: `a closer crop from the thigh down (${TRUNCATION_SAFETY})`,
-  },
-  {
     id: "seated_wide_environment",
     compatibleWith: "seated",
     promptText: "a slightly wider shot that also shows the surrounding environment",
-  },
-  {
-    id: "walking_motion_crop",
-    compatibleWith: "motion",
-    promptText:
-      "a crop that captures the leg mid-motion, framed so the shoe stays fully inside the frame and is the sharpest, most prominent element in it — never cropped off, turned away from camera, or lost in motion blur",
   },
 ];
 

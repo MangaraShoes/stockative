@@ -166,9 +166,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // e sugestões de motivo traduzidas pro idioma de conteúdo da loja —
   // ambos mostrados perto do botão Regenerate antes de clicar.
   const remainingImageCredits = shop ? await getRemainingCredits(shop, "image") : 0;
-  // Só usado pro aviso de cota esgotada, que leva pra compra de crédito
-  // extra (app.extras.tsx, fora do menu de propósito).
-  const remainingVideoCredits = shop ? await getRemainingCredits(shop, "video") : 0;
   const regenerationReasonSuggestions =
     REGENERATION_REASON_SUGGESTIONS[(shop?.contentLanguagePrimary as ContentLanguageCode) ?? "en"] ??
     REGENERATION_REASON_SUGGESTIONS.en;
@@ -179,7 +176,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     products,
     productCollections,
     remainingImageCredits,
-    remainingVideoCredits,
     regenerationReasonSuggestions,
     // Fuso horário real da loja (Patricia, 12/09/2026: "precisamos
     // considerar sim o fuso horario da loja") — usado pra mostrar e editar
@@ -549,7 +545,6 @@ export default function PlanWeek() {
     onboardingStatus,
     slots,
     remainingImageCredits,
-    remainingVideoCredits,
     regenerationReasonSuggestions,
     tiktokCreator,
   } = useLoaderData<typeof loader>();
@@ -629,6 +624,10 @@ export default function PlanWeek() {
     );
   const [objectiveChoices, setObjectiveChoices] = useState<Record<string, string>>({});
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
+  // Post em que a lojista clicou "Regenerate" sem crédito — o aviso de cota
+  // esgotada (com o link pra crédito extra) só aparece depois desse clique,
+  // nunca antes (Patricia, 30/09/2026).
+  const [outOfCreditsClickedFor, setOutOfCreditsClickedFor] = useState<string | null>(null);
   const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
 
   // Formulário de campanha promocional, movido de app.content-pillars.tsx
@@ -829,20 +828,6 @@ export default function PlanWeek() {
   return (
     <s-page heading="Weekly plan">
       <OnboardingStepper status={onboardingStatus} currentStepHref="/app/plan-week" />
-
-      {hasShop && (remainingImageCredits <= 0 || remainingVideoCredits <= 0) && (
-        <s-banner tone="warning">
-          <s-paragraph>
-            You&apos;ve used all your{" "}
-            {remainingImageCredits <= 0 && remainingVideoCredits <= 0
-              ? "images and videos"
-              : remainingImageCredits <= 0
-                ? "images"
-                : "videos"}{" "}
-            for this month. <s-link href="/app/extras">Add extra credits</s-link> to keep going.
-          </s-paragraph>
-        </s-banner>
-      )}
 
       {recoveredPendingActionLabel && (
         <s-banner
@@ -1306,17 +1291,19 @@ export default function PlanWeek() {
                             rows={2}
                             style={{ width: "100%", padding: 8, marginBottom: 4 }}
                           />
-                          {isRegeneration && (
-                            <p style={{ fontSize: 12, color: outOfCredits ? "#d72c0d" : "#6d7175", marginTop: 0, marginBottom: 8 }}>
-                              {outOfCredits
-                                ? <>You&apos;ve used all your image regenerations for this month — <s-link href="/app/extras">add extra credits</s-link> to keep going.</>
-                                : `${remainingImageCredits} image regeneration${remainingImageCredits === 1 ? "" : "s"} left this month`}
+                          {isRegeneration && !outOfCredits && (
+                            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 0, marginBottom: 8 }}>
+                              {remainingImageCredits} image regeneration{remainingImageCredits === 1 ? "" : "s"} left this month
                             </p>
                           )}
                           <button
                             type="button"
-                            onClick={() => regenerateImage(slot.contentItemId)}
-                            disabled={isRegeneratingImage || feedbackMissing || outOfCredits}
+                            onClick={() =>
+                              outOfCredits
+                                ? setOutOfCreditsClickedFor(slot.contentItemId)
+                                : regenerateImage(slot.contentItemId)
+                            }
+                            disabled={isRegeneratingImage || feedbackMissing}
                             style={{
                               display: "inline-block",
                               padding: "8px 16px",
@@ -1325,8 +1312,8 @@ export default function PlanWeek() {
                               background: "#c9cccf",
                               color: "#202223",
                               fontWeight: 500,
-                              opacity: isRegeneratingImage || feedbackMissing || outOfCredits ? 0.5 : 1,
-                              cursor: isRegeneratingImage || feedbackMissing || outOfCredits ? "default" : "pointer",
+                              opacity: isRegeneratingImage || feedbackMissing ? 0.5 : 1,
+                              cursor: isRegeneratingImage || feedbackMissing ? "default" : "pointer",
                             }}
                           >
                             {isRegeneratingImage
@@ -1337,6 +1324,12 @@ export default function PlanWeek() {
                           </button>
                           {isRegeneratingImage && (
                             <GeneratingProgressBar label="Building a new image for this post…" />
+                          )}
+                          {outOfCredits && outOfCreditsClickedFor === slot.contentItemId && (
+                            <p style={{ fontSize: 12, color: "#d72c0d", marginTop: 8, marginBottom: 0 }}>
+                              You&apos;ve used all your image regenerations for this month —{" "}
+                              <s-link href="/app/extras">add extra credits</s-link> to keep going.
+                            </p>
                           )}
                         </div>
                       );

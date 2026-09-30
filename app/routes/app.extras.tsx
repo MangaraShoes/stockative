@@ -9,7 +9,8 @@ import { EXTRA_CREDIT_PRICING, estimateExtraCreditsPriceCents } from "../service
 // Compra avulsa de crédito extra de imagem/vídeo (Patricia, 30/09/2026).
 // Fora do menu de propósito ("nem precisa aparecer ali, só aparecer quando
 // a pessoa usar o limite de imagens e vídeos") — só se chega aqui pelo
-// aviso de cota esgotada no Weekly plan. Não existe cobrança real ainda
+// aviso que aparece quando ela clica "Regenerate image only" sem crédito
+// (Weekly plan). Não existe cobrança real ainda
 // (Fase 7, Shopify Billing): a compra só grava o crédito, igual a troca de
 // plano em app.settings.tsx.
 

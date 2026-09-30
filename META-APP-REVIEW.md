@@ -32,7 +32,7 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 ## `instagram_basic`
 
 **Descrição de uso:**
-> Stockative is a Shopify app that helps small e-commerce brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic for three things, all for the merchant's own connected Instagram Business account: (1) right after the merchant connects their account in our "Social accounts" screen, we read its basic profile info (username, ID, profile picture) to confirm the correct account was linked and display it back to them; (2) we read the account's own recent media (caption, media type, like and comment counts, timestamp) so our content engine can learn which of the brand's past posts performed best; (3) in the "Competitor accounts" screen, the merchant can optionally enter the usernames of up to 2 public Instagram Business/Creator accounts they admire in their niche, and we use Business Discovery to read those accounts' public profile and recent public posts (caption, media type, like and comment counts). This public data is only used as style/format reference inside our content decisions; it is never displayed as a comparison or scoreboard, and we never access any private data from those accounts.
+> Stockative is a Shopify app that helps small e-commerce brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic for three things, all for the merchant's own connected Instagram Business account: (1) right after the merchant connects their account in our "Social accounts" screen, we read its basic profile info (username, ID, profile picture) to confirm the correct account was linked and display it back to them; (2) we read the account's own recent media (caption, media type, like and comment counts, timestamp) so our content engine can learn which of the brand's past posts performed best; (3) in the "Competitor accounts" screen, the merchant can optionally enter the usernames of up to 3 public Instagram Business/Creator accounts they admire in their niche, and we use Business Discovery to read those accounts' public profile and recent public posts (caption, media type, like and comment counts). This public data is only used as style/format reference inside our content decisions; it is never displayed as a comparison or scoreboard, and we never access any private data from those accounts.
 
 **Screencast:** login completo do Instagram no app (Social accounts → Connect → dialog OAuth → volta pro app mostrando username/foto da conta conectada) + tela **Competitor accounts** adicionando um username e mostrando o perfil público encontrado.
 
@@ -219,7 +219,7 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 ## Checklist de submissão
 
 - [x] Business Verification concluída
-- [ ] App settings → Basic preenchido (30/09/2026: estava sem Privacy URL, App domains, ícone e categoria; Terms e Data deletion com placeholder `facebook.com`) — valores: App domains `app.stockative.com` + `stockative.com`, Privacy `https://stockative.com/#privacy`, Terms `https://stockative.com/#terms`, Data deletion `https://stockative.com/#privacy`, ícone `~/Desktop/stockative-icon-1024.png`, categoria Business and pages
+- [x] App settings → Basic preenchido em 30/09/2026 (estava sem Privacy URL, App domains, ícone e categoria; Terms e Data deletion com placeholder `facebook.com`) — valores: App domains `app.stockative.com` + `stockative.com`, Privacy `https://stockative.com/#privacy`, Terms `https://stockative.com/#terms`, Data deletion `https://stockative.com/#privacy`, ícone `~/Desktop/stockative-icon-1024.png`, categoria Business and pages
 - [x] As 7 permissões "Ready for testing" nos casos de uso (30/09/2026): `instagram_manage_insights` faltava no caso de uso Instagram API (dava "Invalid Scopes" no OAuth) e foi adicionado; `pages_manage_posts` fica no caso de uso Manage Pages. Também aparecem `instagram_business_basic`, `instagram_business_manage_messages` e `instagram_manage_comments` como Ready for testing — o app não usa, **não enviar pra App Review**
 - [x] Redirect URI de produção cadastrado (`https://app.stockative.com/auth/meta/callback`, 30/09/2026 — antes só tinha o ngrok)
 - [x] Data Deletion Instructions cobertas na Privacy Policy
@@ -228,10 +228,24 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - [x] Descrições de uso ajustadas pra cobrir Business Discovery (concorrentes) e online_followers (30/09/2026)
 - [x] Texto de instruções pro revisor escrito (30/09/2026) — falta montar a loja/IG/Página de teste e preencher os `<...>`
 - [ ] Loja Shopify de teste + Instagram/Página de teste prontos pro revisor
-- [ ] Screencast principal gravado (login → post gerado → publicado)
-- [ ] Screencast do Facebook Page mirror gravado
-- [ ] Screencast da tela Competitor accounts gravado
+- [x] Screencast principal gravado e editado (30/09/2026): `~/Desktop/META VIDEO 1 - final.mp4` (2min05s) — conexão com tela de permissões completa (via "Edit settings"), Publish now, post no IG e no FB, Performance com reach. Serve pras 7 permissões. Texto com tempos pra colar em cada permissão:
+  ```
+  0:00 – Merchant opens Stockative (Social accounts) inside Shopify admin and clicks "Connect Instagram & Facebook"
+  0:04 – Facebook Login for Business: merchant selects their Facebook Page (0:08), business (0:12) and Instagram Business account (0:16)
+  0:20 – Merchant reviews and grants the requested permissions
+  0:32 – Back in the app, the connected account is confirmed
+  0:40 – Weekly plan: a post generated by Stockative from the store's inventory and sales data (image + caption)
+  0:48 – Merchant clicks "Publish now" and confirms
+  1:32 – The post is live on the merchant's Instagram feed (instagram_content_publish)
+  1:40 – The same post is published to the linked Facebook Page (pages_manage_posts)
+  1:56 – Performance screen: reach and engagement read from Instagram Insights (instagram_manage_insights)
+  ```
+- [x] Screencast da tela Competitor accounts (30/09/2026): `~/Desktop/META VIDEO 2 - competitors final.mp4` (0:29) — 2º vídeo do `instagram_basic` (Business Discovery). Texto:
+  ```
+  0:00 – Competitor accounts screen: merchant enters the username of a public Instagram Business account in their niche and clicks "Check"
+  0:08 – Merchant confirms it's the right account; the app shows its public profile (bio, website) read via Business Discovery
+  0:16 – A second account is added the same way. This public data is only used as style reference for content decisions, never shown as a comparison
+  ```
 - [x] Texto desatualizado da tela Performance ("permission we don't have yet") corrigido antes de gravar (30/09/2026)
-- [ ] Screencast do Performance/insights gravado
 - [ ] 7 descrições de uso coladas nos campos certos do painel
 - [ ] Submeter e anotar a data aqui, pra acompanhar o prazo de 2-6 semanas

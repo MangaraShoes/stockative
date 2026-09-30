@@ -14,8 +14,8 @@ No App Dashboard: Dashboard → **Become a Tech Provider** → confirmar "Yes, I
 ## Antes de submeter (bloqueadores reais)
 
 - [x] **Business Verification** — já feita (Mangará verificada no painel da Meta).
-- [x] **Política de Privacidade** — já publicada em stockative.com/privacy (atualizada 11/09/2026).
-- [x] **Terms of Service** — já publicado em stockative.com/terms (atualizado 20/09/2026).
+- [x] **Política de Privacidade** — publicada como seção da landing: `https://stockative.com/#privacy` (atenção: `stockative.com/privacy` dá 404 — é âncora, não rota).
+- [x] **Terms of Service** — `https://stockative.com/#terms` (mesma observação: âncora na landing).
 - [x] **Data Deletion Instructions** — coberto na própria Privacy Policy (webhook de desinstalação + pedido manual via privacy@stockative.com).
 - [ ] Confirmar que a conta da Mangará continua funcionando como tester enquanto o review não sai (não bloqueia o piloto).
 
@@ -219,7 +219,8 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 ## Checklist de submissão
 
 - [x] Business Verification concluída
-- [x] Privacy Policy publicada + URL cadastrada no painel do app
+- [ ] App settings → Basic preenchido (30/09/2026: estava sem Privacy URL, App domains, ícone e categoria; Terms e Data deletion com placeholder `facebook.com`) — valores: App domains `app.stockative.com` + `stockative.com`, Privacy `https://stockative.com/#privacy`, Terms `https://stockative.com/#terms`, Data deletion `https://stockative.com/#privacy`, ícone `~/Desktop/stockative-icon-1024.png`, categoria Business and pages
+- [x] Redirect URI de produção cadastrado (`https://app.stockative.com/auth/meta/callback`, 30/09/2026 — antes só tinha o ngrok)
 - [x] Data Deletion Instructions cobertas na Privacy Policy
 - [x] Tech Provider confirmado (irreversível) + Access Verification submetida em 23/09/2026, "In review", resposta em até 5 dias (prazo final pra completar: 22/11/2026)
 - [ ] Access Verification aprovada (30/09/2026: ainda "In review" no Alert Inbox, sem resposta)

@@ -23,6 +23,7 @@ import {
   OBJECTIVE_LABELS,
   REGENERATION_REASON_SUGGESTIONS,
   CAPTION_REGENERATION_REASON_SUGGESTIONS,
+  MAX_CAPTION_REGENERATIONS_PER_POST,
   type CommercialObjective,
   type ContentLanguageCode,
 } from "../services/decisionEngine/constants";
@@ -1164,6 +1165,15 @@ export default function PlanWeek() {
                     {editable && (() => {
                       const captionFeedbackValue = captionFeedback[slot.contentItemId] ?? "";
                       const captionFeedbackMissing = !captionFeedbackValue.trim();
+                      const captionAttemptsUsed = slot.captionRegenerationCount;
+                      const captionAttemptsExhausted = captionAttemptsUsed >= MAX_CAPTION_REGENERATIONS_PER_POST;
+                      if (captionAttemptsExhausted) {
+                        return (
+                          <s-text color="subdued">
+                            You&apos;ve used all {MAX_CAPTION_REGENERATIONS_PER_POST} caption regenerations for this post.
+                          </s-text>
+                        );
+                      }
                       return (
                         <div>
                           <div style={{ marginBottom: 8 }}>
@@ -1205,14 +1215,19 @@ export default function PlanWeek() {
                             rows={2}
                             style={{ width: "100%", padding: 8, marginBottom: 4 }}
                           />
-                          <s-button
-                            variant="secondary"
-                            onClick={() => regenerateCaption(slot.contentItemId)}
-                            {...(isRegeneratingCaption ? { loading: true } : {})}
-                            {...(captionFeedbackMissing ? { disabled: true } : {})}
-                          >
-                            Regenerate caption only
-                          </s-button>
+                          <s-stack direction="inline" gap="small" alignItems="center">
+                            <s-button
+                              variant="secondary"
+                              onClick={() => regenerateCaption(slot.contentItemId)}
+                              {...(isRegeneratingCaption ? { loading: true } : {})}
+                              {...(captionFeedbackMissing ? { disabled: true } : {})}
+                            >
+                              Regenerate caption only
+                            </s-button>
+                            <s-text color="subdued">
+                              Attempt {captionAttemptsUsed + 1} of {MAX_CAPTION_REGENERATIONS_PER_POST}
+                            </s-text>
+                          </s-stack>
                         </div>
                       );
                     })()}

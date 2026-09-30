@@ -135,6 +135,11 @@ export const REGENERATION_REASON_SUGGESTIONS: Record<ContentLanguageCode, string
 // (Patricia, 30/09/2026: "precisamos de pistas de pq a pessoa quer regerar,
 // um campo para escrever tbem opções mais frequentes já preescritas como
 // fizemos nas imagens"). Clicar preenche o textarea; a lojista pode editar.
+// Cada "Regenerate caption only" é uma chamada de IA paga — limite por post
+// (Patricia, 30/09/2026: "penso que pode regerar 3 vezes, devemos informar
+// tipo tentativa 1 de 3").
+export const MAX_CAPTION_REGENERATIONS_PER_POST = 3;
+
 export const CAPTION_REGENERATION_REASON_SUGGESTIONS: Record<ContentLanguageCode, string[]> = {
   en: [
     "Too long",

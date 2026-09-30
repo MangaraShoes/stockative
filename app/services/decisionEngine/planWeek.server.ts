@@ -1,4 +1,4 @@
-import type { ContentPillar, Promotion } from "@prisma/client";
+import type { ContentPillar, Prisma, Promotion } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
 import { getArchetypePerformance, describeArchetypePerformance } from "./performanceLearning.server";
@@ -10,7 +10,7 @@ import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
 import { maxPrimaryCaptionChars, buildFinalCaption, parseStoredHashtags, stripFrameworkLabels } from "./captionFormat";
 import { parseStoredTikTokSettings, TIKTOK_TITLE_MAX_LENGTH, type TikTokPostSettings } from "../tiktok/postSettings";
-import type { CommercialObjective, ContentLanguageCode } from "./constants";
+import { MAX_CAPTION_REGENERATIONS_PER_POST, type CommercialObjective, type ContentLanguageCode } from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
 import { currentSeasonInTimezone, seasonScoreBoost } from "./seasonality.server";
@@ -51,6 +51,7 @@ export interface WeeklyPlanSlot {
   publishedAt: string | null; // ISO — quando de fato saiu no ar, se já publicou
   status: string; // draft | approved | publishing | partial | published | failed | cancelled
   captionText: string; // legenda completa, pra lojista ver o que vai publicar antes de aprovar
+  captionRegenerationCount: number; // quantas das MAX_CAPTION_REGENERATIONS_PER_POST já foram usadas
   images: WeeklyPlanImage[];
   format: string; // post | reel — ver ContentItem.format em prisma/schema.prisma
   videoUrl: string | null; // só quando format="reel" (ver generateReelForContentItem.server.ts)
@@ -532,6 +533,7 @@ export async function planOneSlot(
     format: itemFormat,
     videoUrl,
     captionText: stripFrameworkLabels(captionText ?? ""),
+    captionRegenerationCount: 0,
     images,
     tiktokSettings: null,
     tiktokPublishStatus: null,
@@ -815,6 +817,7 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     format: item.format,
     videoUrl: item.videoUrl,
     captionText: stripFrameworkLabels(item.captionText ?? ""),
+    captionRegenerationCount: item.captionRegenerationCount,
     tiktokSettings: parseStoredTikTokSettings(item.tiktokSettings),
     tiktokPublishStatus: item.tiktokPublishStatus,
     tiktokDefaultTitle: buildFinalCaption({
@@ -1042,14 +1045,46 @@ export async function regenerateWeeklyPlanSlotCaption(params: {
     return { status: "error", reason: "This post has no content decision to rewrite from." };
   }
 
-  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: params.shopId } });
-  const product = await loadProductWithSignal(item.productId);
+  // Reserva a tentativa ANTES da chamada de IA, de forma atômica — dois
+  // cliques rápidos nunca passam juntos do limite. Se a geração falhar, a
+  // tentativa é devolvida (catch abaixo): só conta o que de fato gerou legenda.
+  const claimed = await prisma.contentItem.updateMany({
+    where: { id: item.id, captionRegenerationCount: { lt: MAX_CAPTION_REGENERATIONS_PER_POST } },
+    data: { captionRegenerationCount: { increment: 1 } },
+  });
+  if (claimed.count === 0) {
+    return {
+      status: "error",
+      reason: `You've used all ${MAX_CAPTION_REGENERATIONS_PER_POST} caption regenerations for this post.`,
+    };
+  }
+
+  try {
+    await rewriteCaption(item, item.productId, params.shopId, trimmedFeedback);
+  } catch (error) {
+    await prisma.contentItem.update({
+      where: { id: item.id },
+      data: { captionRegenerationCount: { decrement: 1 } },
+    });
+    throw error;
+  }
+  return { status: "success" };
+}
+
+async function rewriteCaption(
+  item: Prisma.ContentItemGetPayload<{ include: { contentPillar: true; promotion: true } }>,
+  productId: string,
+  shopId: string,
+  feedback: string,
+): Promise<void> {
+  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+  const product = await loadProductWithSignal(productId);
   const brief = item.decisionBrief as unknown as Stage1Output;
   const pillar = item.contentPillar;
   const effectivePillar = item.format === "reel" && pillar ? { ...pillar, idealFormat: "reel" } : pillar;
 
   const stage1Input = await buildStage1Input({
-    shopId: params.shopId,
+    shopId,
     shop,
     product,
     objective: item.commercialObjective as CommercialObjective,
@@ -1067,7 +1102,7 @@ export async function regenerateWeeklyPlanSlotCaption(params: {
     },
     describeEvidence(stage1Input),
     maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
-    { previousCaption: item.captionText ?? "", feedback: trimmedFeedback },
+    { previousCaption: item.captionText ?? "", feedback },
   );
   const secondaryCaption = shop.contentLanguageSecondary
     ? await translateCaption(copy.captionText, shop.contentLanguageSecondary as ContentLanguageCode)
@@ -1081,7 +1116,6 @@ export async function regenerateWeeklyPlanSlotCaption(params: {
       cta: copy.cta,
     },
   });
-  return { status: "success" };
 }
 
 export type ChangeObjectiveResult =

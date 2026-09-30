@@ -341,6 +341,11 @@ model ContentItem {
   captionText         String?
   hashtags            String?
   cta                 String?
+  // Quantas vezes "Regenerate caption only" já rodou neste post — limite em
+  // MAX_CAPTION_REGENERATIONS_PER_POST (constants.ts). Cada regeneração é
+  // uma chamada de IA paga (Patricia, 30/09/2026: "não podemos permitir que
+  // a pessoa clica 50 vezes").
+  captionRegenerationCount Int      @default(0)
   creativeAssetId     String?
   creativeAsset       CreativeAsset? @relation(fields: [creativeAssetId], references: [id])
   status              String        @default("draft") // draft | approved | publishing | partial | published | failed | cancelled

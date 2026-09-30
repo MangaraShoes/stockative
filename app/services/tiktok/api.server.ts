@@ -5,24 +5,18 @@ export const TIKTOK_CREATOR_INFO_URL = "https://open.tiktokapis.com/v2/post/publ
 export const TIKTOK_DIRECT_POST_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/";
 export const TIKTOK_PUBLISH_STATUS_URL = "https://open.tiktokapis.com/v2/post/publish/status/fetch/";
 
-// video.upload é o que libera o upload pra caixa de rascunhos
-// (uploadVideoToInbox) — sem ele toda chamada falha com "The user did not
-// authorize the scope required" (0 de 4 reels publicados até 27/09/2026, ver
-// TIKTOK-API-REVIEW.md). O comentário antigo daqui (22/09/2026) dizia que
-// video.upload "não existia": na real o app ainda não tinha o produto
-// Content Posting API adicionado, então o escopo nem aparecia pra pedir, e
-// pedir um escopo que o app não tem derruba o login inteiro. Achado ao vivo,
-// 29/09/2026: com o produto adicionado no Sandbox, video.upload aparece na
-// lista de Scopes. Precisa do mesmo produto adicionado também em Production
-// (e aprovado na revisão) antes de usar as credenciais de produção.
-//
 // video.publish (Direct Post, Patricia, 30/09/2026: "o app deve poder postar
-// sozinho sem precisar entrar no tiktok") — publica direto no perfil em vez
-// de mandar pra caixa de rascunhos. Precisa do Direct Post ligado no produto
-// Content Posting API do app no TikTok for Developers (Sandbox e
-// Production); se o app pedir um escopo que não tem, o login inteiro falha.
-// video.upload continua pedido junto só porque já está aprovado no app.
-export const TIKTOK_SCOPES = ["user.info.profile", "video.upload", "video.publish"].join(",");
+// sozinho sem precisar entrar no tiktok") — publica direto no perfil. Precisa
+// do Direct Post ligado no produto Content Posting API do app no TikTok for
+// Developers (Sandbox e Production); se o app pedir um escopo que não tem, o
+// login inteiro falha com "Something went wrong – scope".
+//
+// Achado ao vivo, 30/09/2026: pedir video.upload JUNTO com video.publish
+// derruba o login com esse mesmo erro de "scope", mesmo com os dois
+// liberados no Sandbox — cada um sozinho funciona (testado com
+// user.info.profile + um de cada vez). video.upload (caixa de rascunhos) não
+// é mais usado desde a troca pro Direct Post, então fica de fora.
+export const TIKTOK_SCOPES = ["user.info.profile", "video.publish"].join(",");
 export const TIKTOK_REQUIRED_PUBLISH_SCOPE = "video.publish";
 
 export class TikTokApiError extends Error {

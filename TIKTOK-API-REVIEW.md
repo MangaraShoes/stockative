@@ -83,7 +83,7 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 
 ### Production → Scopes
 
-`user.info.basic` (vem com o Login Kit), `user.info.profile`, `video.upload` e `video.publish` (Direct Post, ligado no produto Content Posting API — 30/09/2026, Patricia: o app precisa postar sozinho, sem a lojista abrir o TikTok). A TikTok recusa escopos pedidos que o vídeo demo não mostra em uso.
+`user.info.basic` (vem com o Login Kit), `user.info.profile` e `video.publish` — **sem `video.upload`**: pedir os dois juntos derruba o login com erro de "scope" (achado ao vivo, 30/09/2026) (Direct Post, ligado no produto Content Posting API — 30/09/2026, Patricia: o app precisa postar sozinho, sem a lojista abrir o TikTok). A TikTok recusa escopos pedidos que o vídeo demo não mostra em uso.
 
 ### App review → explicação dos produtos e escopos
 
@@ -92,8 +92,6 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 > **Login Kit (user.info.basic, user.info.profile):** On the "Social accounts" page inside the Stockative app (embedded in Shopify Admin), the merchant clicks "Connect TikTok" and signs in with TikTok. We read only the open_id and username, to show the merchant which TikTok account is connected (e.g. "TikTok account connected (@mangara.official)") and to associate uploads with the right account. We don't read videos, followers or any other profile data.
 >
 > **Content Posting API – Direct Post (video.publish):** Stockative plans a week of posts for the merchant, including Reels. For each Reel, the weekly plan screen shows a "TikTok" panel following the Content Sharing Guidelines: the connected TikTok account (nickname and avatar from creator_info), an editable caption, a "Who can see this video" dropdown with no default value and only the options returned by creator_info, Comment/Duet/Stitch checkboxes that are off by default and greyed out when disabled on the account, the commercial content disclosure toggle (Your brand / Branded content, with Branded content blocked for "Only me"), the Music Usage Confirmation (and Branded Content Policy when applicable) declaration, and a notice that the video may take a few minutes to process. Nothing is sent to TikTok until the merchant clicks "Post this Reel to TikTok". At the Reel's scheduled time, Stockative queries creator_info again, checks the video duration against max_video_post_duration_sec, posts it with PULL_FROM_URL from our verified domain (stockative.com), and polls the publish status to show the result in the plan. Reels the merchant didn't confirm for TikTok are never sent.
->
-> **Content Posting API – Upload (video.upload):** kept from our earlier inbox-upload integration; can be removed if the reviewer prefers only video.publish.
 >
 > Merchants can disconnect TikTok at any time from the same page, which deletes the stored tokens.
 

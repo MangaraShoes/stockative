@@ -5,6 +5,18 @@ import prisma from "../db.server";
 // que ela precisa passar até configurar a loja") — centralizado aqui pra
 // Home e as 4 páginas de cada passo usarem exatamente o mesmo critério de
 // "feito", nunca duas definições divergentes do mesmo status.
+// Só conta conta social que de fato publica (Patricia, 30/09/2026: o passo
+// "Connect your social accounts" aparecia "Done" numa loja sem Instagram
+// nenhum). Uma conexão do Instagram que ficou pela metade (login feito, mas
+// sem conta Instagram Business vinculada) deixa um registro com
+// igBusinessAccountId vazio — esse registro não publica em lugar nenhum.
+export function usableSocialAccountsWhere(shopId: string) {
+  return {
+    shopId,
+    OR: [{ platform: { not: "instagram" } }, { igBusinessAccountId: { not: null } }],
+  };
+}
+
 export interface OnboardingStatus {
   hasStock: boolean;
   hasBrand: boolean;
@@ -27,7 +39,7 @@ export async function getOnboardingStatus(shopId: string): Promise<OnboardingSta
     prisma.productCache.count({ where: { shopId } }),
     prisma.commerceSignal.count({ where: { product: { shopId } } }),
     prisma.contentPillar.count({ where: { shopId } }),
-    prisma.socialAccount.count({ where: { shopId } }),
+    prisma.socialAccount.count({ where: usableSocialAccountsWhere(shopId) }),
     prisma.competitorAccount.count({ where: { shopId } }),
     prisma.contentItem.count({ where: { shopId, status: "published" } }),
     prisma.shop.findUniqueOrThrow({ where: { id: shopId } }),

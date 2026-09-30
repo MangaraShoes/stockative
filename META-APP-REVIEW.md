@@ -97,7 +97,7 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 
 ## Instruções pro revisor (colar em "Provide instructions" / "Testing instructions")
 
-Meta precisa conseguir entrar e testar sozinho. Loja de teste: `stockative-dev`, com a versão de **produção** do app instalada (30/09/2026 — antes só existia via dev preview) e **sem nenhuma rede conectada** (o Pinterest dela estava ligado ao `mangarashoes` real da Mangará, desconectado em 30/09/2026). O revisor conecta o Instagram de teste dele. Antes de colar: concluir "Set your weekly goal" na loja (senão o menu fica travado no onboarding) e trocar `<reviewer-staff-email>`. Não commitar a senha neste arquivo — ela só vai no campo do painel da Meta.
+Meta precisa conseguir entrar e testar sozinho. Loja de teste: `stockative-dev`, com a versão de **produção** do app instalada (30/09/2026 — antes só existia via dev preview) e **sem nenhuma rede conectada** (o Pinterest dela estava ligado ao `mangarashoes` real da Mangará, desconectado em 30/09/2026). O revisor conecta o Instagram de teste dele. O "Set your weekly goal" só funciona com Instagram conectado, então é o próprio revisor que faz, depois do passo A (instruções abaixo já nessa ordem). Antes de colar: trocar `<reviewer-staff-email>`. Não commitar a senha neste arquivo — ela só vai no campo do painel da Meta.
 
 ```
 Stockative is an embedded Shopify app, so it runs inside the Shopify admin.
@@ -123,9 +123,12 @@ A) Connecting the account (instagram_basic, pages_show_list,
    - You are returned to the app, which shows the account as connected.
 
 B) Publishing (instagram_content_publish, pages_manage_posts)
-   - Open "Weekly plan" and click "Generate this week's plan". The app
+   - After connecting, go back to the app's Home and click "Set your weekly
+     goal" (or open "Weekly objective" in the app menu). Pick a goal, e.g.
+     "Drive traffic to the shop", and click "Build my weekly plan". The app
      picks products from the store's inventory and sales data and writes a
-     caption and an AI product image for each post (this takes 1-3 minutes).
+     caption and an AI product image for each post (this takes 1-3 minutes),
+     then opens "Weekly plan".
    - On any post, click "Publish now" and confirm.
    - The post appears on the connected Instagram account's feed and the
      same content appears on the linked Facebook Page.

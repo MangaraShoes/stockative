@@ -4,7 +4,7 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { getOrCreateShop } from "../services/syncProducts.server";
-import { getOnboardingStatus } from "../services/onboardingStatus.server";
+import { getOnboardingStatus, usableSocialAccountsWhere } from "../services/onboardingStatus.server";
 import { goTo } from "../utils/navigateOnClick";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -22,7 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const productsCount = await prisma.productCache.count({ where: { shopId: shop.id } });
 
   const [socialCount, publishedCount, stuckPosts] = await Promise.all([
-    prisma.socialAccount.count({ where: { shopId: shop.id } }),
+    prisma.socialAccount.count({ where: usableSocialAccountsWhere(shop.id) }),
     prisma.contentItem.count({ where: { shopId: shop.id, status: "published" } }),
     // publishDueContentItems nunca tenta publicar (nem marca como failed) um
     // post vencido sem nenhuma imagem, pra não ficar batendo na Meta API pra

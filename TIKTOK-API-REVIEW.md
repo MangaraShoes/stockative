@@ -31,9 +31,15 @@ O código (`tiktok/publish.server.ts`) já documentava que o modo usado hoje (**
 - Falta: verificar o domínio, adicionar a conta TikTok da Mangará como Target User, Apply changes, trocar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` no Railway pelas credenciais do Sandbox, reconectar e testar 1 reel.
 - Depois: replicar Content Posting API + `video.upload` em Production e enviar pra revisão.
 
+## 30/09/2026: primeiro envio ao TikTok funcionando
+
+Correção de 29/09: o problema nunca foi o painel. O Sandbox já tinha `video.upload` desde 21/09 (mangara.official é target user desde então, e as credenciais no Railway já eram as do Sandbox, com prefixo `sbaw`). O que faltava era o app **pedir** o escopo na URL de autorização. Depois do deploy de `b27f1a9` e da reconexão da conta, um envio manual do reel `cmuibc8zp000qqs2umg9lozfk` chegou em `SEND_TO_USER_INBOX` (publish_id `v_inbox_url~v2.7691307781580130325`).
+
+O Sandbox basta pro piloto com a Mangará (até 10 contas). Pra outras lojistas, ainda falta: Content Posting API + `video.upload` em **Production**, preencher App details/App review e enviar pra revisão.
+
 ## Checklist de acompanhamento
 
 - [ ] Confirmado se `video.upload` precisa de revisão separada ou está dentro do mesmo processo do Direct Post
 - [ ] Revisão solicitada — anotar data aqui
 - [ ] Resposta da TikTok recebida — anotar resultado e prazo real observado
-- [ ] `TIKTOK_SCOPES` atualizado no código, conta reconectada, 1 reel de teste confirmado publicando de verdade no TikTok
+- [x] `TIKTOK_SCOPES` atualizado no código, conta reconectada, 1 reel de teste entregue na caixa de rascunhos (30/09/2026, Sandbox)

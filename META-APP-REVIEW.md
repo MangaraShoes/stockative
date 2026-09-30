@@ -97,22 +97,21 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 
 ## Instruções pro revisor (colar em "Provide instructions" / "Testing instructions")
 
-Meta precisa conseguir entrar e testar sozinho. Antes de colar: criar/instalar o app numa loja Shopify de teste conectada a um **Instagram de teste + Página de teste** (nunca a conta real da Mangará — ver incidente de 23/09/2026), e trocar os `<...>` abaixo. Não commitar a senha neste arquivo — ela só vai no campo do painel da Meta.
+Meta precisa conseguir entrar e testar sozinho. Loja de teste: `stockative-dev`, com a versão de **produção** do app instalada (30/09/2026 — antes só existia via dev preview) e **sem nenhuma rede conectada** (o Pinterest dela estava ligado ao `mangarashoes` real da Mangará, desconectado em 30/09/2026). O revisor conecta o Instagram de teste dele. Antes de colar: concluir "Set your weekly goal" na loja (senão o menu fica travado no onboarding) e trocar `<reviewer-staff-email>`. Não commitar a senha neste arquivo — ela só vai no campo do painel da Meta.
 
 ```
 Stockative is an embedded Shopify app, so it runs inside the Shopify admin.
 
 TEST ACCESS
-1. Go to https://<test-store>.myshopify.com/admin
+1. Go to https://admin.shopify.com/store/stockative-dev
 2. Log in with:
    Email: <reviewer-staff-email>
    Password: <entered only in this field, not stored elsewhere>
 3. In the left sidebar, open Apps > Stockative.
 
-The test store already has products, and Stockative is installed on it.
-You can connect your own Instagram Business account (linked to a Facebook
-Page) or use the one we set up for review:
-   Instagram: @<test-ig-username>  |  Facebook Page: <test-page-name>
+This is a test store with sample products and Stockative already installed.
+No Instagram account is connected, so please connect your own test
+Instagram Business account (linked to a Facebook Page) in step A.
 
 STEPS TO TEST EACH PERMISSION
 A) Connecting the account (instagram_basic, pages_show_list,
@@ -121,13 +120,12 @@ A) Connecting the account (instagram_basic, pages_show_list,
    - Click "Connect Instagram & Facebook" and complete Facebook Login,
      granting the requested permissions and selecting the Page linked to
      the Instagram Business account.
-   - You are returned to the app, which shows the connected Instagram
-     username.
+   - You are returned to the app, which shows the account as connected.
 
 B) Publishing (instagram_content_publish, pages_manage_posts)
-   - Open "Weekly plan". If it's empty, click "Generate this week's plan":
-     the app picks products from the store's inventory and sales data and
-     generates a caption and an AI product image for each post.
+   - Open "Weekly plan" and click "Generate this week's plan". The app
+     picks products from the store's inventory and sales data and writes a
+     caption and an AI product image for each post (this takes 1-3 minutes).
    - On any post, click "Publish now" and confirm.
    - The post appears on the connected Instagram account's feed and the
      same content appears on the linked Facebook Page.
@@ -136,15 +134,16 @@ B) Publishing (instagram_content_publish, pages_manage_posts)
 
 C) Competitor reference (instagram_basic, Business Discovery)
    - Open "Competitor accounts", enter a public Instagram Business
-     username (e.g. a well-known brand) and save. The app shows that
-     account's public profile info.
+     username (e.g. a well-known brand), click "Check" and confirm. The app
+     shows that account's public profile (bio, website).
 
 D) Insights (instagram_manage_insights)
    - Open "Performance". For posts published by the app, it shows reach,
      saves, shares, likes and comments read from the Instagram API.
-     (Metrics are collected periodically, so a post published during
-     the review may take a few hours to show data; the test account
-     already has earlier posts with metrics.)
+     Instagram only makes insights available some hours after a post is
+     published, so a post published during the review may still show
+     "No data collected yet" at first; the screencast shows this screen
+     with real data from an older post.
 ```
 
 ---

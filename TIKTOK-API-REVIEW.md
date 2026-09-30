@@ -43,3 +43,73 @@ O Sandbox basta pro piloto com a Mangará (até 10 contas). Pra outras lojistas,
 - [ ] Revisão solicitada — anotar data aqui
 - [ ] Resposta da TikTok recebida — anotar resultado e prazo real observado
 - [x] `TIKTOK_SCOPES` atualizado no código, conta reconectada, 1 reel de teste entregue na caixa de rascunhos (30/09/2026, Sandbox)
+
+## Submissão da revisão em Production: textos prontos (30/09/2026)
+
+### Antes de enviar: bloqueador no site
+
+Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site oficial e cobrir os dados usados. A seção "From connected social accounts" de stockative.com/#privacy hoje só cita Meta e Pinterest, e a lista "Who else processes it" não tem TikTok nem Google/YouTube. Adicionar:
+
+**Em "From connected social accounts"** (substituir o parágrafo atual):
+
+> If you connect Instagram/Facebook, Pinterest, TikTok or YouTube, we receive an access token (and, where the platform provides one, a refresh token) from that platform's own OAuth flow, plus the account identifiers needed to publish: a Facebook Page ID, an Instagram Business Account ID, a Pinterest board ID, your TikTok open ID and username, or your YouTube channel ID and title. We never receive your password for any of these platforms. From TikTok we only request the scopes needed to read your basic profile and to upload videos to your TikTok inbox as drafts. We never publish to TikTok without you confirming the post inside the TikTok app, and we don't read your TikTok videos, followers or messages.
+
+**Em "Who else processes it"** (adicionar dois itens):
+
+> **TikTok Pte. Ltd.** Receives the Reels you approve, uploaded to your TikTok inbox as drafts for you to review and post.
+>
+> **Google LLC (YouTube)** Publishes approved Reels as YouTube Shorts to the channel you connect. Stockative's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
+
+(A frase de "Limited Use" também é exigida pela verificação do Google, então resolve o YouTube junto.)
+
+**Em "How long we keep it" / exclusão**: confirmar que o texto diz que desconectar uma conta apaga os tokens dela. O código já faz isso (`disconnect-tiktok` apaga a linha de SocialAccount).
+
+### Production → App details
+
+| Campo | Valor |
+|---|---|
+| App icon | o mesmo logo 1024×1024 do Sandbox |
+| App name | Stockative |
+| Category | Business |
+| Description (máx. 120) | `Turns your Shopify store's stock and sales data into on-brand social content, and publishes it for you.` (103 caracteres, a mesma do Sandbox) |
+| Terms of Service URL | https://stockative.com/#terms |
+| Privacy Policy URL | https://stockative.com/#privacy |
+| Platforms | Web → https://stockative.com/ |
+
+### Production → Products
+
+- **Login Kit**: redirect URI `https://app.stockative.com/auth/tiktok/callback`
+- **Content Posting API**: Direct Post **desligado**; Verify domains → `stockative.com` (verificar de novo em Production se não aparecer)
+
+### Production → Scopes
+
+`user.info.basic` (vem com o Login Kit), `user.info.profile` e `video.upload`. Nenhum outro: a TikTok recusa escopos pedidos que o vídeo demo não mostra em uso.
+
+### App review → explicação dos produtos e escopos
+
+> Stockative is a Shopify app for small fashion and footwear brands. It reads the merchant's own store data (inventory, sales, products) to decide which product to promote each week, then drafts social content for it: captions, product images and short vertical videos (Reels) built from the merchant's approved product images.
+>
+> **Login Kit (user.info.basic, user.info.profile):** On the "Social accounts" page inside the Stockative app (embedded in Shopify Admin), the merchant clicks "Connect TikTok" and signs in with TikTok. We read only the open_id and username, to show the merchant which TikTok account is connected (e.g. "TikTok account connected (@mangara.official)") and to associate uploads with the right account. We don't read videos, followers or any other profile data.
+>
+> **Content Posting API – Upload (video.upload):** When a Reel the merchant has reviewed and approved in Stockative is published, Stockative uploads the video to the merchant's TikTok inbox as a draft, using PULL_FROM_URL from our verified domain (stockative.com). The merchant then opens TikTok, where they can edit the caption, sounds and privacy settings, and post it themselves. Stockative never posts directly to the profile. Direct Post isn't requested. This saves merchants from re-uploading the same Reel by hand to each platform, while keeping them in full control of what goes live on their TikTok.
+>
+> Merchants can disconnect TikTok at any time from the same page, which deletes the stored tokens.
+
+### Vídeo demo (gravar com o Sandbox, que é o exigido pra apps novos; ≤50 MB, até 5 vídeos)
+
+Um único vídeo de 1 a 2 minutos, com a barra de endereço visível, mostrando `app.stockative.com` / admin.shopify.com:
+
+1. Abrir o app Stockative dentro do Shopify Admin e mostrar rapidamente o dashboard (dá contexto do que é o app).
+2. Ir em **Social accounts → TikTok**, mostrar o texto explicando que os Reels chegam como rascunho, clicar **Connect TikTok**.
+3. Tela de login/autorização do TikTok: fazer login e mostrar **as permissões pedidas** (perfil + upload de vídeo), depois autorizar.
+4. De volta ao app: mostrar "TikTok account connected (@mangara.official)" (é o user.info.profile em uso).
+5. Abrir um post **Reel** aprovado no app e publicar.
+6. No celular (ou no TikTok web, se o inbox aparecer lá): abrir o TikTok, mostrar a **notificação/rascunho** chegando na caixa de entrada, abrir e mostrar que dá pra editar e postar.
+7. (Opcional) Voltar ao app e mostrar o botão **Disconnect**.
+
+Gravar a parte do celular com a gravação de tela do iPhone e juntar os dois trechos num vídeo só, ou mandar como 2 arquivos.
+
+### Depois da aprovação
+
+- As credenciais de Production são diferentes das do Sandbox (as do Sandbox começam com `sbaw`). Trocar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` no Railway pelas de Production.
+- Reconectar a conta da Mangará (e a de qualquer outra lojista conectada no Sandbox), porque os tokens do Sandbox não valem com as credenciais de Production.

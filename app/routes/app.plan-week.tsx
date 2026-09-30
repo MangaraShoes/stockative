@@ -12,6 +12,7 @@ import {
   cancelWeeklyPlanSlot,
   changeWeeklyPlanSlotObjective,
   regenerateWeeklyPlanSlotImage,
+  regenerateWeeklyPlanSlotCaption,
   getActivePromotion,
   planPromotionalWeek,
   createPromotion,
@@ -248,6 +249,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }
     return { intent: "regenerate-image" as const, contentItemId, result };
+  }
+
+  if (intent === "regenerate-caption") {
+    const contentItemId = String(formData.get("contentItemId"));
+    let result;
+    try {
+      result = await regenerateWeeklyPlanSlotCaption({ shopId: shop.id, contentItemId });
+    } catch (error) {
+      console.error("Failed to regenerate caption:", error);
+      result = {
+        status: "error" as const,
+        reason: "Something went wrong writing the new caption. Please try again.",
+      };
+    }
+    return { intent: "regenerate-caption" as const, contentItemId, result };
   }
 
   if (intent === "change-objective") {
@@ -559,6 +575,7 @@ export default function PlanWeek() {
   const promotionFetcher = useFetcher<typeof action>();
   const tiktokFetcher = useFetcher<typeof action>();
   const publishFetcher = useFetcher<typeof action>();
+  const captionFetcher = useFetcher<typeof action>();
   const savingTikTokContentItemId =
     tiktokFetcher.state !== "idle" ? String(tiktokFetcher.formData?.get("contentItemId") ?? "") : null;
   const tiktokFailure =
@@ -747,6 +764,19 @@ export default function PlanWeek() {
   };
 
   const publishingContentItemId = submittingContentItemId(publishFetcher);
+  const regeneratingCaptionContentItemId = submittingContentItemId(captionFetcher);
+
+  const regenerateCaption = (contentItemId: string) => {
+    markPendingAction("rewrite this post's caption");
+    captionFetcher.submit({ intent: "regenerate-caption", contentItemId }, { method: "POST" });
+  };
+
+  const captionFailure =
+    captionFetcher.state === "idle" &&
+    captionFetcher.data?.intent === "regenerate-caption" &&
+    captionFetcher.data.result.status === "error"
+      ? captionFetcher.data
+      : null;
 
   // Publicar é irreversível (vai pro feed público na hora) — confirma antes,
   // diferente de trocar produto/horário, que dá pra desfazer.
@@ -1071,6 +1101,7 @@ export default function PlanWeek() {
               const isChangingObjective = changingObjectiveContentItemId === slot.contentItemId;
               const isRegeneratingImage = regeneratingImageContentItemId === slot.contentItemId;
               const isPublishing = publishingContentItemId === slot.contentItemId;
+              const isRegeneratingCaption = regeneratingCaptionContentItemId === slot.contentItemId;
               const publishBlockedReason =
                 slot.images.length === 0
                   ? "Generate an image first."
@@ -1116,6 +1147,27 @@ export default function PlanWeek() {
                           {slot.captionText}
                         </pre>
                       </s-box>
+                    )}
+                    {editable && (
+                      <s-stack direction="inline" gap="small" alignItems="center">
+                        <s-button
+                          variant="secondary"
+                          onClick={() => regenerateCaption(slot.contentItemId)}
+                          {...(isRegeneratingCaption ? { loading: true } : {})}
+                        >
+                          Regenerate caption only
+                        </s-button>
+                        <s-text color="subdued">Keeps the product, image and time. Free, doesn&apos;t use credits.</s-text>
+                      </s-stack>
+                    )}
+                    {isRegeneratingCaption && <GeneratingProgressBar label="Writing a new caption…" />}
+                    {captionFailure?.contentItemId === slot.contentItemId && (
+                      <s-paragraph>
+                        <strong>
+                          Couldn&apos;t rewrite caption:{" "}
+                          {captionFailure.result.status === "error" ? captionFailure.result.reason : ""}
+                        </strong>
+                      </s-paragraph>
                     )}
 
                     {/* Post que o pilar decidiu publicar como Reel (Patricia,

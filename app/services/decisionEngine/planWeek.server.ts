@@ -2,7 +2,7 @@ import type { ContentPillar, Promotion } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
 import { getArchetypePerformance, describeArchetypePerformance } from "./performanceLearning.server";
-import { decideContentBrief, describeEvidence } from "./stage1.server";
+import { decideContentBrief, describeEvidence, type Stage1Output } from "./stage1.server";
 import { generateCreativeCopy } from "./stage2.server";
 import { buildCarousel } from "../imageMvp/buildCarousel.server";
 import { generateReelForContentItem } from "../video/generateReelForContentItem.server";
@@ -321,6 +321,60 @@ async function loadSlotImages(contentItemId: string): Promise<WeeklyPlanImage[]>
 // weekBatchId agrupa os posts criados pela mesma chamada de
 // planWeeklyContent (null pra um post avulso trocado depois, se algum dia
 // for chamado fora de um lote) — ver comentário no schema.
+// Mesmos dados reais que o Estágio 1 recebe — separado de planOneSlot pra
+// regenerar só a legenda de um post (regenerateWeeklyPlanSlotCaption) com
+// exatamente a mesma evidência que gerou o post original.
+async function buildStage1Input(params: {
+  shopId: string;
+  shop: { brandDescription: string | null };
+  product: Awaited<ReturnType<typeof loadProductWithSignal>>;
+  objective: CommercialObjective;
+  effectivePillar: Pick<
+    ContentPillar,
+    "name" | "function" | "problemExplored" | "promise" | "idealFormat" | "cta" | "growthCategory"
+  > | null;
+  promotion: Promotion | null | undefined;
+}) {
+  const { shopId, shop, product, objective, effectivePillar, promotion } = params;
+  return {
+    productTitle: product.title,
+    productDescription: product.description,
+    productType: product.productType,
+    price: product.price,
+    inventoryQuantity: product.inventoryQuantity,
+    unitsSold30d: product.commerceSignal?.unitsSold30d ?? 0,
+    salesVelocity: product.commerceSignal?.salesVelocity ?? 0,
+    daysSinceLastSale: product.commerceSignal?.daysSinceLastSale ?? null,
+    daysSinceCreated: product.shopifyCreatedAt
+      ? Math.floor((Date.now() - product.shopifyCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
+      : null,
+    brandDescription: shop.brandDescription,
+    objective,
+    pillar: effectivePillar
+      ? {
+          name: effectivePillar.name,
+          function: effectivePillar.function,
+          problemExplored: effectivePillar.problemExplored,
+          promise: effectivePillar.promise,
+          idealFormat: effectivePillar.idealFormat,
+          cta: effectivePillar.cta,
+          growthCategory: effectivePillar.growthCategory,
+        }
+      : null,
+    promotion: promotion
+      ? { name: promotion.name, discountPct: promotion.discountPct, endsAt: promotion.endsAt }
+      : null,
+    archetypePerformance: describeArchetypePerformance(await getArchetypePerformance(shopId)),
+  };
+}
+
+function loadProductWithSignal(productId: string) {
+  return prisma.productCache.findUniqueOrThrow({
+    where: { id: productId },
+    include: { commerceSignal: true },
+  });
+}
+
 export async function planOneSlot(
   shopId: string,
   productId: string,
@@ -368,36 +422,14 @@ export async function planOneSlot(
   // (problema, promessa, CTA) continua vindo do pilar de verdade sorteado.
   const effectivePillar = forceReel && pillar ? { ...pillar, idealFormat: "reel" } : pillar;
 
-  const stage1Input = {
-    productTitle: product.title,
-    productDescription: product.description,
-    productType: product.productType,
-    price: product.price,
-    inventoryQuantity: product.inventoryQuantity,
-    unitsSold30d: product.commerceSignal?.unitsSold30d ?? 0,
-    salesVelocity: product.commerceSignal?.salesVelocity ?? 0,
-    daysSinceLastSale: product.commerceSignal?.daysSinceLastSale ?? null,
-    daysSinceCreated: product.shopifyCreatedAt
-      ? Math.floor((Date.now() - product.shopifyCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
-      : null,
-    brandDescription: shop.brandDescription,
+  const stage1Input = await buildStage1Input({
+    shopId,
+    shop,
+    product,
     objective,
-    pillar: effectivePillar
-      ? {
-          name: effectivePillar.name,
-          function: effectivePillar.function,
-          problemExplored: effectivePillar.problemExplored,
-          promise: effectivePillar.promise,
-          idealFormat: effectivePillar.idealFormat,
-          cta: effectivePillar.cta,
-          growthCategory: effectivePillar.growthCategory,
-        }
-      : null,
-    promotion: promotion
-      ? { name: promotion.name, discountPct: promotion.discountPct, endsAt: promotion.endsAt }
-      : null,
-    archetypePerformance: describeArchetypePerformance(await getArchetypePerformance(shopId)),
-  };
+    effectivePillar,
+    promotion,
+  });
   const brief = await decideContentBrief(stage1Input);
 
   const copy = await generateCreativeCopy(
@@ -971,6 +1003,78 @@ export async function regenerateWeeklyPlanSlotImage(params: {
 
   const images = await loadSlotImages(item.id);
   return { status: "success", images };
+}
+
+export type RegenerateCaptionResult =
+  | { status: "success" }
+  | { status: "error"; reason: string };
+
+// Regenera SÓ a legenda de um post (Patricia, 30/09/2026: "não temos a opção
+// de regenerar somente o texto" — a tabela de planos promete "Regenerar
+// legenda ilimitado, não consome cota"). Mantém produto, decisão do Estágio 1
+// (objetivo, arquétipo, ângulo, framework), imagem e horário; só roda o
+// Estágio 2 (+ tradução) de novo, com a mesma evidência real do post original.
+// Não consome crédito de imagem.
+export async function regenerateWeeklyPlanSlotCaption(params: {
+  shopId: string;
+  contentItemId: string;
+}): Promise<RegenerateCaptionResult> {
+  const item = await prisma.contentItem.findUnique({
+    where: { id: params.contentItemId },
+    include: { contentPillar: true, promotion: true },
+  });
+  if (!item || item.shopId !== params.shopId) {
+    return { status: "error", reason: "This post is no longer part of the current plan." };
+  }
+  if (!["draft", "approved"].includes(item.status)) {
+    return {
+      status: "error",
+      reason: "This post has already been scheduled or published — its caption can no longer change.",
+    };
+  }
+  if (!item.productId || !item.decisionBrief) {
+    return { status: "error", reason: "This post has no content decision to rewrite from." };
+  }
+
+  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: params.shopId } });
+  const product = await loadProductWithSignal(item.productId);
+  const brief = item.decisionBrief as unknown as Stage1Output;
+  const pillar = item.contentPillar;
+  const effectivePillar = item.format === "reel" && pillar ? { ...pillar, idealFormat: "reel" } : pillar;
+
+  const stage1Input = await buildStage1Input({
+    shopId: params.shopId,
+    shop,
+    product,
+    objective: item.commercialObjective as CommercialObjective,
+    effectivePillar,
+    promotion: item.promotion,
+  });
+
+  const copy = await generateCreativeCopy(
+    brief,
+    shop.contentLanguagePrimary as ContentLanguageCode,
+    {
+      brandDescription: shop.brandDescription,
+      brandTone: shop.brandTone,
+      brandAvoid: shop.brandAvoid,
+    },
+    describeEvidence(stage1Input),
+    maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
+  );
+  const secondaryCaption = shop.contentLanguageSecondary
+    ? await translateCaption(copy.captionText, shop.contentLanguageSecondary as ContentLanguageCode)
+    : null;
+
+  await prisma.contentItem.update({
+    where: { id: item.id },
+    data: {
+      captionText: buildBilingualCaption(copy.captionText, secondaryCaption),
+      hashtags: copy.hashtags.join(", "),
+      cta: copy.cta,
+    },
+  });
+  return { status: "success" };
 }
 
 export type ChangeObjectiveResult =

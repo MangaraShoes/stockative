@@ -3,9 +3,6 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { EXTRAS_PRICING, estimateExtrasPriceCents } from "../services/decisionEngine/extrasPricing";
-
-const formatEuro = (cents: number) => `€${(cents / 100).toFixed(2)}`;
 
 const PLAN_OPTIONS = [
   {
@@ -34,8 +31,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     plan: shop?.plan ?? "basic",
-    extraCarouselsPerMonth: shop?.extraCarouselsPerMonth ?? 0,
-    extraReelsPerMonth: shop?.extraReelsPerMonth ?? 0,
   };
 };
 
@@ -61,53 +56,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { intent: "save-plan" as const, error: null };
   }
 
-  if (intent === "save-extras") {
-    const extraCarouselsPerMonth = Number(formData.get("extraCarouselsPerMonth"));
-    const extraReelsPerMonth = Number(formData.get("extraReelsPerMonth"));
-
-    if (!Number.isInteger(extraCarouselsPerMonth) || extraCarouselsPerMonth < 0) {
-      return { intent: "save-extras" as const, error: "Enter a valid number of extra carousels." };
-    }
-    if (!Number.isInteger(extraReelsPerMonth) || extraReelsPerMonth < 0) {
-      return { intent: "save-extras" as const, error: "Enter a valid number of extra reels." };
-    }
-
-    await prisma.shop.update({
-      where: { id: shop.id },
-      data: { extraCarouselsPerMonth, extraReelsPerMonth },
-    });
-    return { intent: "save-extras" as const, error: null };
-  }
-
   return { intent: "unknown" as const, error: "Unknown action." };
 };
 
 export default function Settings() {
   const data = useLoaderData<typeof loader>();
   const planFetcher = useFetcher<typeof action>();
-  const extrasFetcher = useFetcher<typeof action>();
 
   const [selectedPlan, setSelectedPlan] = useState(data.plan);
-  const [extraCarousels, setExtraCarousels] = useState(String(data.extraCarouselsPerMonth));
-  const [extraReels, setExtraReels] = useState(String(data.extraReelsPerMonth));
 
   const isSavingPlan = planFetcher.state !== "idle";
-  const isSavingExtras = extrasFetcher.state !== "idle";
 
   const savePlan = () => planFetcher.submit({ intent: "save-plan", plan: selectedPlan }, { method: "POST" });
-  const saveExtras = () =>
-    extrasFetcher.submit(
-      { intent: "save-extras", extraCarouselsPerMonth: extraCarousels, extraReelsPerMonth: extraReels },
-      { method: "POST" },
-    );
-
-  const parsedCarousels = Number(extraCarousels);
-  const parsedReels = Number(extraReels);
-  const hasValidExtrasInput =
-    Number.isInteger(parsedCarousels) && parsedCarousels >= 0 && Number.isInteger(parsedReels) && parsedReels >= 0;
-  const extrasUnchanged =
-    parsedCarousels === data.extraCarouselsPerMonth && parsedReels === data.extraReelsPerMonth;
-  const extrasPriceCents = hasValidExtrasInput ? estimateExtrasPriceCents(parsedCarousels, parsedReels) : null;
 
   return (
     <s-page heading="Plan">
@@ -167,74 +127,6 @@ export default function Settings() {
         )}
       </s-section>
 
-      <s-section heading="Extras">
-        <s-paragraph>
-          Need more than your plan includes? Add extra carousels or reels on
-          top of it each month — they&apos;re spread across the weeks and
-          added to your plan, never replacing it. Extra carousel:{" "}
-          {formatEuro(EXTRAS_PRICING.pricePerCarouselCents)} · Extra reel:{" "}
-          {formatEuro(EXTRAS_PRICING.pricePerReelCents)}.
-        </s-paragraph>
-
-        <s-stack direction="inline" gap="base">
-          <div>
-            <s-paragraph>Extra carousels per month</s-paragraph>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={extraCarousels}
-              onChange={(e) => setExtraCarousels(e.target.value)}
-              style={{ padding: 8, width: 120 }}
-            />
-          </div>
-          <div>
-            <s-paragraph>Extra reels per month</s-paragraph>
-            <input
-              type="number"
-              min={0}
-              step={1}
-              value={extraReels}
-              onChange={(e) => setExtraReels(e.target.value)}
-              style={{ padding: 8, width: 120 }}
-            />
-          </div>
-        </s-stack>
-
-        {extrasPriceCents !== null && extrasPriceCents > 0 && (
-          <s-paragraph>Extras: +{formatEuro(extrasPriceCents)}/month on top of your plan.</s-paragraph>
-        )}
-
-        <div style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            onClick={saveExtras}
-            disabled={isSavingExtras || !hasValidExtrasInput || extrasUnchanged}
-            style={{
-              display: "inline-block",
-              padding: "8px 16px",
-              border: "1px solid #a8abae",
-              borderRadius: 8,
-              background: "#c9cccf",
-              color: "#202223",
-              fontWeight: 500,
-              opacity: isSavingExtras || !hasValidExtrasInput || extrasUnchanged ? 0.5 : 1,
-              cursor: isSavingExtras || !hasValidExtrasInput || extrasUnchanged ? "default" : "pointer",
-            }}
-          >
-            {isSavingExtras ? "Saving…" : "Save extras"}
-          </button>
-        </div>
-
-        {extrasFetcher.data?.intent === "save-extras" && !extrasFetcher.data.error && (
-          <s-paragraph>Saved.</s-paragraph>
-        )}
-        {extrasFetcher.data?.intent === "save-extras" && extrasFetcher.data.error && (
-          <s-paragraph>
-            <strong>{extrasFetcher.data.error}</strong>
-          </s-paragraph>
-        )}
-      </s-section>
     </s-page>
   );
 }

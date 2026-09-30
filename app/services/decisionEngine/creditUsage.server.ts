@@ -25,8 +25,8 @@ const MONTHLY_LIMITS: Record<string, { image: number; video: number }> = {
 // menos por chamada que imagem/reel (~$0,01-0,03 vs ~$0,11-1,99), então o
 // teto não precisa escalar por plano como imagem/reel escala: é só pra
 // cortar clique repetido sem controle, não pra limitar uso legítimo.
-// Números fixos, iguais em qualquer plano (Basic/Grow/Plus), Extras não
-// mexem neles.
+// Números fixos, iguais em qualquer plano (Basic/Grow/Plus), crédito
+// extra comprado não mexe neles.
 const FLAT_MONTHLY_LIMITS: Record<"brand_analysis" | "content_pillars", number> = {
   brand_analysis: 15,
   content_pillars: 10,
@@ -34,20 +34,13 @@ const FLAT_MONTHLY_LIMITS: Record<"brand_analysis" | "content_pillars", number> 
 
 type ShopPlanFields = {
   plan: string;
-  extraCarouselsPerMonth: number;
-  extraReelsPerMonth: number;
 };
 
-// Extras (Patricia, 30/09/2026) somam à cota do plano — mesma unidade (1
-// carrossel extra = 1 crédito de imagem, 1 reel extra = 1 crédito de vídeo),
-// então a regeneração continua espelhando a geração como pool mensal.
 export function getMonthlyLimit(shop: ShopPlanFields, taskType: CreditTaskType): number {
   if (taskType === "brand_analysis" || taskType === "content_pillars") {
     return FLAT_MONTHLY_LIMITS[taskType];
   }
-  const limits = MONTHLY_LIMITS[shop.plan] ?? MONTHLY_LIMITS.basic;
-  const extra = taskType === "image" ? shop.extraCarouselsPerMonth : shop.extraReelsPerMonth;
-  return limits[taskType] + Math.max(0, extra);
+  return (MONTHLY_LIMITS[shop.plan] ?? MONTHLY_LIMITS.basic)[taskType];
 }
 
 function startOfCurrentMonth(): Date {
@@ -66,8 +59,19 @@ export async function getMonthlyUsage(shopId: string, taskType: CreditTaskType):
   });
 }
 
+// Crédito extra comprado avulso (Patricia, 30/09/2026) — só imagem/vídeo,
+// e só no mês da compra (mesma janela da cota do plano).
+async function getPurchasedCreditsThisMonth(shopId: string, taskType: CreditTaskType): Promise<number> {
+  if (taskType !== "image" && taskType !== "video") return 0;
+  const result = await prisma.imageCreditPurchase.aggregate({
+    where: { shopId, taskType, purchasedAt: { gte: startOfCurrentMonth() } },
+    _sum: { creditsPurchased: true },
+  });
+  return result._sum.creditsPurchased ?? 0;
+}
+
 export async function getRemainingCredits(shop: ShopPlanFields & { id: string }, taskType: CreditTaskType): Promise<number> {
-  const limit = getMonthlyLimit(shop, taskType);
+  const limit = getMonthlyLimit(shop, taskType) + (await getPurchasedCreditsThisMonth(shop.id, taskType));
   const used = await getMonthlyUsage(shop.id, taskType);
   return Math.max(0, limit - used);
 }

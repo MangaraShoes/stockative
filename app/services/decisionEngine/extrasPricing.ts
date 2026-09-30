@@ -1,26 +1,24 @@
-// Preço por unidade dos Extras (Patricia, 25/09/2026 — era o plano Custom
-// até 30/09/2026, quando virou add-on em cima do Basic/Grow/Plus; preço por
-// unidade não mudou) — derivada do
-// custo real por unidade (Gemini 2.5 Flash Image ~$0,04/imagem + Claude
-// Sonnet 5 pros guardrails de fidelidade/composição ~$0,11 por post entregue
-// no total; Reel via API de vídeo externa, $1,80/reel cotado por ela) com
-// margem aplicada em cima desse custo — mesmo raciocínio usado pra fechar o
-// preço do Basic em €24,90/mês (~54% de margem líquida da taxa de 2,9% da
-// Shopify, que é o único corte real da Shopify abaixo de $1M de receita
-// vitalícia do app). Reel ficou com margem mais enxuta (~20%) de propósito
-// — ela achou a margem equivalente ao Basic (~47%, ~€2,97) cara demais pra
-// cobrar por unidade avulsa. Isolado neste arquivo, sozinho, pra ficar fácil
-// de revisar se o custo da API de vídeo mudar. Nunca usado pra cobrar de
-// verdade ainda — não existe integração de cobrança real (Fase 7, Shopify
-// Billing, fica de fora do plano de implementação original).
-export const EXTRAS_PRICING = {
-  pricePerCarouselCents: 20, // €0,20/carrossel (imagem)
-  pricePerReelCents: 199, // €1,99/reel
+// Preço do crédito extra avulso (Patricia, 30/09/2026: "esta cobrança é
+// mais pelo custo da imagem e dos vídeos, não queremos cobrar por carrossel
+// ou reel mas sim por extra imagem e extra vídeo"). Cobrado uma vez, vale
+// só no mês da compra (ImageCreditPurchase), somado à cota do plano.
+//
+// Valores fechados em 25/09/2026 (quando isso era o plano Custom),
+// derivados do custo real por unidade: imagem ≈$0,11 entregue (Gemini 2.5
+// Flash Image ~$0,04/tentativa + guardrails de fidelidade/composição via
+// Claude Sonnet 5, 1,84 tentativas por imagem entregue) → €0,20, ~45% de
+// margem; vídeo ≈$1,80 (API de vídeo externa cotada por ela) → €1,99, ~20%
+// de margem de propósito — ela achou a margem equivalente ao Basic (~€2,97)
+// cara demais pra cobrar por unidade avulsa. Nunca cobrado de verdade
+// ainda — não existe integração de cobrança real (Fase 7, Shopify Billing).
+export const EXTRA_CREDIT_PRICING = {
+  pricePerImageCents: 20, // €0,20/imagem
+  pricePerVideoCents: 199, // €1,99/vídeo
 };
 
-export function estimateExtrasPriceCents(extraCarouselsPerMonth: number, extraReelsPerMonth: number): number {
+export function estimateExtraCreditsPriceCents(images: number, videos: number): number {
   return (
-    Math.max(0, extraCarouselsPerMonth) * EXTRAS_PRICING.pricePerCarouselCents +
-    Math.max(0, extraReelsPerMonth) * EXTRAS_PRICING.pricePerReelCents
+    Math.max(0, images) * EXTRA_CREDIT_PRICING.pricePerImageCents +
+    Math.max(0, videos) * EXTRA_CREDIT_PRICING.pricePerVideoCents
   );
 }

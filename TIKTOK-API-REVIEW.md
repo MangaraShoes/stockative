@@ -37,6 +37,13 @@ Correção de 29/09: o problema nunca foi o painel. O Sandbox já tinha `video.u
 
 O Sandbox basta pro piloto com a Mangará (até 10 contas). Pra outras lojistas, ainda falta: Content Posting API + `video.upload` em **Production**, preencher App details/App review e enviar pra revisão.
 
+## 30/09/2026 (noite): primeiro Direct Post funcionando (Sandbox)
+
+- Pedir `video.upload` e `video.publish` juntos derruba o login com "Something went wrong – scope". Cada um sozinho funciona. O app agora pede só `user.info.profile,video.publish` (commit 5da9fc2).
+- Com a mangara.official **pública**, todo Direct Post volta `403 unaudited_client_can_only_post_to_private_accounts`, inclusive como SELF_ONLY. Com a conta privada, o creator_info passa a devolver `FOLLOWER_OF_CREATOR, MUTUAL_FOLLOW_FRIENDS, SELF_ONLY` (sem PUBLIC_TO_EVERYONE), e a mudança levou mais de 7 minutos pra aparecer na API.
+- Teste manual com o reel `cmuo3pdy80006qz2u55rc204s` como SELF_ONLY: `PUBLISH_COMPLETE` em ~10s (publish_id `v_pub_url~v2-1.7691393057065355270`).
+- Até a auditoria do Direct Post, Reels agendados pro TikTok só saem com a conta privada. Com a conta pública, falham com o erro acima.
+
 ## Checklist de acompanhamento
 
 - [ ] Confirmado se `video.upload` precisa de revisão separada ou está dentro do mesmo processo do Direct Post

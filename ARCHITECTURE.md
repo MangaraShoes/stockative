@@ -10,6 +10,7 @@ Ver [CLAUDE.md](CLAUDE.md) para a visão de produto e o modelo de 5 camadas que 
 | ORM / DB | Prisma + Postgres | Vem pronto no template oficial. Postgres gerenciado: Supabase, Neon ou Railway. |
 | Hosting | Railway ou Fly.io | Precisa de processo persistente (webhooks + worker), não só serverless. |
 | Job/scheduler | Worker próprio, polling a cada 1-5 min | Fila robusta (BullMQ/Redis) é complexidade desnecessária nesse volume inicial. |
+| Deploy x agendador | Desde 30/09/2026 o agendador roda dentro do servidor (`scheduler.server.ts`). No SIGTERM de um redeploy, ele espera a publicação em andamento terminar antes de sair (Railway `drainingSeconds=300` em `railway.json`), e commits que só mexem em `.md`, `.github/` ou `.codex/` não disparam deploy (`watchPatterns`). | Um redeploy de documentação às 15:02 de 30/09 matou a publicação de um Reel no meio do processo. |
 | Geração de texto/imagem | **AI Provider Layer** — não amarrado a um provedor (ver seção própria abaixo) | Claude, OpenAI, Gemini para texto; Nano Banana para imagem; Runway/Hailuo/Veo para vídeo depois. `generation_logs` já loga modelo/custo por chamada. |
 | Billing | Shopify Billing API (`AppSubscription` + cobrança pontual pra pacote de créditos) | Evita escopo de PCI, integra nativamente com checkout da própria Shopify. |
 | Tracking de clique | Redirecionador próprio (short link + UTM) | Instagram orgânico não expõe clique por post nativamente — necessário para a Camada 3 (Customer Intelligence). |

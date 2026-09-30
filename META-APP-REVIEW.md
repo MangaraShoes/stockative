@@ -149,6 +149,73 @@ D) Insights (instagram_manage_insights)
 
 ---
 
+## Roteiro de gravação dos screencasts (30/09/2026)
+
+### Preparação (uma vez)
+
+1. **Gravador**: Cmd+Shift+5 → "Gravar parte da tela" → só a janela do navegador. Sem áudio. Arquivo `.mov` vai pra Mesa.
+2. **Idioma inglês**: Facebook → Configurações → Idioma → English (US); Shopify admin → perfil → Preferências → Language → English. O revisor precisa ler a tela de permissões.
+3. **Forçar o consentimento do zero** (repetir antes de cada tentativa): no app, Social accounts → Instagram & Facebook → **Disconnect**; no Facebook, Configurações → **Business Integrations** → Stockative → **Remove**. Sem isso a Meta pula a tela de permissões.
+4. **Tela limpa**: janela anônima/perfil dedicado, zoom 110–125%, Não Perturbe ligado. Abas abertas: app, `instagram.com/<conta-teste>`, Página do Facebook de teste.
+5. **Legendas**: gravar sem, depois iMovie → Títulos → "Lower Third" com as frases abaixo.
+
+Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até voltar pro app (espera pode ser acelerada, não cortada).
+
+### Vídeo 1 — Conectar + publicar
+`instagram_basic`, `pages_show_list`, `pages_read_engagement`, `business_management`, `instagram_content_publish`
+
+| # | Na tela | Legenda |
+|---|---|---|
+| 1 | Shopify admin → Apps → Stockative → **Social accounts**, mostrando desconectado | "Merchant opens Stockative inside Shopify admin" |
+| 2 | **Connect Instagram & Facebook** | "Merchant connects their Instagram Business account" |
+| 3 | Dialog da Meta: login → selecionar Página de teste → selecionar IG de teste → lista de permissões (tudo marcado, mostrar devagar, 2–3s por tela) → Continue/Save | "Merchant selects their Facebook Page and Instagram account and grants permissions" |
+| 4 | Volta pro app: "Connected!" + @ da conta (parar 3s) | "The app confirms the connected account (instagram_basic)" |
+| 5 | **Create content** → escolher produto → **Generate content** | "Stockative generates a caption and product image from store data" |
+| 6 | Rolar devagar mostrando imagem + legenda | — |
+| 7 | Seção **"6. Publish"** → **Publish to Instagram & Facebook** → confirmação | "Merchant publishes the post (instagram_content_publish)" |
+| 8 | Aba do Instagram → Cmd+R → post novo no feed → abrir e mostrar legenda | "The post is live on the merchant's Instagram feed" |
+
+### Vídeo 2 — Espelho no Facebook
+`pages_manage_posts` — mais fácil: continuar a gravação do Vídeo 1 e subir o mesmo arquivo.
+
+| # | Na tela | Legenda |
+|---|---|---|
+| 1 | App com o post recém-publicado | "Same post published by Stockative" |
+| 2 | Aba da Página do Facebook → Cmd+R → mesmo post (imagem + legenda) no topo | "The same content is published to the linked Facebook Page (pages_manage_posts)" |
+
+### Vídeo 3 — Competitor accounts
+`instagram_basic` (Business Discovery), subido como 2º vídeo dessa permissão
+
+| # | Na tela | Legenda |
+|---|---|---|
+| 1 | **Competitor accounts** | "Merchant can add up to 2 public accounts they admire in their niche" |
+| 2 | Digitar username de marca pública conhecida → **Check** | — |
+| 3 | Perfil público encontrado (bio, site, posts) → salvar | "Only public profile and post data is read via Business Discovery, used as style reference – never shown as a comparison" |
+
+### Vídeo 4 — Performance
+`instagram_manage_insights` — gravar por último, com posts da conta de teste publicados há pelo menos algumas horas. Se só aparecem likes/comentários sem reach, a conta precisa ser reconectada pra pegar o escopo de insights.
+
+| # | Na tela | Legenda |
+|---|---|---|
+| 1 | **Performance** | "Stockative tracks results of posts it published" |
+| 2 | Seção **Published posts**, parar num post com reach + saves | "Reach, saves and shares read with instagram_manage_insights" |
+| 3 | **Weekly plan** → horários agendados | "Posting times are based on when the merchant's own followers are online (online_followers)" |
+
+### Depois de gravar
+
+1. iMovie → legendas → Arquivo → Compartilhar → Arquivo → 1080p `.mp4`.
+2. Assistir cada vídeo inteiro: tela de permissões legível, post aparece de verdade no IG e no FB, nenhuma senha ou dado pessoal visível.
+3. Guardar fora do repositório (ex. `~/meta-review/`) e subir no painel: App Review → cada permissão → Upload screencast.
+
+| Arquivo | Permissões |
+|---|---|
+| Vídeo 1 | instagram_basic, pages_show_list, pages_read_engagement, business_management, instagram_content_publish |
+| Vídeo 2 (ou o 1) | pages_manage_posts |
+| Vídeo 3 | instagram_basic (2º vídeo) |
+| Vídeo 4 | instagram_manage_insights |
+
+---
+
 ## Checklist de submissão
 
 - [x] Business Verification concluída
@@ -162,6 +229,7 @@ D) Insights (instagram_manage_insights)
 - [ ] Screencast principal gravado (login → post gerado → publicado)
 - [ ] Screencast do Facebook Page mirror gravado
 - [ ] Screencast da tela Competitor accounts gravado
+- [x] Texto desatualizado da tela Performance ("permission we don't have yet") corrigido antes de gravar (30/09/2026)
 - [ ] Screencast do Performance/insights gravado
 - [ ] 7 descrições de uso coladas nos campos certos do painel
 - [ ] Submeter e anotar a data aqui, pra acompanhar o prazo de 2-6 semanas

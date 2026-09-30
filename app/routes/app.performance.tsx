@@ -96,9 +96,10 @@ export default function Performance() {
 
       <s-section heading="Published posts">
         <s-paragraph>
-          Likes and comments for each post you&apos;ve actually published,
-          pulled straight from Instagram. Reach/saves/shares need a Meta
-          permission we don&apos;t have yet (Instagram Insights). Link clicks
+          Likes, comments, reach, saves and shares for each post you&apos;ve
+          actually published, pulled straight from Instagram. Reach, saves
+          and shares show up once Instagram has insights for the post
+          (usually a few hours after publishing). Link clicks
           come from the trackable link Stockative adds automatically to
           Facebook and Pinterest — Instagram itself doesn&apos;t allow a
           clickable link in a feed post or Story, so clicks from Instagram

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { generateStructuredForTask } from "../ai/index.server";
 import type { Stage1Output } from "./stage1.server";
 import { CONTENT_LANGUAGES, type ContentLanguageCode } from "./constants";
-import { stripFrameworkLabels } from "./captionFormat";
+import { stripFrameworkLabels, toSingleParagraph } from "./captionFormat";
 
 const stage2Schema = z.object({
   captionText: z.string().describe("The full social media caption, ready to post"),
@@ -66,10 +66,10 @@ Brand voice: ${brandVoiceText}
 ${brand.brandDescription?.trim() ? `Brand description: ${brand.brandDescription}` : ""}
 ${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}
 
-Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}), but never write the names of its stages in the caption (no "Before:", "After:", "Hook:" or their equivalents in any language) — the reader should feel the structure, not see it labeled. Stay within the strength and scope of the sourced claims above — don't expand a specific, bounded claim (e.g. "supports extended wear") into a broader unbounded one (e.g. "all-day comfort" or "built to last for years") unless the evidence above actually supports that scope.
+Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}), but never write the names of its stages in the caption (no "Before:", "After:", "Hook:" or their equivalents in any language) — the reader should feel the structure, not see it labeled. Write captionText as one single continuous paragraph, with no line breaks or blank lines. Stay within the strength and scope of the sourced claims above — don't expand a specific, bounded claim (e.g. "supports extended wear") into a broader unbounded one (e.g. "all-day comfort" or "built to last for years") unless the evidence above actually supports that scope.
 
 Never use an em dash (—) anywhere in the caption. Use a comma, period, colon, or parentheses instead.`;
 
   const copy = await generateStructuredForTask("creative_copy", stage2Schema, prompt);
-  return { ...copy, captionText: stripFrameworkLabels(copy.captionText) };
+  return { ...copy, captionText: toSingleParagraph(stripFrameworkLabels(copy.captionText)) };
 }

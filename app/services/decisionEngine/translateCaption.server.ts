@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toSingleParagraph } from "./captionFormat";
 import { generateStructuredForTask } from "../ai/index.server";
 import { CONTENT_LANGUAGES, type ContentLanguageCode } from "./constants";
 
@@ -18,7 +19,7 @@ export async function translateCaption(
   const languageLabel =
     CONTENT_LANGUAGES.find((l) => l.code === targetLanguage)?.label ?? targetLanguage;
 
-  const prompt = `Translate this social media caption into ${languageLabel}. This is a professional marketing translation — preserve the tone, structure, line breaks, and persuasive intent exactly; don't translate word-for-word if that would sound stiff. Don't add or remove content, don't add hashtags.
+  const prompt = `Translate this social media caption into ${languageLabel}. This is a professional marketing translation — preserve the tone, structure, and persuasive intent exactly, and keep it as one single continuous paragraph with no line breaks; don't translate word-for-word if that would sound stiff. Don't add or remove content, don't add hashtags.
 
 Never use an em dash (—) anywhere in the translation, even if the original caption has one. Use a comma, period, colon, or parentheses instead.
 
@@ -26,7 +27,7 @@ Caption:
 ${captionText}`;
 
   const result = await generateStructuredForTask("translation", translationSchema, prompt);
-  return result.translatedText;
+  return toSingleParagraph(result.translatedText);
 }
 
 // Monta a legenda final — só o idioma principal, ou principal seguido do

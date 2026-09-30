@@ -22,6 +22,15 @@ export function stripFrameworkLabels(text: string): string {
   );
 }
 
+// Um parágrafo corrido por idioma (Patricia, 30/09/2026, comparando com o
+// post da Corobá que "estava ok": texto quebrado em vários parágrafos com
+// linha em branco entre cada um ficava espaçado demais). Aplicado no texto
+// de UM idioma só — a linha em branco entre FR e NL é montada depois por
+// buildBilingualCaption e nunca passa por aqui.
+export function toSingleParagraph(text: string): string {
+  return text.replace(/\s*\n\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
+}
+
 export function formatHashtags(hashtags: string[]): string {
   return hashtags
     .map((tag) => tag.trim().replace(/^#/, ""))

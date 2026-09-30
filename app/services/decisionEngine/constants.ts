@@ -130,3 +130,58 @@ export const REGENERATION_REASON_SUGGESTIONS: Record<ContentLanguageCode, string
     "Se ve demasiado genérico",
   ],
 };
+
+// Mesma ideia das sugestões de imagem acima, pra "Regenerate caption only"
+// (Patricia, 30/09/2026: "precisamos de pistas de pq a pessoa quer regerar,
+// um campo para escrever tbem opções mais frequentes já preescritas como
+// fizemos nas imagens"). Clicar preenche o textarea; a lojista pode editar.
+export const CAPTION_REGENERATION_REASON_SUGGESTIONS: Record<ContentLanguageCode, string[]> = {
+  en: [
+    "Too long",
+    "Too salesy",
+    "Doesn't sound like our brand",
+    "Feels too generic",
+    "Opening line isn't catchy",
+    "Product details are wrong",
+  ],
+  fr: [
+    "Trop long",
+    "Trop commercial",
+    "Ça ne sonne pas comme notre marque",
+    "Trop générique",
+    "La première phrase n'accroche pas",
+    "Les détails du produit sont faux",
+  ],
+  nl: [
+    "Te lang",
+    "Te commercieel",
+    "Klinkt niet als ons merk",
+    "Voelt te generiek",
+    "De openingszin pakt niet",
+    "Productdetails kloppen niet",
+  ],
+  de: [
+    "Zu lang",
+    "Zu werblich",
+    "Klingt nicht nach unserer Marke",
+    "Wirkt zu generisch",
+    "Der erste Satz packt nicht",
+    "Produktdetails stimmen nicht",
+  ],
+  pt: [
+    "Muito longo",
+    "Vendedor demais",
+    "Não soa como a nossa marca",
+    "Parece genérico demais",
+    "A primeira frase não prende",
+    "Os detalhes do produto estão errados",
+  ],
+  es: [
+    "Demasiado largo",
+    "Demasiado comercial",
+    "No suena como nuestra marca",
+    "Se siente demasiado genérico",
+    "La primera frase no engancha",
+    "Los detalles del producto están mal",
+  ],
+};

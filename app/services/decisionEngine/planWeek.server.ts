@@ -1013,12 +1013,18 @@ export type RegenerateCaptionResult =
 // de regenerar somente o texto" — a tabela de planos promete "Regenerar
 // legenda ilimitado, não consome cota"). Mantém produto, decisão do Estágio 1
 // (objetivo, arquétipo, ângulo, framework), imagem e horário; só roda o
-// Estágio 2 (+ tradução) de novo, com a mesma evidência real do post original.
+// Estágio 2 (+ tradução) de novo, com a mesma evidência real do post original
+// e o motivo que a lojista deu (obrigatório, igual à regeneração de imagem).
 // Não consome crédito de imagem.
 export async function regenerateWeeklyPlanSlotCaption(params: {
   shopId: string;
   contentItemId: string;
+  feedback: string;
 }): Promise<RegenerateCaptionResult> {
+  const trimmedFeedback = params.feedback.trim();
+  if (!trimmedFeedback) {
+    return { status: "error", reason: "Explain what you'd like to change before regenerating." };
+  }
   const item = await prisma.contentItem.findUnique({
     where: { id: params.contentItemId },
     include: { contentPillar: true, promotion: true },
@@ -1061,6 +1067,7 @@ export async function regenerateWeeklyPlanSlotCaption(params: {
     },
     describeEvidence(stage1Input),
     maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
+    { previousCaption: item.captionText ?? "", feedback: trimmedFeedback },
   );
   const secondaryCaption = shop.contentLanguageSecondary
     ? await translateCaption(copy.captionText, shop.contentLanguageSecondary as ContentLanguageCode)

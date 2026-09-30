@@ -36,6 +36,10 @@ export async function generateCreativeCopy(
   brand: BrandVoice,
   evidenceSummary: string,
   maxCaptionChars: number,
+  // Só em "Regenerate caption only": a legenda anterior e o motivo que a
+  // lojista deu pra rejeitá-la — sem isso a IA reescreve às cegas e pode
+  // repetir exatamente o que ela não gostou.
+  revision?: { previousCaption: string; feedback: string },
 ): Promise<Stage2Output> {
   const languageLabel =
     CONTENT_LANGUAGES.find((l) => l.code === language)?.label ?? "English";
@@ -68,7 +72,16 @@ ${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}
 
 Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}), but never write the names of its stages in the caption (no "Before:", "After:", "Hook:" or their equivalents in any language) — the reader should feel the structure, not see it labeled. Write captionText as one single continuous paragraph, with no line breaks or blank lines. Stay within the strength and scope of the sourced claims above — don't expand a specific, bounded claim (e.g. "supports extended wear") into a broader unbounded one (e.g. "all-day comfort" or "built to last for years") unless the evidence above actually supports that scope.
 
-Never use an em dash (—) anywhere in the caption. Use a comma, period, colon, or parentheses instead.`;
+Never use an em dash (—) anywhere in the caption. Use a comma, period, colon, or parentheses instead.${
+    revision
+      ? `
+
+The merchant rejected a previous version of this caption. Write a clearly different one that fixes their complaint, while still following the brief, evidence and brand voice above.
+Their reason: ${revision.feedback}
+Previous caption (don't reuse its wording):
+${revision.previousCaption}`
+      : ""
+  }`;
 
   const copy = await generateStructuredForTask("creative_copy", stage2Schema, prompt);
   return { ...copy, captionText: toSingleParagraph(stripFrameworkLabels(copy.captionText)) };

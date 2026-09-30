@@ -22,6 +22,7 @@ import {
   COMMERCIAL_OBJECTIVES,
   OBJECTIVE_LABELS,
   REGENERATION_REASON_SUGGESTIONS,
+  CAPTION_REGENERATION_REASON_SUGGESTIONS,
   type CommercialObjective,
   type ContentLanguageCode,
 } from "../services/decisionEngine/constants";
@@ -170,6 +171,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const regenerationReasonSuggestions =
     REGENERATION_REASON_SUGGESTIONS[(shop?.contentLanguagePrimary as ContentLanguageCode) ?? "en"] ??
     REGENERATION_REASON_SUGGESTIONS.en;
+  const captionRegenerationReasonSuggestions =
+    CAPTION_REGENERATION_REASON_SUGGESTIONS[(shop?.contentLanguagePrimary as ContentLanguageCode) ?? "en"] ??
+    CAPTION_REGENERATION_REASON_SUGGESTIONS.en;
 
   return {
     hasShop: Boolean(shop),
@@ -178,6 +182,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     productCollections,
     remainingImageCredits,
     regenerationReasonSuggestions,
+    captionRegenerationReasonSuggestions,
     // Fuso horário real da loja (Patricia, 12/09/2026: "precisamos
     // considerar sim o fuso horario da loja") — usado pra mostrar e editar
     // dia/horário na perspectiva da loja, não na de quem está com o
@@ -258,7 +263,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const contentItemId = String(formData.get("contentItemId"));
     let result;
     try {
-      result = await regenerateWeeklyPlanSlotCaption({ shopId: shop.id, contentItemId });
+      result = await regenerateWeeklyPlanSlotCaption({
+        shopId: shop.id,
+        contentItemId,
+        feedback: String(formData.get("feedback") ?? ""),
+      });
     } catch (error) {
       console.error("Failed to regenerate caption:", error);
       result = {
@@ -555,6 +564,7 @@ export default function PlanWeek() {
     slots,
     remainingImageCredits,
     regenerationReasonSuggestions,
+    captionRegenerationReasonSuggestions,
     tiktokCreator,
   } = useLoaderData<typeof loader>();
 
@@ -633,6 +643,7 @@ export default function PlanWeek() {
     );
   const [objectiveChoices, setObjectiveChoices] = useState<Record<string, string>>({});
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
+  const [captionFeedback, setCaptionFeedback] = useState<Record<string, string>>({});
   // Post em que a lojista clicou "Regenerate" sem crédito — o aviso de cota
   // esgotada (com o link pra crédito extra) só aparece depois desse clique,
   // nunca antes (Patricia, 30/09/2026).
@@ -782,7 +793,9 @@ export default function PlanWeek() {
 
   const regenerateCaption = (contentItemId: string) => {
     markPendingAction("rewrite this post's caption");
-    captionFetcher.submit({ intent: "regenerate-caption", contentItemId }, { method: "POST" });
+    const feedback = captionFeedback[contentItemId]?.trim();
+    if (!feedback) return;
+    captionFetcher.submit({ intent: "regenerate-caption", contentItemId, feedback }, { method: "POST" });
   };
 
   const captionFailure =
@@ -1148,18 +1161,61 @@ export default function PlanWeek() {
                         </pre>
                       </s-box>
                     )}
-                    {editable && (
-                      <s-stack direction="inline" gap="small" alignItems="center">
-                        <s-button
-                          variant="secondary"
-                          onClick={() => regenerateCaption(slot.contentItemId)}
-                          {...(isRegeneratingCaption ? { loading: true } : {})}
-                        >
-                          Regenerate caption only
-                        </s-button>
-                        <s-text color="subdued">Keeps the product, image and time. Free, doesn&apos;t use credits.</s-text>
-                      </s-stack>
-                    )}
+                    {editable && (() => {
+                      const captionFeedbackValue = captionFeedback[slot.contentItemId] ?? "";
+                      const captionFeedbackMissing = !captionFeedbackValue.trim();
+                      return (
+                        <div>
+                          <div style={{ marginBottom: 8 }}>
+                            <s-stack direction="inline" gap="small">
+                              {captionRegenerationReasonSuggestions.map((suggestion) => (
+                                <button
+                                  key={suggestion}
+                                  type="button"
+                                  onClick={() =>
+                                    setCaptionFeedback((current) => ({
+                                      ...current,
+                                      [slot.contentItemId]: suggestion,
+                                    }))
+                                  }
+                                  style={{
+                                    padding: "4px 10px",
+                                    border: "1px solid #a8abae",
+                                    borderRadius: 999,
+                                    background: captionFeedbackValue === suggestion ? "#202223" : "#f1f2f3",
+                                    color: captionFeedbackValue === suggestion ? "#ffffff" : "#202223",
+                                    fontSize: 12,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {suggestion}
+                                </button>
+                              ))}
+                            </s-stack>
+                          </div>
+                          <textarea
+                            value={captionFeedbackValue}
+                            onChange={(e) =>
+                              setCaptionFeedback((current) => ({
+                                ...current,
+                                [slot.contentItemId]: e.target.value,
+                              }))
+                            }
+                            placeholder="Required: what should change in the caption? (e.g. shorter, less salesy, mention the leather)"
+                            rows={2}
+                            style={{ width: "100%", padding: 8, marginBottom: 4 }}
+                          />
+                          <s-button
+                            variant="secondary"
+                            onClick={() => regenerateCaption(slot.contentItemId)}
+                            {...(isRegeneratingCaption ? { loading: true } : {})}
+                            {...(captionFeedbackMissing ? { disabled: true } : {})}
+                          >
+                            Regenerate caption only
+                          </s-button>
+                        </div>
+                      );
+                    })()}
                     {isRegeneratingCaption && <GeneratingProgressBar label="Writing a new caption…" />}
                     {captionFailure?.contentItemId === slot.contentItemId && (
                       <s-paragraph>

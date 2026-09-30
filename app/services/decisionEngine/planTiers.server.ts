@@ -2,8 +2,8 @@
 // (Patricia, 24/09/2026). Reel custa mais que carrossel/post pra processar
 // (encoding de vídeo, ver buildReel.server.ts), então o mix fica FIXO por
 // plano — a lojista não escolhe livremente quantos Reels quer dentro do
-// mesmo preço (isso quebraria a margem); quem quer um mix diferente
-// precisa do plano "custom".
+// mesmo preço (isso quebraria a margem); quem quer mais Reels ou
+// carrosséis compra Extras, SOMADOS ao plano (ver applyMonthlyExtras).
 
 export interface WeeklySlotPlan {
   postsPerWeek: number;
@@ -13,50 +13,79 @@ export interface WeeklySlotPlan {
   reelSlotIndices: number[];
 }
 
-const AVG_WEEKS_PER_MONTH = 4.33;
-
 // Basic idêntico ao comportamento de hoje (3 posts/semana, 1 Reel) — nenhuma
 // loja existente percebe diferença nenhuma até ganhar um plano diferente.
 const BASIC: WeeklySlotPlan = { postsPerWeek: 3, reelSlotIndices: [0] };
 const GROW: WeeklySlotPlan = { postsPerWeek: 5, reelSlotIndices: [0, 2] };
 const PLUS: WeeklySlotPlan = { postsPerWeek: 7, reelSlotIndices: [0, 2, 4] };
 
-// Plano custom: deriva do total mensal que a lojista escolheu, dividido
-// pela média de semanas por mês. Cai pro default do Basic se ela ainda não
-// configurou nada (nunca trava a geração automática esperando essa
-// escolha, mesma regra de "nada é obrigatório a ponto de pausar os
-// posts").
-function resolveCustomPlan(customPostsPerMonth: number | null, customReelsPerMonth: number | null): WeeklySlotPlan {
-  if (!customPostsPerMonth || customPostsPerMonth <= 0) return BASIC;
+// Extras são comprados por MÊS, mas o plano é gerado por semana. Espalha o
+// total mensal nas 4 "semanas" do mês (dias 1-7, 8-14, 15-21, 22-28) —
+// como o plano semanal roda a cada 7 dias, cada uma dessas faixas cai
+// exatamente uma vez por mês, então a soma do mês bate com o que a lojista
+// comprou (dividir por 4.33 e arredondar sumiria com 1 reel extra/mês, por
+// exemplo). Dias 29-31 não recebem extra nenhum.
+const EXTRA_WEEKS_PER_MONTH = 4;
 
-  const postsPerWeek = Math.max(1, Math.round(customPostsPerMonth / AVG_WEEKS_PER_MONTH));
-  const reelsPerWeekRaw = customReelsPerMonth ? customReelsPerMonth / AVG_WEEKS_PER_MONTH : 0;
-  // Nunca mais reels do que posts na semana, e sempre espaçados (mesmo
-  // princípio de índice 0/2/4 dos planos fixos, evita 2 reels seguidos).
-  const reelsPerWeek = Math.min(Math.round(reelsPerWeekRaw), postsPerWeek);
-  const reelSlotIndices = Array.from({ length: reelsPerWeek }, (_, i) => i * 2).filter(
-    (index) => index < postsPerWeek,
+function extrasForWeek(monthlyExtras: number, weekOfMonth: number): number {
+  if (monthlyExtras <= 0 || weekOfMonth >= EXTRA_WEEKS_PER_MONTH) return 0;
+  return (
+    Math.floor(((weekOfMonth + 1) * monthlyExtras) / EXTRA_WEEKS_PER_MONTH) -
+    Math.floor((weekOfMonth * monthlyExtras) / EXTRA_WEEKS_PER_MONTH)
   );
-
-  return { postsPerWeek, reelSlotIndices };
 }
 
-export function getWeeklySlotPlan(shop: {
-  plan: string;
-  customPostsPerMonth: number | null;
-  customReelsPerMonth: number | null;
-}): WeeklySlotPlan {
-  switch (shop.plan) {
+function applyMonthlyExtras(
+  base: WeeklySlotPlan,
+  extraCarouselsPerMonth: number,
+  extraReelsPerMonth: number,
+  now: Date,
+): WeeklySlotPlan {
+  const weekOfMonth = Math.floor((now.getUTCDate() - 1) / 7);
+  const extraCarousels = extrasForWeek(extraCarouselsPerMonth, weekOfMonth);
+  const extraReels = extrasForWeek(extraReelsPerMonth, weekOfMonth);
+
+  // Extras entram depois dos slots do plano, alternando reel/carrossel
+  // enquanto houver dos dois — evita empilhar reels seguidos no fim.
+  const reelSlotIndices = [...base.reelSlotIndices];
+  let index = base.postsPerWeek;
+  let reelsLeft = extraReels;
+  let carouselsLeft = extraCarousels;
+  while (reelsLeft > 0 || carouselsLeft > 0) {
+    if (reelsLeft > 0 && (carouselsLeft === 0 || reelsLeft >= carouselsLeft)) {
+      reelSlotIndices.push(index);
+      reelsLeft--;
+    } else {
+      carouselsLeft--;
+    }
+    index++;
+  }
+
+  return { postsPerWeek: index, reelSlotIndices };
+}
+
+function baseWeeklySlotPlan(plan: string): WeeklySlotPlan {
+  switch (plan) {
     case "grow":
       return GROW;
     case "plus":
       return PLUS;
-    case "custom":
-      return resolveCustomPlan(shop.customPostsPerMonth, shop.customReelsPerMonth);
     // "basic" e qualquer valor antigo/desconhecido (ex.: "starter", de
-    // antes deste sistema existir) caem no mesmo default — nunca quebra
-    // uma loja com um plano ainda não migrado.
+    // antes deste sistema existir, ou "custom", que virou Extras em
+    // 30/09/2026) caem no mesmo default — nunca quebra uma loja com um
+    // plano ainda não migrado.
     default:
       return BASIC;
   }
+}
+
+export function getWeeklySlotPlan(
+  shop: {
+    plan: string;
+    extraCarouselsPerMonth: number;
+    extraReelsPerMonth: number;
+  },
+  now: Date = new Date(),
+): WeeklySlotPlan {
+  return applyMonthlyExtras(baseWeeklySlotPlan(shop.plan), shop.extraCarouselsPerMonth, shop.extraReelsPerMonth, now);
 }

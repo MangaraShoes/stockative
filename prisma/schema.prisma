@@ -48,22 +48,23 @@ model Shop {
   id            String    @id @default(cuid())
   shopifyDomain String    @unique
   accessToken   String
-  // "basic" | "grow" | "plus" | "custom" (Patricia, 24/09/2026: 4 planos
-  // com cadência/mix de formato fixos por plano, exceto "custom" — ver
-  // customPostsPerMonth/customReelsPerMonth e planTiers.server.ts). Campo
-  // já existia como "starter" mas nunca foi lido em lugar nenhum do código
-  // até agora — reaproveitado em vez de criar um novo.
+  // "basic" | "grow" | "plus" (Patricia, 24/09/2026: cadência/mix de
+  // formato fixos por plano, ver planTiers.server.ts). "custom" existiu
+  // como 4º plano até 30/09/2026 e virou Extras (abaixo). Campo já existia
+  // como "starter" mas nunca foi lido em lugar nenhum do código até
+  // 24/09 — reaproveitado em vez de criar um novo.
   plan          String    @default("basic")
   installedAt   DateTime  @default(now())
   uninstalledAt DateTime?
 
-  // Só usados quando plan = "custom" (Patricia, 24/09/2026: "a pessoa
-  // escolhe o numero de reels ou postas mensal e vamos gerar um valor de
-  // acordo") — null pra qualquer outro plano, e também null até a lojista
-  // configurar o custom pela primeira vez (cai no default do "basic" nesse
-  // meio-tempo, nunca trava a geração automática).
-  customPostsPerMonth Int?
-  customReelsPerMonth Int?
+  // Extras (Patricia, 30/09/2026: "serve apenas para aumentar o plano que a
+  // pessoa já tem com extras reels ou carrosséis, não serve como monte seu
+  // plano") — add-on mensal SOMADO ao plano base, nunca substitui ele.
+  // Distribuídos nas semanas do mês por planTiers.server.ts e somados à
+  // cota mensal em creditUsage.server.ts. Preço por unidade em
+  // extrasPricing.ts.
+  extraCarouselsPerMonth Int @default(0)
+  extraReelsPerMonth     Int @default(0)
 
   // Preferência de ESTILO de imagem, capturada uma vez no onboarding
   // (Patricia, 24/09/2026: "podemos tbem perguntar que tipo de imagem a

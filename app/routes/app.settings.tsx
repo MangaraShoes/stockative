@@ -3,20 +3,9 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { CUSTOM_PLAN_PRICING, estimateCustomPlanPriceCents } from "../services/decisionEngine/customPlanPricing";
+import { EXTRAS_PRICING, estimateExtrasPriceCents } from "../services/decisionEngine/extrasPricing";
 
-// Mesma conta de resolveCustomPlan em planTiers.server.ts (que continua
-// sendo a fonte real usada na geração, ver Fase 2) — duplicada aqui, pura,
-// só pra pré-visualizar ao vivo enquanto a lojista digita, sem round-trip
-// ao servidor a cada tecla. planTiers.server.ts não pode ser importado
-// direto num componente de cliente (React Router remove módulos .server do
-// bundle do navegador).
-const AVG_WEEKS_PER_MONTH = 4.33;
-function previewCustomWeeklyPlan(totalPostsPerMonth: number, reelsPerMonth: number) {
-  const postsPerWeek = Math.max(1, Math.round(totalPostsPerMonth / AVG_WEEKS_PER_MONTH));
-  const reelsPerWeek = Math.min(Math.round(reelsPerMonth / AVG_WEEKS_PER_MONTH), postsPerWeek);
-  return { postsPerWeek, reelsPerWeek };
-}
+const formatEuro = (cents: number) => `€${(cents / 100).toFixed(2)}`;
 
 const PLAN_OPTIONS = [
   {
@@ -34,11 +23,6 @@ const PLAN_OPTIONS = [
     label: "Plus — €49.90/month",
     description: "7 posts/week — 4 image posts + 3 reels weekly.",
   },
-  {
-    value: "custom",
-    label: `Custom — €${(CUSTOM_PLAN_PRICING.pricePerPostCents / 100).toFixed(2)}/image, €${(CUSTOM_PLAN_PRICING.pricePerReelCents / 100).toFixed(2)}/reel`,
-    description: "Pick your own monthly posts and reels — priced per unit.",
-  },
 ] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -50,8 +34,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     plan: shop?.plan ?? "basic",
-    customPostsPerMonth: shop?.customPostsPerMonth ?? null,
-    customReelsPerMonth: shop?.customReelsPerMonth ?? null,
+    extraCarouselsPerMonth: shop?.extraCarouselsPerMonth ?? 0,
+    extraReelsPerMonth: shop?.extraReelsPerMonth ?? 0,
   };
 };
 
@@ -77,25 +61,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { intent: "save-plan" as const, error: null };
   }
 
-  if (intent === "save-custom") {
-    const customPostsPerMonth = Number(formData.get("customPostsPerMonth"));
-    const customReelsPerMonth = Number(formData.get("customReelsPerMonth"));
+  if (intent === "save-extras") {
+    const extraCarouselsPerMonth = Number(formData.get("extraCarouselsPerMonth"));
+    const extraReelsPerMonth = Number(formData.get("extraReelsPerMonth"));
 
-    if (!Number.isFinite(customPostsPerMonth) || customPostsPerMonth <= 0) {
-      return { intent: "save-custom" as const, error: "Enter a valid number of posts per month." };
+    if (!Number.isInteger(extraCarouselsPerMonth) || extraCarouselsPerMonth < 0) {
+      return { intent: "save-extras" as const, error: "Enter a valid number of extra carousels." };
     }
-    if (!Number.isFinite(customReelsPerMonth) || customReelsPerMonth < 0) {
-      return { intent: "save-custom" as const, error: "Enter a valid number of reels per month." };
-    }
-    if (customReelsPerMonth > customPostsPerMonth) {
-      return { intent: "save-custom" as const, error: "Reels can't be more than total posts per month." };
+    if (!Number.isInteger(extraReelsPerMonth) || extraReelsPerMonth < 0) {
+      return { intent: "save-extras" as const, error: "Enter a valid number of extra reels." };
     }
 
     await prisma.shop.update({
       where: { id: shop.id },
-      data: { customPostsPerMonth, customReelsPerMonth },
+      data: { extraCarouselsPerMonth, extraReelsPerMonth },
     });
-    return { intent: "save-custom" as const, error: null };
+    return { intent: "save-extras" as const, error: null };
   }
 
   return { intent: "unknown" as const, error: "Unknown action." };
@@ -104,29 +85,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Settings() {
   const data = useLoaderData<typeof loader>();
   const planFetcher = useFetcher<typeof action>();
-  const customFetcher = useFetcher<typeof action>();
+  const extrasFetcher = useFetcher<typeof action>();
 
   const [selectedPlan, setSelectedPlan] = useState(data.plan);
-  const [customPosts, setCustomPosts] = useState(String(data.customPostsPerMonth ?? ""));
-  const [customReels, setCustomReels] = useState(String(data.customReelsPerMonth ?? ""));
+  const [extraCarousels, setExtraCarousels] = useState(String(data.extraCarouselsPerMonth));
+  const [extraReels, setExtraReels] = useState(String(data.extraReelsPerMonth));
 
   const isSavingPlan = planFetcher.state !== "idle";
-  const isSavingCustom = customFetcher.state !== "idle";
+  const isSavingExtras = extrasFetcher.state !== "idle";
 
   const savePlan = () => planFetcher.submit({ intent: "save-plan", plan: selectedPlan }, { method: "POST" });
-  const saveCustom = () =>
-    customFetcher.submit(
-      { intent: "save-custom", customPostsPerMonth: customPosts, customReelsPerMonth: customReels },
+  const saveExtras = () =>
+    extrasFetcher.submit(
+      { intent: "save-extras", extraCarouselsPerMonth: extraCarousels, extraReelsPerMonth: extraReels },
       { method: "POST" },
     );
 
-  const parsedPosts = Number(customPosts);
-  const parsedReels = Number(customReels);
-  const hasValidCustomInput =
-    Number.isFinite(parsedPosts) && parsedPosts > 0 && Number.isFinite(parsedReels) && parsedReels >= 0 && parsedReels <= parsedPosts;
-
-  const customPreview = hasValidCustomInput ? previewCustomWeeklyPlan(parsedPosts, parsedReels) : null;
-  const customPriceCents = hasValidCustomInput ? estimateCustomPlanPriceCents(parsedPosts, parsedReels) : null;
+  const parsedCarousels = Number(extraCarousels);
+  const parsedReels = Number(extraReels);
+  const hasValidExtrasInput =
+    Number.isInteger(parsedCarousels) && parsedCarousels >= 0 && Number.isInteger(parsedReels) && parsedReels >= 0;
+  const extrasUnchanged =
+    parsedCarousels === data.extraCarouselsPerMonth && parsedReels === data.extraReelsPerMonth;
+  const extrasPriceCents = hasValidExtrasInput ? estimateExtrasPriceCents(parsedCarousels, parsedReels) : null;
 
   return (
     <s-page heading="Plan">
@@ -186,85 +167,74 @@ export default function Settings() {
         )}
       </s-section>
 
-      {selectedPlan === "custom" && (
-        <s-section heading="Custom plan">
-          <s-paragraph>
-            Pick your own total posts per month, and how many of those should
-            be reels (reels cost more to produce, so they&apos;re weighted
-            higher in the price). Whatever you don&apos;t set falls back to
-            the Basic cadence — this never blocks automatic posting.
-          </s-paragraph>
+      <s-section heading="Extras">
+        <s-paragraph>
+          Need more than your plan includes? Add extra carousels or reels on
+          top of it each month — they&apos;re spread across the weeks and
+          added to your plan, never replacing it. Extra carousel:{" "}
+          {formatEuro(EXTRAS_PRICING.pricePerCarouselCents)} · Extra reel:{" "}
+          {formatEuro(EXTRAS_PRICING.pricePerReelCents)}.
+        </s-paragraph>
 
-          <s-stack direction="inline" gap="base">
-            <div>
-              <s-paragraph>Posts per month</s-paragraph>
-              <input
-                type="number"
-                min={1}
-                value={customPosts}
-                onChange={(e) => setCustomPosts(e.target.value)}
-                style={{ padding: 8, width: 120 }}
-              />
-            </div>
-            <div>
-              <s-paragraph>Of which, reels per month</s-paragraph>
-              <input
-                type="number"
-                min={0}
-                value={customReels}
-                onChange={(e) => setCustomReels(e.target.value)}
-                style={{ padding: 8, width: 120 }}
-              />
-            </div>
-          </s-stack>
-
-          {customPreview && (
-            <s-paragraph>
-              That&apos;s about {customPreview.postsPerWeek} post{customPreview.postsPerWeek === 1 ? "" : "s"}/week,{" "}
-              {customPreview.reelsPerWeek} of them a reel.
-              {customPriceCents !== null && (
-                <>
-                  {" "}
-                  Estimated price:{" "}
-                  {customPriceCents > 0
-                    ? `€${(customPriceCents / 100).toFixed(2)}/month`
-                    : "pricing for the Custom plan isn't set yet — contact us."}
-                </>
-              )}
-            </s-paragraph>
-          )}
-
-          <div style={{ marginTop: 12 }}>
-            <button
-              type="button"
-              onClick={saveCustom}
-              disabled={isSavingCustom || !hasValidCustomInput}
-              style={{
-                display: "inline-block",
-                padding: "8px 16px",
-                border: "1px solid #a8abae",
-                borderRadius: 8,
-                background: "#c9cccf",
-                color: "#202223",
-                fontWeight: 500,
-                opacity: isSavingCustom || !hasValidCustomInput ? 0.5 : 1,
-                cursor: isSavingCustom || !hasValidCustomInput ? "default" : "pointer",
-              }}
-            >
-              {isSavingCustom ? "Saving…" : "Save custom plan"}
-            </button>
+        <s-stack direction="inline" gap="base">
+          <div>
+            <s-paragraph>Extra carousels per month</s-paragraph>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={extraCarousels}
+              onChange={(e) => setExtraCarousels(e.target.value)}
+              style={{ padding: 8, width: 120 }}
+            />
           </div>
+          <div>
+            <s-paragraph>Extra reels per month</s-paragraph>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={extraReels}
+              onChange={(e) => setExtraReels(e.target.value)}
+              style={{ padding: 8, width: 120 }}
+            />
+          </div>
+        </s-stack>
 
-          {customFetcher.data?.intent === "save-custom" && !customFetcher.data.error && (
-            <s-paragraph>Saved.</s-paragraph>
-          )}
-          {customFetcher.data?.intent === "save-custom" && customFetcher.data.error && (
-            <s-paragraph>
-              <strong>{customFetcher.data.error}</strong>
-            </s-paragraph>
-          )}
-        </s-section>
-      )}
+        {extrasPriceCents !== null && extrasPriceCents > 0 && (
+          <s-paragraph>Extras: +{formatEuro(extrasPriceCents)}/month on top of your plan.</s-paragraph>
+        )}
+
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={saveExtras}
+            disabled={isSavingExtras || !hasValidExtrasInput || extrasUnchanged}
+            style={{
+              display: "inline-block",
+              padding: "8px 16px",
+              border: "1px solid #a8abae",
+              borderRadius: 8,
+              background: "#c9cccf",
+              color: "#202223",
+              fontWeight: 500,
+              opacity: isSavingExtras || !hasValidExtrasInput || extrasUnchanged ? 0.5 : 1,
+              cursor: isSavingExtras || !hasValidExtrasInput || extrasUnchanged ? "default" : "pointer",
+            }}
+          >
+            {isSavingExtras ? "Saving…" : "Save extras"}
+          </button>
+        </div>
+
+        {extrasFetcher.data?.intent === "save-extras" && !extrasFetcher.data.error && (
+          <s-paragraph>Saved.</s-paragraph>
+        )}
+        {extrasFetcher.data?.intent === "save-extras" && extrasFetcher.data.error && (
+          <s-paragraph>
+            <strong>{extrasFetcher.data.error}</strong>
+          </s-paragraph>
+        )}
+      </s-section>
     </s-page>
   );
 }

@@ -25,7 +25,8 @@ const MONTHLY_LIMITS: Record<string, { image: number; video: number }> = {
 // menos por chamada que imagem/reel (~$0,01-0,03 vs ~$0,11-1,99), então o
 // teto não precisa escalar por plano como imagem/reel escala: é só pra
 // cortar clique repetido sem controle, não pra limitar uso legítimo.
-// Números fixos, iguais em qualquer plano (Basic/Grow/Plus/Custom).
+// Números fixos, iguais em qualquer plano (Basic/Grow/Plus), Extras não
+// mexem neles.
 const FLAT_MONTHLY_LIMITS: Record<"brand_analysis" | "content_pillars", number> = {
   brand_analysis: 15,
   content_pillars: 10,
@@ -33,27 +34,20 @@ const FLAT_MONTHLY_LIMITS: Record<"brand_analysis" | "content_pillars", number> 
 
 type ShopPlanFields = {
   plan: string;
-  customPostsPerMonth: number | null;
-  customReelsPerMonth: number | null;
+  extraCarouselsPerMonth: number;
+  extraReelsPerMonth: number;
 };
 
-// Plano custom não tem uma cota mensal própria configurada — deriva do
-// mesmo par de campos usado pra montar a cadência semanal (Fase 2), nunca
-// trava esperando a lojista preencher (cai no default do Basic).
-function resolveCustomLimits(shop: ShopPlanFields): { image: number; video: number } {
-  if (!shop.customPostsPerMonth || shop.customPostsPerMonth <= 0) return MONTHLY_LIMITS.basic;
-
-  const video = shop.customReelsPerMonth && shop.customReelsPerMonth > 0 ? shop.customReelsPerMonth : 0;
-  const image = Math.max(0, shop.customPostsPerMonth - video);
-  return { image, video };
-}
-
+// Extras (Patricia, 30/09/2026) somam à cota do plano — mesma unidade (1
+// carrossel extra = 1 crédito de imagem, 1 reel extra = 1 crédito de vídeo),
+// então a regeneração continua espelhando a geração como pool mensal.
 export function getMonthlyLimit(shop: ShopPlanFields, taskType: CreditTaskType): number {
   if (taskType === "brand_analysis" || taskType === "content_pillars") {
     return FLAT_MONTHLY_LIMITS[taskType];
   }
-  const limits = shop.plan === "custom" ? resolveCustomLimits(shop) : MONTHLY_LIMITS[shop.plan] ?? MONTHLY_LIMITS.basic;
-  return limits[taskType];
+  const limits = MONTHLY_LIMITS[shop.plan] ?? MONTHLY_LIMITS.basic;
+  const extra = taskType === "image" ? shop.extraCarouselsPerMonth : shop.extraReelsPerMonth;
+  return limits[taskType] + Math.max(0, extra);
 }
 
 function startOfCurrentMonth(): Date {

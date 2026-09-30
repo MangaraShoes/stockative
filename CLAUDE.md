@@ -117,9 +117,9 @@ Gargalos que não são de dinheiro, são de tempo/processo:
 
 Custo variável a monitorar desde o dia 1: geração de imagem (agora dentro do Phase 1, ver Image MVP em [ARCHITECTURE.md](ARCHITECTURE.md)) pode corroer a margem se não houver limite de créditos por plano — logar custo por geração (`generation_logs`) desde o MVP, e contar custo real por chamada, não por imagem aprovada (se o merchant clica Regenerate 3x, foram 4 gerações pra entregar 1 imagem útil).
 
-### Planos: Basic/Grow/Plus/Custom (preço do Basic fechado em 25/09/2026, com base em custo real)
+### Planos: Basic/Grow/Plus + Extras (preço do Basic fechado em 25/09/2026, com base em custo real)
 
-Substituiu a hipótese original de um único plano "Starter" a €9,90/mês (09/09/2026) — o cálculo abaixo é o primeiro preço fechado a partir de custo real por unidade, não mais um chute. Cadência e mix de formato (Basic/Grow/Plus fixos, Custom configurável) já implementados desde 24/09/2026, ver `getWeeklySlotPlan` em [ARCHITECTURE.md](ARCHITECTURE.md) e `planTiers.server.ts`.
+Substituiu a hipótese original de um único plano "Starter" a €9,90/mês (09/09/2026) — o cálculo abaixo é o primeiro preço fechado a partir de custo real por unidade, não mais um chute. Cadência e mix de formato (Basic/Grow/Plus fixos, + Extras opcionais) já implementados desde 24/09/2026, ver `getWeeklySlotPlan` em [ARCHITECTURE.md](ARCHITECTURE.md) e `planTiers.server.ts`.
 
 **Custo real por unidade (25/09/2026, preços de API confirmados)**: gerar 1 imagem entregue custa ≈$0,11 (Gemini 2.5 Flash Image ~$0,04/tentativa + guardrails de fidelidade/composição via Claude Sonnet 5, com média real de 1,84 tentativas por imagem entregue, medida em produção — não o pior caso de "4x" citado antes). Um Reel custa ≈$1,80 (API de vídeo externa cotada por Patricia — o Reel parte direto do produto, não precisa gerar uma imagem antes) + a mesma decisão/legenda comuns a todo post (~$0,012). Reel domina o custo: ~90% do COGS de um plano vem dele, não da imagem.
 
@@ -136,9 +136,9 @@ Custo real (COGS) do Basic ≈ €10,65/mês (8 imagem + 4 Reel gerados, mais a 
 
 **Grow — €37,90/mês** (5 posts/semana — 13 imagem + 9 Reel/mês, mesma cortesia de 4 imagem + 2 Reel de regeneração grátis) e **Plus — €49,90/mês** (7 posts/semana — 17 imagem + 13 Reel/mês) fechados em 25/09/2026, com **desconto de volume proposital** (margem ~45-47%, abaixo dos ~54% do Basic — decisão de Patricia: tier maior compensa MENOS por post que o Basic, de propósito, como incentivo real de upgrade, não só "mais posts pelo mesmo preço por unidade"). Preço médio por unidade cai conforme sobe de tier: Basic ≈€2,08/post, Grow ≈€1,72/post, Plus ≈€1,66/post. COGS: Grow ≈€19,09/mês, Plus ≈€25,84/mês (mesmo cálculo do Basic acima, ver `planTiers.server.ts` pra cadência exata).
 
-**Plano Custom (preço por unidade fechado em 25/09/2026)**: a lojista escolhe posts/Reels por mês livremente (`Shop.customPostsPerMonth`/`customReelsPerMonth`), preço calculado em `customPlanPricing.ts`:
-- Imagem: €0,20/post (~45% de margem sobre custo real)
-- Reel: €1,99/post (~20% de margem — Patricia achou a margem equivalente ao Basic, ~€2,97, cara demais pra cobrar por unidade avulsa)
+**Extras (era o "Plano Custom" até 30/09/2026)**: não é um plano próprio nem "monte seu plano" (Patricia, 30/09/2026: "serve apenas para aumentar o plano que a pessoa já tem com extras reels ou carrosséis"). A lojista escolhe um plano Basic/Grow/Plus e, opcionalmente, compra carrosséis/Reels extras por mês (`Shop.extraCarouselsPerMonth`/`extraReelsPerMonth`), SOMADOS ao plano — espalhados nas semanas 1-4 do mês (`planTiers.server.ts`) e somados à cota de crédito (`creditUsage.server.ts`). Preço por unidade em `extrasPricing.ts` (fechado em 25/09/2026):
+- Carrossel extra: €0,20 (~45% de margem sobre custo real)
+- Reel extra: €1,99 (~20% de margem — Patricia achou a margem equivalente ao Basic, ~€2,97, cara demais pra cobrar por unidade avulsa)
 
 **Regra de ouro sobre imagem, mudou em 09/09/2026: nunca postar só a foto still isolada — fica pobre (Patricia).** Todo post sempre tem uma imagem editorial (com ambiente/modelo, gerada por IA) na posição 1; as fotos still do Shopify, quando existem, entram depois dela, nunca sozinhas. Isso NÃO significa gerar uma imagem nova a cada post: a editorial pode ser **reaproveitada** de uma geração anterior do mesmo produto, desde que ainda não tenha sido usada como capa de nenhum post daquele produto — só gera uma nova quando todas as existentes já foram usadas (ver "Alocação de crédito de imagem" em [ARCHITECTURE.md](ARCHITECTURE.md), atualizado com a mesma data). A cota de 8 créditos de imagem/mês do Basic (ver tabela acima) ainda parte da ideia de nem todo post exigir uma **geração nova** — reaproveitar uma editorial não consome crédito — mas todo post exige *ter* uma editorial, nova ou reaproveitada.
 

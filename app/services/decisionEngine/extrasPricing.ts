@@ -1,4 +1,6 @@
-// Fórmula de preço do plano Custom (Patricia, 25/09/2026) — derivada do
+// Preço por unidade dos Extras (Patricia, 25/09/2026 — era o plano Custom
+// até 30/09/2026, quando virou add-on em cima do Basic/Grow/Plus; preço por
+// unidade não mudou) — derivada do
 // custo real por unidade (Gemini 2.5 Flash Image ~$0,04/imagem + Claude
 // Sonnet 5 pros guardrails de fidelidade/composição ~$0,11 por post entregue
 // no total; Reel via API de vídeo externa, $1,80/reel cotado por ela) com
@@ -11,12 +13,14 @@
 // de revisar se o custo da API de vídeo mudar. Nunca usado pra cobrar de
 // verdade ainda — não existe integração de cobrança real (Fase 7, Shopify
 // Billing, fica de fora do plano de implementação original).
-export const CUSTOM_PLAN_PRICING = {
-  pricePerPostCents: 20, // €0,20/imagem
+export const EXTRAS_PRICING = {
+  pricePerCarouselCents: 20, // €0,20/carrossel (imagem)
   pricePerReelCents: 199, // €1,99/reel
 };
 
-export function estimateCustomPlanPriceCents(totalPostsPerMonth: number, reelsPerMonth: number): number {
-  const imagePosts = Math.max(0, totalPostsPerMonth - reelsPerMonth);
-  return imagePosts * CUSTOM_PLAN_PRICING.pricePerPostCents + reelsPerMonth * CUSTOM_PLAN_PRICING.pricePerReelCents;
+export function estimateExtrasPriceCents(extraCarouselsPerMonth: number, extraReelsPerMonth: number): number {
+  return (
+    Math.max(0, extraCarouselsPerMonth) * EXTRAS_PRICING.pricePerCarouselCents +
+    Math.max(0, extraReelsPerMonth) * EXTRAS_PRICING.pricePerReelCents
+  );
 }

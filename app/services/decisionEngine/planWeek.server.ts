@@ -8,7 +8,7 @@ import { buildCarousel } from "../imageMvp/buildCarousel.server";
 import { generateReelForContentItem } from "../video/generateReelForContentItem.server";
 import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
-import { maxPrimaryCaptionChars, buildFinalCaption, parseStoredHashtags } from "./captionFormat";
+import { maxPrimaryCaptionChars, buildFinalCaption, parseStoredHashtags, stripFrameworkLabels } from "./captionFormat";
 import { parseStoredTikTokSettings, TIKTOK_TITLE_MAX_LENGTH, type TikTokPostSettings } from "../tiktok/postSettings";
 import type { CommercialObjective, ContentLanguageCode } from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
@@ -499,7 +499,7 @@ export async function planOneSlot(
     status: contentItem.status,
     format: itemFormat,
     videoUrl,
-    captionText: captionText ?? "",
+    captionText: stripFrameworkLabels(captionText ?? ""),
     images,
     tiktokSettings: null,
     tiktokPublishStatus: null,
@@ -782,7 +782,7 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     status: item.status,
     format: item.format,
     videoUrl: item.videoUrl,
-    captionText: item.captionText ?? "",
+    captionText: stripFrameworkLabels(item.captionText ?? ""),
     tiktokSettings: parseStoredTikTokSettings(item.tiktokSettings),
     tiktokPublishStatus: item.tiktokPublishStatus,
     tiktokDefaultTitle: buildFinalCaption({

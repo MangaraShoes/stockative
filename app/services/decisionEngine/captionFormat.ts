@@ -4,6 +4,24 @@
 // published result differ" — hashtags publicados sem #, CTA nunca incluído).
 // Uma função só constrói a legenda final nos dois lugares.
 
+// A IA às vezes escreve os NOMES das etapas do framework narrativo na
+// própria legenda (achado ao vivo, 30/09/2026: post Before/After da Mangará
+// saiu com "Avant : ..." / "Après : ..." e, na tradução, "Daarvoor: ...").
+// O prompt do Estágio 2 já pede pra não fazer isso, mas instrução em prosa
+// sozinha não segura regra "sem exceção" — isto remove o rótulo de forma
+// determinística no começo de cada linha. Lista curta de propósito: só os
+// rótulos do Before/After (e "Hook"), nunca palavras que aparecem
+// naturalmente numa legenda como "Attention :" ou "Solution :".
+const FRAMEWORK_LABEL_AT_LINE_START =
+  /^([ \t]*)(?:before|after|bridge|avant|apr[eè]s|daarvoor|daarna|ervoor|erna|vorher|nachher|antes|depois|hook)[ \t\u00a0]*:[ \t\u00a0]*(\S?)/gimu;
+
+export function stripFrameworkLabels(text: string): string {
+  return text.replace(
+    FRAMEWORK_LABEL_AT_LINE_START,
+    (_match, indent: string, firstChar: string) => `${indent}${firstChar.toUpperCase()}`,
+  );
+}
+
 export function formatHashtags(hashtags: string[]): string {
   return hashtags
     .map((tag) => tag.trim().replace(/^#/, ""))
@@ -66,7 +84,7 @@ export function buildFinalCaption(params: {
   const separatorsReserved = ("\n\n".length) * (trailingParts.length > 0 ? trailingParts.length : 0);
   const trailingLength = trailingParts.join("").length + separatorsReserved;
 
-  const mainText = params.captionText.trim();
+  const mainText = stripFrameworkLabels(params.captionText).trim();
   const maxForMainText = Math.max(INSTAGRAM_CAPTION_LIMIT - trailingLength, 0);
   const trimmedMainText =
     mainText.length > maxForMainText ? truncateCaption(mainText, maxForMainText) : mainText;

@@ -3,7 +3,13 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "Dockerfile",
-    "watchPatterns": ["**", "!**/*.md", "!.github/**", "!.codex/**"]
+    "watchPatterns": [
+      "**",
+      "!**/*.md",
+      "!.github/**",
+      "!.codex/**",
+      "!.artifacts/**"
+    ]
   },
   "deploy": {
     "drainingSeconds": 300

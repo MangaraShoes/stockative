@@ -687,7 +687,7 @@
   <div class="wrap">
 
   <h2 class="privacy-title">Privacy Policy</h2>
-  <div class="meta">Last updated 11 September 2026 · stockative.com</div>
+  <div class="meta">Last updated 30 September 2026 · stockative.com</div>
 
   <p class="intro">
     Stockative ("we", "our") is an AI content-decision tool for Shopify
@@ -710,11 +710,21 @@
     </ul>
     <h4>From connected social accounts</h4>
     <p>
-      If you connect Instagram/Facebook or Pinterest, we receive an access
-      token from Meta or Pinterest's own OAuth flow, plus the account
-      identifiers needed to publish (a Page ID, an Instagram Business
-      Account ID, or a Pinterest board ID). We never receive your Meta or
-      Pinterest password.
+      If you connect Instagram/Facebook, Pinterest, TikTok or YouTube, we
+      receive an access token (and, where the platform provides one, a
+      refresh token) from that platform's own OAuth flow, plus the account
+      identifiers needed to publish: a Facebook Page ID, an Instagram
+      Business Account ID, a Pinterest board ID, your TikTok open ID and
+      username, or your YouTube channel ID and title. We never receive your
+      password for any of these platforms.
+    </p>
+    <p>
+      From TikTok we only request the scopes needed to read your basic
+      profile and to upload videos to your TikTok inbox as drafts. We never
+      publish to TikTok without you confirming the post inside the TikTok
+      app, and we don't read your TikTok videos, followers or messages.
+      From YouTube we only request permission to upload videos to the
+      channel you connect and to read that channel's basic details.
     </p>
   </section>
 
@@ -739,6 +749,10 @@
       <dd>Publishes content to Instagram/Facebook when you connect and approve a post.</dd>
       <dt>Pinterest, Inc.</dt>
       <dd>Publishes Pins to your connected Pinterest boards when you approve a post.</dd>
+      <dt>TikTok Pte. Ltd.</dt>
+      <dd>Receives the Reels you approve, uploaded to your TikTok inbox as drafts for you to review and post.</dd>
+      <dt>Google LLC (YouTube)</dt>
+      <dd>Publishes approved Reels as YouTube Shorts to the channel you connect. Stockative's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</dd>
       <dt>OpenRouter, Inc.</dt>
       <dd>Routes content-generation requests to the underlying model (currently Anthropic or Google) — receives only the product/brand text needed for that one generation.</dd>
     </dl>
@@ -750,7 +764,9 @@
       We keep your data for as long as the app is installed. When you
       uninstall, Shopify's mandatory app-uninstalled webhook tells us to
       revoke stored tokens and schedule deletion of your store data.
-      You can also request deletion at any time — see Contact below.
+      Disconnecting a social account inside the app deletes the tokens we
+      stored for it immediately. You can also request deletion at any time
+      — see Contact below.
     </p>
     <div class="note">
       <strong>Where we are today:</strong> Stockative is in Early Access,

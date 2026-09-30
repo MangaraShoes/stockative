@@ -10,7 +10,6 @@ import {
   swapWeeklyPlanSlotProduct,
   rescheduleWeeklyPlanSlot,
   cancelWeeklyPlanSlot,
-  changeWeeklyPlanSlotObjective,
   regenerateWeeklyPlanSlotImage,
   regenerateWeeklyPlanSlotCaption,
   getActivePromotion,
@@ -277,22 +276,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }
     return { intent: "regenerate-caption" as const, contentItemId, result };
-  }
-
-  if (intent === "change-objective") {
-    const contentItemId = String(formData.get("contentItemId"));
-    const objective = String(formData.get("objective")) as CommercialObjective;
-    let result;
-    try {
-      result = await changeWeeklyPlanSlotObjective({ shopId: shop.id, contentItemId, objective });
-    } catch (error) {
-      console.error("Failed to change objective:", error);
-      result = {
-        status: "error" as const,
-        reason: "Something went wrong regenerating this post. Please try again.",
-      };
-    }
-    return { intent: "change-objective" as const, contentItemId, result };
   }
 
   if (intent === "reschedule") {
@@ -585,7 +568,6 @@ export default function PlanWeek() {
   const generateFetcher = useFetcher<typeof action>();
   const swapFetcher = useFetcher<typeof action>();
   const manageFetcher = useFetcher<typeof action>();
-  const objectiveFetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
   const promotionFetcher = useFetcher<typeof action>();
   const tiktokFetcher = useFetcher<typeof action>();
@@ -603,7 +585,6 @@ export default function PlanWeek() {
   useClearPendingActionOnSettle(generateFetcher.state);
   useClearPendingActionOnSettle(swapFetcher.state);
   useClearPendingActionOnSettle(manageFetcher.state);
-  useClearPendingActionOnSettle(objectiveFetcher.state);
   useClearPendingActionOnSettle(imageFetcher.state);
   useClearPendingActionOnSettle(promotionFetcher.state);
 
@@ -642,7 +623,6 @@ export default function PlanWeek() {
         ? current.filter((o) => o !== objective)
         : [...current, objective],
     );
-  const [objectiveChoices, setObjectiveChoices] = useState<Record<string, string>>({});
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
   const [captionFeedback, setCaptionFeedback] = useState<Record<string, string>>({});
   // Post em que a lojista clicou "Regenerate" sem crédito — o aviso de cota
@@ -702,7 +682,6 @@ export default function PlanWeek() {
     fetcher.state !== "idle" ? String(fetcher.formData?.get("contentItemId") ?? "") : null;
   const swappingContentItemId = submittingContentItemId(swapFetcher);
   const managingContentItemId = submittingContentItemId(manageFetcher);
-  const changingObjectiveContentItemId = submittingContentItemId(objectiveFetcher);
   const regeneratingImageContentItemId = submittingContentItemId(imageFetcher);
 
   const generateWeek = () => {
@@ -758,16 +737,6 @@ export default function PlanWeek() {
         ...(feedback ? { feedback } : {}),
         ...(acceptExtraCharge ? { acceptExtraCharge: "1" } : {}),
       },
-      { method: "POST" },
-    );
-  };
-
-  const changeObjective = (contentItemId: string) => {
-    const objective = objectiveChoices[contentItemId];
-    if (!objective) return;
-    markPendingAction("change this post's objective");
-    objectiveFetcher.submit(
-      { intent: "change-objective", contentItemId, objective },
       { method: "POST" },
     );
   };
@@ -831,12 +800,6 @@ export default function PlanWeek() {
     (manageFetcher.data.intent === "reschedule" || manageFetcher.data.intent === "cancel") &&
     manageFetcher.data.result.status === "error"
       ? manageFetcher.data
-      : null;
-
-  const objectiveFailure =
-    objectiveFetcher.data?.intent === "change-objective" &&
-    objectiveFetcher.data.result.status === "error"
-      ? objectiveFetcher.data
       : null;
 
   const imageFailure =
@@ -1112,7 +1075,6 @@ export default function PlanWeek() {
               const editable = isEditable(slot.status);
               const isSwapping = swappingContentItemId === slot.contentItemId;
               const isManaging = managingContentItemId === slot.contentItemId;
-              const isChangingObjective = changingObjectiveContentItemId === slot.contentItemId;
               const isRegeneratingImage = regeneratingImageContentItemId === slot.contentItemId;
               const isPublishing = publishingContentItemId === slot.contentItemId;
               const isRegeneratingCaption = regeneratingCaptionContentItemId === slot.contentItemId;
@@ -1510,58 +1472,10 @@ export default function PlanWeek() {
                         </strong>
                       </s-paragraph>
                     )}
-                    {objectiveFailure?.contentItemId === slot.contentItemId && (
-                      <s-paragraph>
-                        <strong>
-                          Couldn&apos;t change objective:{" "}
-                          {objectiveFailure.result.status === "error" ? objectiveFailure.result.reason : ""}
-                        </strong>
-                      </s-paragraph>
-                    )}
 
-                    {editable && slot.promotionName && (
-                      <s-paragraph>
-                        <s-text color="subdued">
-                          Objective locked to &quot;Drive sales&quot; while
-                          this post is part of the {slot.promotionName}{" "}
-                          promotion.
-                        </s-text>
-                      </s-paragraph>
-                    )}
 
                     {editable && !slot.promotionName && (
                       <>
-                        <s-stack direction="inline" gap="small" alignItems="center">
-                          <s-select
-                            label="Change this post's objective"
-                            labelAccessibilityVisibility="exclusive"
-                            value={objectiveChoices[slot.contentItemId] ?? slot.objective}
-                            onChange={(event) => {
-                              const value = event.currentTarget.value;
-                              setObjectiveChoices((current) => ({
-                                ...current,
-                                [slot.contentItemId]: value,
-                              }));
-                            }}
-                          >
-                            {COMMERCIAL_OBJECTIVES.map((objective) => (
-                              <s-option key={objective} value={objective}>
-                                {OBJECTIVE_LABELS[objective]}
-                              </s-option>
-                            ))}
-                          </s-select>
-                          <s-button
-                            variant="secondary"
-                            onClick={() => changeObjective(slot.contentItemId)}
-                            {...(isChangingObjective ? { loading: true } : {})}
-                            {...((objectiveChoices[slot.contentItemId] ?? slot.objective) === slot.objective
-                              ? { disabled: true }
-                              : {})}
-                          >
-                            Change objective
-                          </s-button>
-                        </s-stack>
-
                         <s-stack direction="inline" gap="small" alignItems="center">
                           <s-select
                             label="Swap for a different product"

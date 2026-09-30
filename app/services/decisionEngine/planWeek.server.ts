@@ -383,9 +383,9 @@ export async function planOneSlot(
   scheduledAt: Date,
   weekBatchId: string | null,
   // Quando presente, sobrepõe a regra automática (Patricia, 12/09/2026:
-  // "precisamos ter a opção de escolher o objetivo da campanha") — usado por
-  // changeWeeklyPlanSlotObjective. Sem isso o objetivo era 100% inferido de
-  // estoque/velocidade/idade do produto, sem nenhum controle da lojista.
+  // "precisamos ter a opção de escolher o objetivo da campanha") — vem dos
+  // "Campaign objective(s) for this week" escolhidos no plano. Sem isso o
+  // objetivo era 100% inferido de estoque/velocidade/idade do produto.
   forcedObjective?: CommercialObjective,
   // Promoção real que este post divulga (ver planPromotionalWeek) — quando
   // presente, vira evidência real de Urgency e o discount/prazo entram no
@@ -569,8 +569,8 @@ export async function planWeeklyContent(
   // houver mais slots que objetivos), então a ESCOLHA DE PRODUTO também
   // precisa ser refeita por slot, não mais um ranking único pra semana
   // toda: um produto bom pra "Clear excess stock" pode não ser o melhor pra
-  // "Drive sales" no mesmo lote. Ela ainda pode trocar objetivo por post
-  // depois via changeWeeklyPlanSlotObjective.
+  // "Drive sales" no mesmo lote. (A troca de objetivo por post saiu em
+  // 30/09/2026 — Patricia: "já temos o Campaign objective(s) for this week".)
   forcedObjectives?: CommercialObjective[],
 ): Promise<WeeklyPlanSlot[]> {
   // Reivindica a trava de geração antes de mexer em qualquer ContentItem —
@@ -1116,75 +1116,6 @@ async function rewriteCaption(
       cta: copy.cta,
     },
   });
-}
-
-export type ChangeObjectiveResult =
-  | { status: "success"; slot: WeeklyPlanSlot }
-  | { status: "error"; reason: string };
-
-// A lojista pode escolher o objetivo comercial de um post em vez de deixar
-// só a regra automática (inferObjective) decidir (Patricia, 12/09/2026:
-// "precisamos ter a opção de escolher o objetivo da campanha"). Mesmo padrão
-// de swapWeeklyPlanSlotProduct: o objetivo muda o arquétipo/copy elegível
-// (ver getEligibleArchetypes), então o post precisa ser regenerado — nunca
-// gera imagem editorial nova nessa troca (mesma limitação da troca de
-// produto), só cria o ContentItem novo depois de bem-sucedido, e só então
-// apaga o antigo.
-export async function changeWeeklyPlanSlotObjective(params: {
-  shopId: string;
-  contentItemId: string;
-  objective: CommercialObjective;
-}): Promise<ChangeObjectiveResult> {
-  const oldItem = await prisma.contentItem.findUnique({
-    where: { id: params.contentItemId },
-    include: { contentPillar: true, promotion: true },
-  });
-  if (!oldItem || oldItem.shopId !== params.shopId) {
-    return { status: "error", reason: "This post is no longer part of the current plan." };
-  }
-  if (!["draft", "approved"].includes(oldItem.status)) {
-    return {
-      status: "error",
-      reason: "This post has already been scheduled or published — its objective can no longer change.",
-    };
-  }
-  if (!oldItem.productId) {
-    return { status: "error", reason: "Product not found." };
-  }
-  // Post de promoção tem objetivo fixo em "conversion" (ver
-  // planPromotionalWeek) — trocar pra outro objetivo apagaria o motivo real
-  // de urgência (desconto + prazo) que o Estágio 1 usa como evidência
-  // (Patricia, 13/09/2026, revisão de código).
-  if (oldItem.promotion && params.objective !== "conversion") {
-    return {
-      status: "error",
-      reason: "This post belongs to an active promotion — its objective is fixed to drive sales.",
-    };
-  }
-
-  const newSlot = await planOneSlot(
-    params.shopId,
-    oldItem.productId,
-    oldItem.contentPillar,
-    oldItem.scheduledAt ?? new Date(),
-    oldItem.weekBatchId,
-    params.objective,
-    oldItem.promotion ?? undefined,
-    // Mesmo motivo do swap de produto acima: preserva o Reel da semana se
-    // este post já era ele.
-    oldItem.format === "reel",
-  );
-
-  await prisma.contentItemImage.deleteMany({ where: { contentItemId: oldItem.id } });
-  await prisma.trackedLink.deleteMany({ where: { contentItemId: oldItem.id } });
-  await prisma.performanceSignal.deleteMany({ where: { contentItemId: oldItem.id } });
-  await prisma.generationLog.updateMany({
-    where: { contentItemId: oldItem.id },
-    data: { contentItemId: null },
-  });
-  await prisma.contentItem.delete({ where: { id: oldItem.id } });
-
-  return { status: "success", slot: newSlot };
 }
 
 export type RescheduleResult =

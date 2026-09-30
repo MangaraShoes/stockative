@@ -128,7 +128,7 @@ Substituiu a hipótese original de um único plano "Starter" a €9,90/mês (09/
 | Posts gerados | 3/semana (~12/mês) — 8 imagem + 4 Reel |
 | Regenerar imagem | 8x/mês (pool mensal, espelha a geração — ver `creditUsage.server.ts`) |
 | Regenerar Reel | 4x/mês |
-| Regenerar legenda | 3x por post, com motivo obrigatório (Patricia, 30/09/2026 — cada regeneração é chamada de IA paga, "não podemos permitir que a pessoa clica 50 vezes"); não consome cota de imagem. Trocar objetivo segue sem limite |
+| Regenerar legenda | 3x por post, com motivo obrigatório (Patricia, 30/09/2026 — cada regeneração é chamada de IA paga, "não podemos permitir que a pessoa clica 50 vezes"); não consome cota de imagem. A troca de objetivo por post saiu (30/09/2026) — o objetivo vem de "Campaign objective(s) for this week" |
 | Instagram + Facebook, Content Decision Engine, calendário comercial, scheduling, brand profile, performance tracking | ✓ |
 | Crédito extra além da cota | comprado separadamente, cobrança pontual |
 

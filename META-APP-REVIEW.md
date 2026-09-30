@@ -32,9 +32,9 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 ## `instagram_basic`
 
 **Descrição de uso:**
-> Stockative is a Shopify app that helps small e-commerce brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic to read the connected Instagram Business account's basic profile info (username, ID, profile picture) right after the merchant connects their account in our "Social accounts" settings screen, so we can confirm the correct account was linked and display it back to the merchant in our app.
+> Stockative is a Shopify app that helps small e-commerce brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic for three things, all for the merchant's own connected Instagram Business account: (1) right after the merchant connects their account in our "Social accounts" screen, we read its basic profile info (username, ID, profile picture) to confirm the correct account was linked and display it back to them; (2) we read the account's own recent media (caption, media type, like and comment counts, timestamp) so our content engine can learn which of the brand's past posts performed best; (3) in the "Competitor accounts" screen, the merchant can optionally enter the usernames of up to 2 public Instagram Business/Creator accounts they admire in their niche, and we use Business Discovery to read those accounts' public profile and recent public posts (caption, media type, like and comment counts). This public data is only used as style/format reference inside our content decisions; it is never displayed as a comparison or scoreboard, and we never access any private data from those accounts.
 
-**Screencast:** login completo do Instagram no app (Social accounts → Connect → dialog OAuth → volta pro app mostrando username/foto da conta conectada).
+**Screencast:** login completo do Instagram no app (Social accounts → Connect → dialog OAuth → volta pro app mostrando username/foto da conta conectada) + tela **Competitor accounts** adicionando um username e mostrando o perfil público encontrado.
 
 ---
 
@@ -89,9 +89,63 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 ## `instagram_manage_insights`
 
 **Descrição de uso:**
-> After a post is published, Stockative collects its performance (reach, saves, shares, likes, comments) to learn which type of content and product performs best for that specific merchant, and uses that signal to improve future content decisions. instagram_manage_insights lets us read this post-level insight data for posts our app published on the merchant's behalf.
+> After a post is published, Stockative collects its performance (reach, saves, shares, likes, comments) to learn which type of content and product performs best for that specific merchant, and uses that signal to improve future content decisions; these metrics are shown to the merchant in our "Performance" screen. We also read the account-level online_followers metric to find the hours of the day when the merchant's own followers are most active, so the weekly plan schedules posts at the times that fit their real audience instead of a generic default. instagram_manage_insights is used only for the merchant's own connected account and for posts our app published on their behalf.
 
-**Screencast:** tela de Performance do app com métricas reais de um post publicado (reach/saves), puxadas da API.
+**Screencast:** tela de Performance do app com métricas reais de um post publicado (reach/saves), puxadas da API. Se der, mostrar também o Weekly plan com os horários dos posts (vêm do online_followers).
+
+---
+
+## Instruções pro revisor (colar em "Provide instructions" / "Testing instructions")
+
+Meta precisa conseguir entrar e testar sozinho. Antes de colar: criar/instalar o app numa loja Shopify de teste conectada a um **Instagram de teste + Página de teste** (nunca a conta real da Mangará — ver incidente de 23/09/2026), e trocar os `<...>` abaixo. Não commitar a senha neste arquivo — ela só vai no campo do painel da Meta.
+
+```
+Stockative is an embedded Shopify app, so it runs inside the Shopify admin.
+
+TEST ACCESS
+1. Go to https://<test-store>.myshopify.com/admin
+2. Log in with:
+   Email: <reviewer-staff-email>
+   Password: <entered only in this field, not stored elsewhere>
+3. In the left sidebar, open Apps > Stockative.
+
+The test store already has products, and Stockative is installed on it.
+You can connect your own Instagram Business account (linked to a Facebook
+Page) or use the one we set up for review:
+   Instagram: @<test-ig-username>  |  Facebook Page: <test-page-name>
+
+STEPS TO TEST EACH PERMISSION
+A) Connecting the account (instagram_basic, pages_show_list,
+   pages_read_engagement, business_management)
+   - In the app menu, open "Social accounts".
+   - Click "Connect Instagram & Facebook" and complete Facebook Login,
+     granting the requested permissions and selecting the Page linked to
+     the Instagram Business account.
+   - You are returned to the app, which shows the connected Instagram
+     username.
+
+B) Publishing (instagram_content_publish, pages_manage_posts)
+   - Open "Create content", pick a product and click "Generate content".
+     The app generates a caption and an AI product image.
+   - In section "6. Publish", click "Publish to Instagram & Facebook".
+   - The post appears on the connected Instagram account's feed and the
+     same content appears on the linked Facebook Page.
+   - Scheduled publishing works the same way: "Weekly plan" >
+     "Generate this week's plan" creates posts that are published
+     automatically at their scheduled time.
+
+C) Competitor reference (instagram_basic, Business Discovery)
+   - Open "Competitor accounts", enter a public Instagram Business
+     username (e.g. a well-known brand) and save. The app shows that
+     account's public profile info.
+
+D) Insights (instagram_manage_insights)
+   - Open "Performance". For posts published by the app, it shows reach,
+     saves, shares, likes and comments read from the Instagram API.
+     (Metrics are collected periodically, so a post published during
+     the review may take a few hours to show data; the test account
+     already has earlier posts with metrics.)
+```
 
 ---
 
@@ -101,8 +155,13 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 - [x] Privacy Policy publicada + URL cadastrada no painel do app
 - [x] Data Deletion Instructions cobertas na Privacy Policy
 - [x] Tech Provider confirmado (irreversível) + Access Verification submetida em 23/09/2026, "In review", resposta em até 5 dias (prazo final pra completar: 22/11/2026)
+- [ ] Access Verification aprovada (30/09/2026: ainda "In review" no Alert Inbox, sem resposta)
+- [x] Descrições de uso ajustadas pra cobrir Business Discovery (concorrentes) e online_followers (30/09/2026)
+- [x] Texto de instruções pro revisor escrito (30/09/2026) — falta montar a loja/IG/Página de teste e preencher os `<...>`
+- [ ] Loja Shopify de teste + Instagram/Página de teste prontos pro revisor
 - [ ] Screencast principal gravado (login → post gerado → publicado)
 - [ ] Screencast do Facebook Page mirror gravado
+- [ ] Screencast da tela Competitor accounts gravado
 - [ ] Screencast do Performance/insights gravado
 - [ ] 7 descrições de uso coladas nos campos certos do painel
 - [ ] Submeter e anotar a data aqui, pra acompanhar o prazo de 2-6 semanas

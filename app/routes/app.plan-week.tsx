@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
+import { publishContentItemToInstagram } from "../services/meta/publishContentItem.server";
 import prisma from "../db.server";
 import {
   planWeeklyContent,
@@ -304,6 +305,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { intent: "cancel" as const, contentItemId, result };
   }
 
+  // Publicar agora direto do post do plano (Patricia, 30/09/2026: remover a
+  // tela Create content e "colocar a opção de publish now dentro dos posts
+  // da weekly plan"). Mesma função do agendador — trava contra duplicado,
+  // Story/Facebook/Pinterest/TikTok/YouTube best-effort — só que agora em
+  // vez de esperar o scheduledAt.
+  if (intent === "publish-now") {
+    const contentItemId = String(formData.get("contentItemId"));
+    try {
+      const result = await publishContentItemToInstagram(contentItemId, shop.id);
+      return { intent: "publish-now" as const, contentItemId, result };
+    } catch (error) {
+      return {
+        intent: "publish-now" as const,
+        contentItemId,
+        result: {
+          status: "error" as const,
+          reason: error instanceof Error ? error.message : "Unknown error while publishing.",
+        },
+      };
+    }
+  }
+
   // Movido de app.content-pillars.tsx (Patricia, 20/09/2026: "esconde o
   // Weekly objective do menu quando já tiver pilares mas precisamos definir
   // como fica... se a cliente quiser refazer a weekly") — antes disso, essa
@@ -530,6 +553,7 @@ export default function PlanWeek() {
   const imageFetcher = useFetcher<typeof action>();
   const promotionFetcher = useFetcher<typeof action>();
   const tiktokFetcher = useFetcher<typeof action>();
+  const publishFetcher = useFetcher<typeof action>();
   const savingTikTokContentItemId =
     tiktokFetcher.state !== "idle" ? String(tiktokFetcher.formData?.get("contentItemId") ?? "") : null;
   const tiktokFailure =
@@ -716,6 +740,23 @@ export default function PlanWeek() {
     markPendingAction("cancel this post");
     manageFetcher.submit({ intent: "cancel", contentItemId }, { method: "POST" });
   };
+
+  const publishingContentItemId = submittingContentItemId(publishFetcher);
+
+  // Publicar é irreversível (vai pro feed público na hora) — confirma antes,
+  // diferente de trocar produto/horário, que dá pra desfazer.
+  const publishNow = (contentItemId: string) => {
+    if (!window.confirm("Publish this post now? It goes live on your connected accounts right away.")) {
+      return;
+    }
+    markPendingAction("publish this post");
+    publishFetcher.submit({ intent: "publish-now", contentItemId }, { method: "POST" });
+  };
+
+  const publishOutcome =
+    publishFetcher.state === "idle" && publishFetcher.data?.intent === "publish-now"
+      ? publishFetcher.data
+      : null;
 
   const swapFailure =
     swapFetcher.data?.intent === "swap-product" && swapFetcher.data.result.status === "error"
@@ -925,8 +966,8 @@ export default function PlanWeek() {
           that most deserve attention right now, then writes the caption,
           picks the visual angle, and builds the images for each one.
           Didn&apos;t land right? Swap the product, or move it to a different
-          day and time, below. Want something extra? Create a one-off post
-          anytime from &quot;Create content&quot;.
+          day and time, below. Want one out right away? Use &quot;Publish
+          now&quot; on that post.
         </s-paragraph>
         <s-paragraph>
           Reviewing and approving is entirely optional. Untouched posts still
@@ -1010,6 +1051,13 @@ export default function PlanWeek() {
               const isManaging = managingContentItemId === slot.contentItemId;
               const isChangingObjective = changingObjectiveContentItemId === slot.contentItemId;
               const isRegeneratingImage = regeneratingImageContentItemId === slot.contentItemId;
+              const isPublishing = publishingContentItemId === slot.contentItemId;
+              const publishBlockedReason =
+                slot.images.length === 0
+                  ? "Generate an image first."
+                  : slot.format === "reel" && !slot.videoUrl
+                    ? "The reel video isn't ready yet."
+                    : null;
               const swapOptions = products.filter(
                 (product) =>
                   product.id !== slot.productId &&
@@ -1237,9 +1285,8 @@ export default function PlanWeek() {
                           No image yet — this post won&apos;t publish
                           automatically until one exists.
                         </strong>{" "}
-                        Go to &quot;Create content&quot; to generate one
-                        manually for this product, or swap it for a different
-                        product below.
+                        Use &quot;Generate image now&quot; above, or swap it
+                        for a different product below.
                       </s-paragraph>
                     )}
 
@@ -1256,6 +1303,17 @@ export default function PlanWeek() {
                         <strong>
                           The swap didn&apos;t go through — this can happen when your session
                           expires. Please reload the page and try again.
+                        </strong>
+                      </s-paragraph>
+                    )}
+                    {publishOutcome?.contentItemId === slot.contentItemId && (
+                      <s-paragraph>
+                        <strong>
+                          {publishOutcome.result.status === "error"
+                            ? `Couldn't publish: ${publishOutcome.result.reason}`
+                            : `Published on Instagram${
+                                publishOutcome.result.facebook.status === "published" ? " and Facebook" : ""
+                              }.`}
                         </strong>
                       </s-paragraph>
                     )}
@@ -1410,6 +1468,19 @@ export default function PlanWeek() {
                             Cancel this post
                           </s-button>
                         </s-stack>
+
+                        <s-stack direction="inline" gap="small" alignItems="center">
+                          <s-button
+                            variant="primary"
+                            onClick={() => publishNow(slot.contentItemId)}
+                            {...(isPublishing ? { loading: true } : {})}
+                            {...(publishBlockedReason || publishingContentItemId ? { disabled: true } : {})}
+                          >
+                            Publish now
+                          </s-button>
+                          {publishBlockedReason && <s-text color="subdued">{publishBlockedReason}</s-text>}
+                        </s-stack>
+                        {isPublishing && <GeneratingProgressBar label="Publishing to your connected accounts…" />}
                       </>
                     )}
                   </s-stack>

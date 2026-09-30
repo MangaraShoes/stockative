@@ -165,7 +165,7 @@ export async function publishContentItemToInstagram(
     igBusinessAccountId: socialAccount.igBusinessAccountId,
     pageAccessToken: socialAccount.accessToken,
   };
-  // Mesma função usada no preview da tela de Create content — nunca mais
+  // Mesma função usada ao montar o post no Weekly plan — nunca mais
   // divergir do que o merchant aprovou (hashtags com #, CTA incluído).
   const caption = buildFinalCaption({
     captionText: contentItem.captionText ?? "",
@@ -559,7 +559,7 @@ export async function publishDueContentItems(): Promise<DueContentItemOutcome[]>
   // post que falhou a geração de imagem ficava batendo na Meta API todo
   // ciclo do scheduler pra sempre falhar do mesmo jeito. Fica pendente
   // (nem tenta, nem marca como failed) até a lojista gerar uma imagem
-  // manualmente em "Create content" ou trocar o produto do slot.
+  // no próprio post do Weekly plan ("Generate image now") ou trocar o produto do slot.
   const outcomes: DueContentItemOutcome[] = [];
   for (const item of due) {
     if (item.images.length === 0) continue;

@@ -81,7 +81,7 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 
 **Screencast deve mostrar:**
 1. Login completo do Instagram no app, concedendo a permissão.
-2. Uma foto/post organic sendo criado — tela Weekly Plan mostrando um post já gerado (imagem + legenda).
+2. Tela Weekly plan mostrando um post já gerado (imagem + legenda) → **Publish now**.
 3. O post saindo publicado de verdade no feed da conta conectada.
 
 ---
@@ -125,14 +125,14 @@ A) Connecting the account (instagram_basic, pages_show_list,
      username.
 
 B) Publishing (instagram_content_publish, pages_manage_posts)
-   - Open "Create content", pick a product and click "Generate content".
-     The app generates a caption and an AI product image.
-   - In section "6. Publish", click "Publish to Instagram & Facebook".
+   - Open "Weekly plan". If it's empty, click "Generate this week's plan":
+     the app picks products from the store's inventory and sales data and
+     generates a caption and an AI product image for each post.
+   - On any post, click "Publish now" and confirm.
    - The post appears on the connected Instagram account's feed and the
      same content appears on the linked Facebook Page.
-   - Scheduled publishing works the same way: "Weekly plan" >
-     "Generate this week's plan" creates posts that are published
-     automatically at their scheduled time.
+   - Posts that aren't published manually go out automatically at their
+     scheduled day and time.
 
 C) Competitor reference (instagram_basic, Business Discovery)
    - Open "Competitor accounts", enter a public Instagram Business
@@ -170,9 +170,9 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 | 2 | **Connect Instagram & Facebook** | "Merchant connects their Instagram Business account" |
 | 3 | Dialog da Meta: login → selecionar Página de teste → selecionar IG de teste → lista de permissões (tudo marcado, mostrar devagar, 2–3s por tela) → Continue/Save | "Merchant selects their Facebook Page and Instagram account and grants permissions" |
 | 4 | Volta pro app: "Connected!" + @ da conta (parar 3s) | "The app confirms the connected account (instagram_basic)" |
-| 5 | **Create content** → escolher produto → **Generate content** | "Stockative generates a caption and product image from store data" |
-| 6 | Rolar devagar mostrando imagem + legenda | — |
-| 7 | Seção **"6. Publish"** → **Publish to Instagram & Facebook** → confirmação | "Merchant publishes the post (instagram_content_publish)" |
+| 5 | **Weekly plan** → mostrar os posts da semana já montados pelo app a partir do estoque/vendas | "Stockative plans the week's posts from store data" |
+| 6 | Rolar devagar num post mostrando imagem + legenda | — |
+| 7 | Nesse post → **Publish now** → confirmar no aviso → mensagem "Published on Instagram and Facebook." | "Merchant publishes the post (instagram_content_publish)" |
 | 8 | Aba do Instagram → Cmd+R → post novo no feed → abrir e mostrar legenda | "The post is live on the merchant's Instagram feed" |
 
 ### Vídeo 2 — Espelho no Facebook

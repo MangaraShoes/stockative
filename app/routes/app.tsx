@@ -78,7 +78,6 @@ const NAV_ITEMS = [
   { href: "/app/store-voice", label: "Store voice" },
   { href: "/app/content-pillars", label: "Weekly objective" },
   { href: "/app/plan-week", label: "Weekly plan" },
-  { href: "/app/create-content", label: "Create content" },
   { href: "/app/performance", label: "Performance" },
   { href: "/app/settings", label: "Plan" },
   { href: "/app/ai-test", label: "AI test" },

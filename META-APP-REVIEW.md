@@ -97,7 +97,7 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 
 ## Instruções pro revisor (colar em "Provide instructions" / "Testing instructions")
 
-Meta precisa conseguir entrar e testar sozinho. Loja de teste: `stockative-dev`, com a versão de **produção** do app instalada (30/09/2026 — antes só existia via dev preview) e **sem nenhuma rede conectada** (o Pinterest dela estava ligado ao `mangarashoes` real da Mangará, desconectado em 30/09/2026). O revisor conecta o Instagram de teste dele. O "Set your weekly goal" só funciona com Instagram conectado, então é o próprio revisor que faz, depois do passo A (instruções abaixo já nessa ordem). Antes de colar: trocar `<reviewer-staff-email>`. Não commitar a senha neste arquivo — ela só vai no campo do painel da Meta.
+Meta precisa conseguir entrar e testar sozinho. Loja de teste: `stockative-dev`, com a versão de **produção** do app instalada (30/09/2026 — antes só existia via dev preview) e **sem nenhuma rede conectada** (o Pinterest dela estava ligado ao `mangarashoes` real da Mangará, desconectado em 30/09/2026). O revisor conecta o Instagram de teste dele. O "Set your weekly goal" só funciona com Instagram conectado, então é o próprio revisor que faz, depois do passo A (instruções abaixo já nessa ordem). Login do revisor (30/09/2026): `review@stockative.com`, usuário da organização Shopify com papel Store administrator só na `stockative-dev`, Secure sign-in desligado. O e-mail é uma regra de roteamento no Purelymail (`review@stockative.com` → `stockative-review@mailinator.com`, caixa pública) — a Shopify recusa o domínio do Mailinator direto, e o código de verificação de dispositivo novo não dá pra desligar. Senha só no painel da Meta. **Depois da aprovação: remover o usuário e a regra de roteamento.** Não commitar a senha neste arquivo — ela só vai no campo do painel da Meta.
 
 ```
 Stockative is an embedded Shopify app, so it runs inside the Shopify admin.
@@ -105,8 +105,13 @@ Stockative is an embedded Shopify app, so it runs inside the Shopify admin.
 TEST ACCESS
 1. Go to https://admin.shopify.com/store/stockative-dev
 2. Log in with:
-   Email: <reviewer-staff-email>
+   Email: review@stockative.com
    Password: <entered only in this field, not stored elsewhere>
+   Shopify asks for a 6-digit email verification code when logging in from
+   a new device. That inbox is public, so you can read the code yourself:
+   https://www.mailinator.com/v4/public/inboxes.jsp?to=stockative-review
+   (open the latest "Shopify verification code" email; codes expire in 10
+   minutes).
 3. In the left sidebar, open Apps > Stockative.
 
 This is a test store with sample products and Stockative already installed.
@@ -229,7 +234,7 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - [ ] Access Verification aprovada (30/09/2026: ainda "In review" no Alert Inbox, sem resposta)
 - [x] Descrições de uso ajustadas pra cobrir Business Discovery (concorrentes) e online_followers (30/09/2026)
 - [x] Texto de instruções pro revisor escrito (30/09/2026) — falta montar a loja/IG/Página de teste e preencher os `<...>`
-- [ ] Loja Shopify de teste + Instagram/Página de teste prontos pro revisor
+- [x] Loja de teste pronta pro revisor (30/09/2026): `stockative-dev` com app de produção, sem redes conectadas, login `review@stockative.com` testado com código via Mailinator
 - [x] Screencast principal gravado e editado (30/09/2026): `~/Desktop/META VIDEO 1 - final.mp4` (2min05s) — conexão com tela de permissões completa (via "Edit settings"), Publish now, post no IG e no FB, Performance com reach. Serve pras 7 permissões. Texto com tempos pra colar em cada permissão:
   ```
   0:00 – Merchant opens Stockative (Social accounts) inside Shopify admin and clicks "Connect Instagram & Facebook"

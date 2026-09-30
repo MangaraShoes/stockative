@@ -16,4 +16,9 @@ COPY . .
 
 RUN npm run build
 
-CMD ["npm", "run", "docker-start"]
+# exec direto no react-router-serve (em vez de npm run docker-start) pra o
+# node virar o PID 1 e receber o SIGTERM do redeploy — npm e sh no meio do
+# caminho não repassam o sinal com confiança, e sem ele o agendador não
+# consegue esperar a publicação em andamento terminar (ver
+# scheduler.server.ts).
+CMD ["sh", "-c", "npm run setup && exec ./node_modules/.bin/react-router-serve ./build/server/index.js"]

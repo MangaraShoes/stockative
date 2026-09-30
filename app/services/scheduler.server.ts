@@ -51,25 +51,62 @@ const jobs: Job[] = [
   },
 ];
 
+// Rodadas em andamento agora, pra o desligamento conseguir esperar por elas
+// (ver waitForInFlightJobsThenExit).
+const inFlight = new Set<Promise<void>>();
+const timers: ReturnType<typeof setTimeout>[] = [];
+let stopping = false;
+
 // Nunca empilha duas rodadas do mesmo job: gerar um plano chama a IA e pode
 // passar do intervalo — a próxima rodada só começa depois que esta acabar.
 function schedule(job: Job) {
   let running = false;
   const tick = async () => {
-    if (running) return;
+    if (running || stopping) return;
     running = true;
-    try {
-      await job.run();
-    } catch (error) {
-      console.error(`[scheduler] ${job.name} failed:`, error);
-    } finally {
-      running = false;
-    }
+    const run = (async () => {
+      try {
+        await job.run();
+      } catch (error) {
+        console.error(`[scheduler] ${job.name} failed:`, error);
+      } finally {
+        running = false;
+      }
+    })();
+    inFlight.add(run);
+    await run;
+    inFlight.delete(run);
   };
-  setTimeout(() => {
-    void tick();
-    setInterval(() => void tick(), job.intervalMs);
-  }, FIRST_RUN_DELAY_MS);
+  timers.push(
+    setTimeout(() => {
+      void tick();
+      timers.push(setInterval(() => void tick(), job.intervalMs));
+    }, FIRST_RUN_DELAY_MS),
+  );
+}
+
+// Achado ao vivo, 30/09/2026: um redeploy às 15:02 matou no meio a
+// publicação de um Reel que tinha começado às 15:00:21 — o post ficou preso
+// em "publishing" e só saiu 15 min depois, pela recuperação de
+// STUCK_PUBLISHING_MINUTES. No SIGTERM do redeploy, para de começar rodadas
+// novas e espera as que já estão rodando terminarem antes de sair. O
+// Railway só manda SIGKILL depois de deploy.drainingSeconds (railway.json),
+// então SHUTDOWN_GRACE_MS precisa ficar abaixo disso. O servidor HTTP já é
+// fechado pelo próprio react-router-serve no mesmo sinal; sem este exit
+// explícito os setInterval manteriam o processo vivo até o SIGKILL.
+const SHUTDOWN_GRACE_MS = 280 * 1000;
+
+async function waitForInFlightJobsThenExit(signal: string) {
+  if (stopping) return;
+  stopping = true;
+  for (const timer of timers) clearTimeout(timer);
+  console.log(`[scheduler] ${signal} received, waiting for ${inFlight.size} in-flight job(s) before exiting`);
+  const timedOut = await Promise.race([
+    Promise.allSettled([...inFlight]).then(() => false),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(true), SHUTDOWN_GRACE_MS)),
+  ]);
+  console.log(`[scheduler] ${timedOut ? "grace period over" : "in-flight jobs finished"}, exiting`);
+  process.exit(0);
 }
 
 declare global {
@@ -85,4 +122,7 @@ export function startInProcessScheduler() {
 
   console.log("[scheduler] starting in-process scheduler (publish every 5 min, weekly plans every 15 min)");
   for (const job of jobs) schedule(job);
+  for (const signal of ["SIGTERM", "SIGINT"] as const) {
+    process.once(signal, () => void waitForInFlightJobsThenExit(signal));
+  }
 }

@@ -29,7 +29,8 @@ import { weekdayInTimezone, timeInTimezone, nextWeeklyOccurrenceInTimezone } fro
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
-import { getRemainingCredits } from "../services/decisionEngine/creditUsage.server";
+import { getRemainingCredits, purchaseExtraCredits } from "../services/decisionEngine/creditUsage.server";
+import { EXTRA_CREDIT_PRICING } from "../services/decisionEngine/extrasPricing";
 import {
   getTikTokCreatorInfoForShop,
   saveTikTokPostSettings,
@@ -232,6 +233,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const feedback = formData.get("feedback");
     let result;
     try {
+      // Aceitou a cobrança de 1 imagem extra no aviso de crédito esgotado.
+      // Só compra se ainda estiver sem crédito — um clique duplo ou uma
+      // aba antiga nunca cobra duas vezes por uma regeneração.
+      if (formData.get("acceptExtraCharge") === "1" && (await getRemainingCredits(shop, "image")) <= 0) {
+        await purchaseExtraCredits(shop.id, "image", 1);
+      }
       result = await regenerateWeeklyPlanSlotImage({
         shopId: shop.id,
         contentItemId,
@@ -535,6 +542,8 @@ function useClearPendingActionOnSettle(fetcherState: string) {
   }
 }
 
+const formatEuroCents = (cents: number) => `€${(cents / 100).toFixed(2)}`;
+
 export default function PlanWeek() {
   const {
     hasShop,
@@ -726,11 +735,17 @@ export default function PlanWeek() {
     }
   }
 
-  const regenerateImage = (contentItemId: string) => {
+  const regenerateImage = (contentItemId: string, acceptExtraCharge = false) => {
     const feedback = imageFeedback[contentItemId]?.trim();
     markPendingAction("regenerate this post's image");
+    setOutOfCreditsClickedFor(null);
     imageFetcher.submit(
-      { intent: "regenerate-image", contentItemId, ...(feedback ? { feedback } : {}) },
+      {
+        intent: "regenerate-image",
+        contentItemId,
+        ...(feedback ? { feedback } : {}),
+        ...(acceptExtraCharge ? { acceptExtraCharge: "1" } : {}),
+      },
       { method: "POST" },
     );
   };
@@ -1326,10 +1341,46 @@ export default function PlanWeek() {
                             <GeneratingProgressBar label="Building a new image for this post…" />
                           )}
                           {outOfCredits && outOfCreditsClickedFor === slot.contentItemId && (
-                            <p style={{ fontSize: 12, color: "#d72c0d", marginTop: 8, marginBottom: 0 }}>
-                              You&apos;ve used all your image regenerations for this month —{" "}
-                              <s-link href="/app/extras">add extra credits</s-link> to keep going.
-                            </p>
+                            <div style={{ marginTop: 8, padding: 12, border: "1px solid #e1e3e5", borderRadius: 8 }}>
+                              <p style={{ fontSize: 13, marginTop: 0, marginBottom: 8 }}>
+                                You&apos;ve used all the image regenerations included in your plan
+                                this month. Accept a charge for extra content to keep going — each
+                                extra image costs {formatEuroCents(EXTRA_CREDIT_PRICING.pricePerImageCents)},
+                                each extra reel {formatEuroCents(EXTRA_CREDIT_PRICING.pricePerVideoCents)}.
+                              </p>
+                              <s-stack direction="inline" gap="small">
+                                <button
+                                  type="button"
+                                  onClick={() => regenerateImage(slot.contentItemId, true)}
+                                  style={{
+                                    padding: "8px 16px",
+                                    border: "1px solid #000",
+                                    borderRadius: 8,
+                                    background: "#000",
+                                    color: "#fff",
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Accept {formatEuroCents(EXTRA_CREDIT_PRICING.pricePerImageCents)} charge and regenerate
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setOutOfCreditsClickedFor(null)}
+                                  style={{
+                                    padding: "8px 16px",
+                                    border: "1px solid #a8abae",
+                                    borderRadius: 8,
+                                    background: "#fff",
+                                    color: "#202223",
+                                    fontWeight: 500,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </s-stack>
+                            </div>
                           )}
                         </div>
                       );

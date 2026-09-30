@@ -5,6 +5,7 @@
 // (ver GenerationLog.countsAsCredit), então geração e regeneração consomem
 // do mesmo pool.
 import prisma from "../../db.server";
+import { EXTRA_CREDIT_PRICING } from "./extrasPricing";
 
 export type CreditTaskType = "image" | "video" | "brand_analysis" | "content_pillars";
 
@@ -74,4 +75,15 @@ export async function getRemainingCredits(shop: ShopPlanFields & { id: string },
   const limit = getMonthlyLimit(shop, taskType) + (await getPurchasedCreditsThisMonth(shop.id, taskType));
   const used = await getMonthlyUsage(shop.id, taskType);
   return Math.max(0, limit - used);
+}
+
+// Lojista aceitou a cobrança de crédito extra ao clicar Regenerate sem
+// crédito sobrando (Patricia, 30/09/2026). Só registra a compra — não
+// existe cobrança real ainda (Fase 7, Shopify Billing).
+export async function purchaseExtraCredits(shopId: string, taskType: "image" | "video", credits: number): Promise<void> {
+  const priceCents =
+    taskType === "image" ? EXTRA_CREDIT_PRICING.pricePerImageCents : EXTRA_CREDIT_PRICING.pricePerVideoCents;
+  await prisma.imageCreditPurchase.create({
+    data: { shopId, taskType, creditsPurchased: credits, pricePaid: (credits * priceCents) / 100 },
+  });
 }

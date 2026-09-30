@@ -2,6 +2,8 @@
 // mais pelo custo da imagem e dos vídeos, não queremos cobrar por carrossel
 // ou reel mas sim por extra imagem e extra vídeo"). Cobrado uma vez, vale
 // só no mês da compra (ImageCreditPurchase), somado à cota do plano.
+// Oferecido só ao clicar Regenerate sem crédito (Weekly plan) — o plano
+// sempre gera os posts/Reels combinados, a cota só limita regeneração.
 //
 // Valores fechados em 25/09/2026 (quando isso era o plano Custom),
 // derivados do custo real por unidade: imagem ≈$0,11 entregue (Gemini 2.5
@@ -16,9 +18,3 @@ export const EXTRA_CREDIT_PRICING = {
   pricePerVideoCents: 199, // €1,99/vídeo
 };
 
-export function estimateExtraCreditsPriceCents(images: number, videos: number): number {
-  return (
-    Math.max(0, images) * EXTRA_CREDIT_PRICING.pricePerImageCents +
-    Math.max(0, videos) * EXTRA_CREDIT_PRICING.pricePerVideoCents
-  );
-}

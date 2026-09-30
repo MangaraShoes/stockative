@@ -12,26 +12,13 @@ name: Stockative scheduled jobs
 #   STOCKATIVE_CRON_SECRET — o mesmo valor da env var CRON_SECRET no host do app
 on:
   schedule:
-    # Publica posts agendados que já venceram — checagem frequente, pra sair
-    # perto do horário real (mesmo padrão dos outros 2 crons).
-    #
-    # Deslocado de "*/15 * * * *" (Patricia, 19/09/2026): minutos redondos
-    # (:00/:15/:30/:45) concorrem com todo o GitHub e sofrem atraso/descarte
-    # sob carga — o primeiro disparo depois de criar este workflow rodou às
-    # 16:08 e o slot de */15 seguinte simplesmente não apareceu. Minuto
-    # deslocado reduz a chance de cair numa fila cheia.
-    - cron: "8,23,38,53 * * * *"
-    # Gera o próximo plano semanal pra loja que passou do intervalo de 7 dias.
-    #
-    # Trocado de 1x/dia (Patricia, 20/09/2026: "não está recriando um novo
-    # plano automaticamente") — o prazo de 7 dias vence na mesma HORA em que
-    # o plano anterior foi gerado (ex.: 13:09), não à meia-noite, então uma
-    # checagem única de madrugada perde a janela por até ~24h toda vez que a
-    # última geração aconteceu depois do horário fixo do cron. A cada 2h
-    # fecha essa folga sem disparar a IA à toa (generateDueWeeklyPlans só
-    # gera de verdade pra loja que passou do prazo — pra quem não passou,
-    # a chamada é só uma query rápida no banco).
-    - cron: "22 */2 * * *"
+    # Publicar e gerar plano semanal saíram daqui (Patricia, 30/09/2026) —
+    # agora rodam dentro do próprio app no Railway, ver
+    # app/services/scheduler.server.ts. O cron do GitHub é "best effort" e
+    # na prática rodava a cada 2-3h em vez de a cada 15 min, e chegou a
+    # descartar a geração de plano das ~10:22 de 30/09 (plano novo só saiu
+    # às 12:47). Os 2 jobs continuam abaixo só pra disparo manual
+    # (workflow_dispatch), como reserva.
     # Coleta likes/comments dos posts publicados — fecha o loop de medição
     # (Patricia, 13/09/2026, ver collectDuePerformanceSignals).
     - cron: "7 6 * * *"
@@ -39,7 +26,7 @@ on:
 
 jobs:
   publish-scheduled:
-    if: github.event.schedule == '8,23,38,53 * * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Call /cron/publish-scheduled
@@ -48,7 +35,7 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.STOCKATIVE_CRON_SECRET }}"
 
   generate-weekly-plans:
-    if: github.event.schedule == '22 */2 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       # Diferente dos outros 2 endpoints, este chama a IA de verdade (copy +

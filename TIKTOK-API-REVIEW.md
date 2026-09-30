@@ -46,7 +46,7 @@ O Sandbox basta pro piloto com a Mangará (até 10 contas). Pra outras lojistas,
 
 ## Submissão da revisão em Production: textos prontos (30/09/2026)
 
-### Antes de enviar: bloqueador no site
+### Antes de enviar: bloqueador no site (resolvido em 30/09/2026, commit 79cccc6)
 
 Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site oficial e cobrir os dados usados. A seção "From connected social accounts" de stockative.com/#privacy hoje só cita Meta e Pinterest, e a lista "Who else processes it" não tem TikTok nem Google/YouTube. Adicionar:
 

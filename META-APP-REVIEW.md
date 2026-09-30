@@ -220,6 +220,7 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 
 - [x] Business Verification concluída
 - [ ] App settings → Basic preenchido (30/09/2026: estava sem Privacy URL, App domains, ícone e categoria; Terms e Data deletion com placeholder `facebook.com`) — valores: App domains `app.stockative.com` + `stockative.com`, Privacy `https://stockative.com/#privacy`, Terms `https://stockative.com/#terms`, Data deletion `https://stockative.com/#privacy`, ícone `~/Desktop/stockative-icon-1024.png`, categoria Business and pages
+- [x] As 7 permissões "Ready for testing" nos casos de uso (30/09/2026): `instagram_manage_insights` faltava no caso de uso Instagram API (dava "Invalid Scopes" no OAuth) e foi adicionado; `pages_manage_posts` fica no caso de uso Manage Pages. Também aparecem `instagram_business_basic`, `instagram_business_manage_messages` e `instagram_manage_comments` como Ready for testing — o app não usa, **não enviar pra App Review**
 - [x] Redirect URI de produção cadastrado (`https://app.stockative.com/auth/meta/callback`, 30/09/2026 — antes só tinha o ngrok)
 - [x] Data Deletion Instructions cobertas na Privacy Policy
 - [x] Tech Provider confirmado (irreversível) + Access Verification submetida em 23/09/2026, "In review", resposta em até 5 dias (prazo final pra completar: 22/11/2026)

@@ -1,8 +1,9 @@
 export const TIKTOK_AUTHORIZE_BASE = "https://www.tiktok.com/v2/auth/authorize/";
 export const TIKTOK_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
 export const TIKTOK_USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/";
-export const TIKTOK_INBOX_UPLOAD_INIT_URL =
-  "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/";
+export const TIKTOK_CREATOR_INFO_URL = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/";
+export const TIKTOK_DIRECT_POST_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/";
+export const TIKTOK_PUBLISH_STATUS_URL = "https://open.tiktokapis.com/v2/post/publish/status/fetch/";
 
 // video.upload é o que libera o upload pra caixa de rascunhos
 // (uploadVideoToInbox) — sem ele toda chamada falha com "The user did not
@@ -14,8 +15,15 @@ export const TIKTOK_INBOX_UPLOAD_INIT_URL =
 // 29/09/2026: com o produto adicionado no Sandbox, video.upload aparece na
 // lista de Scopes. Precisa do mesmo produto adicionado também em Production
 // (e aprovado na revisão) antes de usar as credenciais de produção.
-export const TIKTOK_SCOPES = ["user.info.profile", "video.upload"].join(",");
-export const TIKTOK_REQUIRED_PUBLISH_SCOPE = "video.upload";
+//
+// video.publish (Direct Post, Patricia, 30/09/2026: "o app deve poder postar
+// sozinho sem precisar entrar no tiktok") — publica direto no perfil em vez
+// de mandar pra caixa de rascunhos. Precisa do Direct Post ligado no produto
+// Content Posting API do app no TikTok for Developers (Sandbox e
+// Production); se o app pedir um escopo que não tem, o login inteiro falha.
+// video.upload continua pedido junto só porque já está aprovado no app.
+export const TIKTOK_SCOPES = ["user.info.profile", "video.upload", "video.publish"].join(",");
+export const TIKTOK_REQUIRED_PUBLISH_SCOPE = "video.publish";
 
 export class TikTokApiError extends Error {
   code: string | null;

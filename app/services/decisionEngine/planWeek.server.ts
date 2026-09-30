@@ -8,7 +8,8 @@ import { buildCarousel } from "../imageMvp/buildCarousel.server";
 import { generateReelForContentItem } from "../video/generateReelForContentItem.server";
 import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
-import { maxPrimaryCaptionChars } from "./captionFormat";
+import { maxPrimaryCaptionChars, buildFinalCaption, parseStoredHashtags } from "./captionFormat";
+import { parseStoredTikTokSettings, TIKTOK_TITLE_MAX_LENGTH, type TikTokPostSettings } from "../tiktok/postSettings";
 import type { CommercialObjective, ContentLanguageCode } from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
@@ -53,6 +54,12 @@ export interface WeeklyPlanSlot {
   images: WeeklyPlanImage[];
   format: string; // post | reel — ver ContentItem.format em prisma/schema.prisma
   videoUrl: string | null; // só quando format="reel" (ver generateReelForContentItem.server.ts)
+  // Direct Post no TikTok (só Reel) — configuração confirmada pela lojista
+  // (null = ainda não confirmou, não vai pro TikTok), último status do
+  // envio, e a legenda sugerida pra pré-preencher o campo do TikTok.
+  tiktokSettings: TikTokPostSettings | null;
+  tiktokPublishStatus: string | null;
+  tiktokDefaultTitle: string;
 }
 
 // Dia da semana (0=domingo) + horário em que cada slot posta por padrão, se
@@ -494,6 +501,13 @@ export async function planOneSlot(
     videoUrl,
     captionText: captionText ?? "",
     images,
+    tiktokSettings: null,
+    tiktokPublishStatus: null,
+    tiktokDefaultTitle: buildFinalCaption({
+      captionText: contentItem.captionText ?? "",
+      cta: contentItem.cta,
+      hashtags: parseStoredHashtags(contentItem.hashtags),
+    }).slice(0, TIKTOK_TITLE_MAX_LENGTH),
   };
 }
 
@@ -769,6 +783,13 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     format: item.format,
     videoUrl: item.videoUrl,
     captionText: item.captionText ?? "",
+    tiktokSettings: parseStoredTikTokSettings(item.tiktokSettings),
+    tiktokPublishStatus: item.tiktokPublishStatus,
+    tiktokDefaultTitle: buildFinalCaption({
+      captionText: item.captionText ?? "",
+      cta: item.cta,
+      hashtags: parseStoredHashtags(item.hashtags),
+    }).slice(0, TIKTOK_TITLE_MAX_LENGTH),
     images: item.images.map((row) => ({
       position: row.position,
       url: row.creativeAsset?.imageUrl ?? row.productImage?.url ?? "",

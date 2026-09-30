@@ -119,13 +119,13 @@ export async function exchangeCodeForToken(code: string): Promise<{
   }
 
   // A tela de autorização do TikTok deixa a lojista desmarcar escopos
-  // individualmente — conectar sem video.upload "funciona", mas todo Reel
+  // individualmente — conectar sem video.publish "funciona", mas todo Reel
   // depois falharia em silêncio. Melhor recusar a conexão já aqui, com uma
   // mensagem que diz o que fazer.
   const grantedScopes = (json.scope ?? "").split(",").map((scope) => scope.trim());
   if (!grantedScopes.includes(TIKTOK_REQUIRED_PUBLISH_SCOPE)) {
     throw new Error(
-      "TikTok was connected without permission to upload videos. Reconnect and keep the video upload permission checked.",
+      "TikTok was connected without permission to post videos. Reconnect and keep the video posting permission checked.",
     );
   }
 

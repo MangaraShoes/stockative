@@ -10,7 +10,13 @@ import {
 import { buildFinalCaption, parseStoredHashtags } from "../decisionEngine/captionFormat";
 import { getOrCreateBoardForCategory } from "../pinterest/boards.server";
 import { createPin } from "../pinterest/publish.server";
-import { uploadVideoToInbox } from "../tiktok/publish.server";
+import {
+  directPostVideoToTikTok,
+  queryTikTokCreatorInfo,
+  waitForTikTokPublishResult,
+} from "../tiktok/publish.server";
+import { parseStoredTikTokSettings, validateTikTokPostSettings } from "../tiktok/postSettings";
+import { mp4DurationSecondsFromDataUrl } from "../video/mp4Duration.server";
 import { getValidTikTokAccessToken } from "../tiktok/oauth.server";
 import { uploadShort } from "../youtube/publish.server";
 import { getValidYouTubeAccessToken } from "../youtube/oauth.server";
@@ -49,10 +55,10 @@ export type PinterestPublishOutcome =
   | { status: "failed"; reason: string };
 
 // Best-effort igual aos outros — só tentado pra post format="reel" (TikTok
-// só aceita vídeo), e só entrega na caixa de rascunhos do TikTok da
-// lojista, não publica sozinho (ver uploadVideoToInbox em
-// tiktok/publish.server.ts pro motivo: a Content Posting API exige
-// auditoria pra Direct Post, e a Stockative ainda não passou por ela).
+// só aceita vídeo), via Direct Post, e só quando a lojista já confirmou a
+// configuração do TikTok daquele Reel no Weekly Plan (ver
+// tiktok/postSettings.ts). Sem essa confirmação fica "not_attempted" — as
+// diretrizes do TikTok proíbem enviar sem consentimento expresso.
 export type TikTokPublishOutcome =
   | { status: "not_attempted"; reason?: string }
   | { status: "published"; publishId: string }
@@ -318,11 +324,11 @@ export async function publishContentItemToInstagram(
       }
     }
 
-    // Espelha o Reel na caixa de rascunhos do TikTok — só tentado pra
-    // post format="reel" (TikTok só aceita vídeo), best-effort igual ao
-    // Pinterest/Facebook. A lojista ainda precisa abrir o TikTok e confirmar
-    // a publicação de lá (ver uploadVideoToInbox), então isso nunca conta
-    // como "published" de verdade, só como "entregue".
+    // Publica o Reel no TikTok via Direct Post (Patricia, 30/09/2026) —
+    // só tentado pra post format="reel" (TikTok só aceita vídeo),
+    // best-effort igual ao Pinterest/Facebook, e só com a configuração que
+    // a lojista confirmou no Weekly Plan (privacidade, interações,
+    // divulgação comercial, consentimento — ver tiktok/postSettings.ts).
     let tiktok: TikTokPublishOutcome = contentItem.tiktokExternalPostId
       ? { status: "published", publishId: contentItem.tiktokExternalPostId }
       : { status: "not_attempted" };
@@ -330,23 +336,57 @@ export async function publishContentItemToInstagram(
       const tiktokAccount = await prisma.socialAccount.findFirst({
         where: { shopId: contentItem.shopId, platform: "tiktok" },
       });
-      if (tiktokAccount) {
+      const tiktokSettings = parseStoredTikTokSettings(contentItem.tiktokSettings);
+      if (tiktokAccount && !tiktokSettings) {
+        tiktok = { status: "not_attempted", reason: "TikTok settings for this Reel were never confirmed." };
+      } else if (tiktokAccount && tiktokSettings) {
         try {
-          const accessToken = await getValidTikTokAccessToken(tiktokAccount);
-          const publishId = await uploadVideoToInbox(
-            { accessToken },
+          const tiktokTarget = { accessToken: await getValidTikTokAccessToken(tiktokAccount) };
+          // Diretrizes do TikTok: consultar a conta de novo na hora de
+          // postar — privacidade/interações podem ter mudado desde a
+          // confirmação, e é aqui que o limite diário de posts aparece.
+          const creator = await queryTikTokCreatorInfo(tiktokTarget);
+          const invalidReason = validateTikTokPostSettings(tiktokSettings, creator);
+          if (invalidReason) throw new Error(invalidReason);
+          const durationSec = mp4DurationSecondsFromDataUrl(contentItem.videoUrl);
+          if (durationSec && creator.maxVideoPostDurationSec && durationSec > creator.maxVideoPostDurationSec) {
+            throw new Error(
+              `This Reel is ${Math.round(durationSec)}s long, but your TikTok account only accepts videos up to ${creator.maxVideoPostDurationSec}s.`,
+            );
+          }
+          const publishId = await directPostVideoToTikTok(
+            tiktokTarget,
             `${appUrl}/media/content-item-video/${contentItem.id}`,
+            tiktokSettings,
           );
+          // Gravado na hora, antes de esperar o processamento — Direct Post
+          // é publicação pública de verdade, então um retry depois de o
+          // processo cair não pode mandar o mesmo Reel de novo (mesmo
+          // motivo do externalPostId do Instagram, ver acima).
+          await prisma.contentItem.update({
+            where: { id: contentItemId },
+            data: { tiktokExternalPostId: publishId, tiktokPublishStatus: "PROCESSING_DOWNLOAD" },
+          });
           tiktok = { status: "published", publishId };
+          const finalStatus = await waitForTikTokPublishResult(tiktokTarget, publishId);
+          await prisma.contentItem.update({
+            where: { id: contentItemId },
+            data: { tiktokPublishStatus: finalStatus },
+          });
+          if (finalStatus.startsWith("FAILED")) {
+            console.error(`TikTok rejected the Reel after upload (${publishId}): ${finalStatus}`);
+          }
         } catch (tiktokError) {
           console.error("Failed to mirror post to TikTok:", tiktokError);
-          tiktok = {
-            status: "failed",
-            reason:
-              tiktokError instanceof Error
-                ? tiktokError.message
-                : "Unknown error sending to TikTok.",
-          };
+          if (tiktok.status !== "published") {
+            tiktok = {
+              status: "failed",
+              reason:
+                tiktokError instanceof Error
+                  ? tiktokError.message
+                  : "Unknown error sending to TikTok.",
+            };
+          }
         }
       }
     }

@@ -28,6 +28,13 @@ import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardi
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
 import { getRemainingCredits } from "../services/decisionEngine/creditUsage.server";
+import {
+  getTikTokCreatorInfoForShop,
+  saveTikTokPostSettings,
+  clearTikTokPostSettings,
+} from "../services/tiktok/postSettings.server";
+import type { TikTokPostSettings, TikTokPrivacyLevel } from "../services/tiktok/postSettings";
+import { TikTokPostPanel, type TikTokCreatorState } from "../components/TikTokPostPanel";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -125,6 +132,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // must restore it.") — nunca mais só memória do navegador.
   const slots = shop ? await getCurrentWeekBatch(shop.id) : [];
 
+  // Conta do TikTok consultada ao vivo sempre que há Reel ainda editável —
+  // as diretrizes do Direct Post exigem mostrar a conta de destino e as
+  // opções atuais dela (ver TikTokPostPanel). Sem Reel pendente, nem chama.
+  const hasEditableReel = slots.some((slot) => slot.format === "reel" && isEditable(slot.status));
+  const tiktokCreator: TikTokCreatorState =
+    shop && hasEditableReel ? await getTikTokCreatorInfoForShop(shop.id) : { status: "not_connected" };
+
   // Coleções reais da loja, pra escopar uma campanha promocional (Patricia,
   // 13/09/2026: "acho melhor por collection assim ele pode criar uma
   // collection com os items que deseja promover sem ter que criar uma nova
@@ -169,6 +183,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopTimezone: shop?.ianaTimezone ?? "UTC",
     onboardingStatus,
     slots,
+    tiktokCreator,
   };
 };
 
@@ -259,6 +274,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       minute,
     });
     return { intent: "reschedule" as const, contentItemId, result };
+  }
+
+  if (intent === "tiktok-settings") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const settings: Omit<TikTokPostSettings, "consentedAt"> = {
+      privacyLevel: String(formData.get("privacyLevel")) as TikTokPrivacyLevel,
+      allowComment: formData.get("allowComment") === "true",
+      allowDuet: formData.get("allowDuet") === "true",
+      allowStitch: formData.get("allowStitch") === "true",
+      commercialContent: formData.get("commercialContent") === "true",
+      brandOrganic: formData.get("brandOrganic") === "true",
+      brandedContent: formData.get("brandedContent") === "true",
+      title: String(formData.get("title") ?? ""),
+    };
+    const result = await saveTikTokPostSettings({ shopId: shop.id, contentItemId, settings });
+    return { intent: "tiktok-settings" as const, contentItemId, result };
+  }
+
+  if (intent === "tiktok-clear") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await clearTikTokPostSettings({ shopId: shop.id, contentItemId });
+    return { intent: "tiktok-settings" as const, contentItemId, result };
   }
 
   if (intent === "cancel") {
@@ -470,6 +507,7 @@ export default function PlanWeek() {
     slots,
     remainingImageCredits,
     regenerationReasonSuggestions,
+    tiktokCreator,
   } = useLoaderData<typeof loader>();
 
   // Mostrar na ordem em que os posts realmente saem no ar (Patricia,
@@ -491,6 +529,15 @@ export default function PlanWeek() {
   const objectiveFetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
   const promotionFetcher = useFetcher<typeof action>();
+  const tiktokFetcher = useFetcher<typeof action>();
+  const savingTikTokContentItemId =
+    tiktokFetcher.state !== "idle" ? String(tiktokFetcher.formData?.get("contentItemId") ?? "") : null;
+  const tiktokFailure =
+    tiktokFetcher.state === "idle" &&
+    tiktokFetcher.data?.intent === "tiktok-settings" &&
+    tiktokFetcher.data.result.status === "error"
+      ? { contentItemId: tiktokFetcher.data.contentItemId, reason: tiktokFetcher.data.result.reason }
+      : null;
 
   useClearPendingActionOnSettle(generateFetcher.state);
   useClearPendingActionOnSettle(swapFetcher.state);
@@ -1015,6 +1062,37 @@ export default function PlanWeek() {
                         src={slot.videoUrl}
                         controls
                         style={{ width: 160, borderRadius: 4, display: "block" }}
+                      />
+                    )}
+
+                    {slot.format === "reel" && (
+                      <TikTokPostPanel
+                        key={`${slot.contentItemId}-${slot.tiktokSettings?.consentedAt ?? "none"}`}
+                        editable={editable}
+                        saved={slot.tiktokSettings}
+                        publishStatus={slot.tiktokPublishStatus}
+                        defaultTitle={slot.tiktokDefaultTitle}
+                        creatorState={tiktokCreator}
+                        isSaving={savingTikTokContentItemId === slot.contentItemId}
+                        error={tiktokFailure?.contentItemId === slot.contentItemId ? tiktokFailure.reason : null}
+                        onConfirm={(settings) =>
+                          tiktokFetcher.submit(
+                            {
+                              intent: "tiktok-settings",
+                              contentItemId: slot.contentItemId,
+                              ...Object.fromEntries(
+                                Object.entries(settings).map(([key, value]) => [key, String(value)]),
+                              ),
+                            },
+                            { method: "POST" },
+                          )
+                        }
+                        onClear={() =>
+                          tiktokFetcher.submit(
+                            { intent: "tiktok-clear", contentItemId: slot.contentItemId },
+                            { method: "POST" },
+                          )
+                        }
                       />
                     )}
 

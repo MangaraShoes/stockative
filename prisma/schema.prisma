@@ -366,11 +366,24 @@ model ContentItem {
   storyExternalPostId String? // ID do Story publicado junto (mesma imagem hero, sem legenda — API de Stories não tem campo de caption)
   facebookExternalPostId String? // ID do post espelhado na Página do Facebook (mesma imagem/carrossel + legenda do post do Instagram)
   pinterestExternalPostId String? // ID do Pin espelhado no board da categoria do produto (imagem hero + legenda)
-  // publish_id do upload pra caixa de rascunhos do TikTok (Content Posting
-  // API em modo inbox, sem a auditoria de Direct Post) — só existe pra
-  // post format="reel"; a lojista precisa abrir o TikTok e confirmar a
-  // publicação de lá, o app só entrega o vídeo pronto na caixa de entrada.
+  // publish_id do Direct Post no TikTok (Content Posting API) — só existe
+  // pra post format="reel". Até 30/09/2026 era o publish_id de um upload
+  // pra caixa de rascunhos (modo inbox), trocado por Direct Post porque o
+  // app precisa publicar sozinho.
   tiktokExternalPostId String?
+  // Configuração do post no TikTok escolhida pela lojista no Weekly Plan
+  // (Direct Post, Patricia, 30/09/2026) — privacidade, interações,
+  // divulgação comercial, legenda e o momento do consentimento expresso
+  // (ver TikTokPostSettings em tiktok/postSettings.ts). As diretrizes do
+  // TikTok proíbem valor padrão de privacidade e exigem consentimento antes
+  // de enviar qualquer coisa, então null = a lojista ainda não confirmou e
+  // este Reel NÃO vai pro TikTok (os outros canais publicam normalmente).
+  tiktokSettings       Json?
+  // Último status devolvido por /post/publish/status/fetch/ depois do
+  // envio (PROCESSING_DOWNLOAD, PUBLISH_COMPLETE, FAILED etc.) — o
+  // publish_id em tiktokExternalPostId só diz que o TikTok aceitou o
+  // pedido, não que o vídeo chegou a sair no perfil.
+  tiktokPublishStatus  String?
   // ID do Short publicado no canal do YouTube — só existe pra post
   // format="reel"; diferente do TikTok, é publicação pública direta e
   // real, sem etapa de rascunho/confirmação manual (ver youtube/publish.server.ts).

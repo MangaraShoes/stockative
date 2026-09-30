@@ -52,11 +52,11 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 
 **Em "From connected social accounts"** (substituir o parágrafo atual):
 
-> If you connect Instagram/Facebook, Pinterest, TikTok or YouTube, we receive an access token (and, where the platform provides one, a refresh token) from that platform's own OAuth flow, plus the account identifiers needed to publish: a Facebook Page ID, an Instagram Business Account ID, a Pinterest board ID, your TikTok open ID and username, or your YouTube channel ID and title. We never receive your password for any of these platforms. From TikTok we only request the scopes needed to read your basic profile and to upload videos to your TikTok inbox as drafts. We never publish to TikTok without you confirming the post inside the TikTok app, and we don't read your TikTok videos, followers or messages.
+> If you connect Instagram/Facebook, Pinterest, TikTok or YouTube, we receive an access token (and, where the platform provides one, a refresh token) from that platform's own OAuth flow, plus the account identifiers needed to publish: a Facebook Page ID, an Instagram Business Account ID, a Pinterest board ID, your TikTok open ID and username, or your YouTube channel ID and title. We never receive your password for any of these platforms. From TikTok we only request the scopes needed to read your basic profile and to post the Reels you confirm to your TikTok account. A Reel is only posted to TikTok after you choose its visibility and settings and confirm it in Stockative, and we don't read your TikTok videos, followers or messages.
 
 **Em "Who else processes it"** (adicionar dois itens):
 
-> **TikTok Pte. Ltd.** Receives the Reels you approve, uploaded to your TikTok inbox as drafts for you to review and post.
+> **TikTok Pte. Ltd.** Receives the Reels you confirm for TikTok, posted to your account with the visibility and settings you chose.
 >
 > **Google LLC (YouTube)** Publishes approved Reels as YouTube Shorts to the channel you connect. Stockative's use of information received from Google APIs adheres to the Google API Services User Data Policy, including the Limited Use requirements.
 
@@ -83,7 +83,7 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 
 ### Production → Scopes
 
-`user.info.basic` (vem com o Login Kit), `user.info.profile` e `video.upload`. Nenhum outro: a TikTok recusa escopos pedidos que o vídeo demo não mostra em uso.
+`user.info.basic` (vem com o Login Kit), `user.info.profile`, `video.upload` e `video.publish` (Direct Post, ligado no produto Content Posting API — 30/09/2026, Patricia: o app precisa postar sozinho, sem a lojista abrir o TikTok). A TikTok recusa escopos pedidos que o vídeo demo não mostra em uso.
 
 ### App review → explicação dos produtos e escopos
 
@@ -91,7 +91,9 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 >
 > **Login Kit (user.info.basic, user.info.profile):** On the "Social accounts" page inside the Stockative app (embedded in Shopify Admin), the merchant clicks "Connect TikTok" and signs in with TikTok. We read only the open_id and username, to show the merchant which TikTok account is connected (e.g. "TikTok account connected (@mangara.official)") and to associate uploads with the right account. We don't read videos, followers or any other profile data.
 >
-> **Content Posting API – Upload (video.upload):** When a Reel the merchant has reviewed and approved in Stockative is published, Stockative uploads the video to the merchant's TikTok inbox as a draft, using PULL_FROM_URL from our verified domain (stockative.com). The merchant then opens TikTok, where they can edit the caption, sounds and privacy settings, and post it themselves. Stockative never posts directly to the profile. Direct Post isn't requested. This saves merchants from re-uploading the same Reel by hand to each platform, while keeping them in full control of what goes live on their TikTok.
+> **Content Posting API – Direct Post (video.publish):** Stockative plans a week of posts for the merchant, including Reels. For each Reel, the weekly plan screen shows a "TikTok" panel following the Content Sharing Guidelines: the connected TikTok account (nickname and avatar from creator_info), an editable caption, a "Who can see this video" dropdown with no default value and only the options returned by creator_info, Comment/Duet/Stitch checkboxes that are off by default and greyed out when disabled on the account, the commercial content disclosure toggle (Your brand / Branded content, with Branded content blocked for "Only me"), the Music Usage Confirmation (and Branded Content Policy when applicable) declaration, and a notice that the video may take a few minutes to process. Nothing is sent to TikTok until the merchant clicks "Post this Reel to TikTok". At the Reel's scheduled time, Stockative queries creator_info again, checks the video duration against max_video_post_duration_sec, posts it with PULL_FROM_URL from our verified domain (stockative.com), and polls the publish status to show the result in the plan. Reels the merchant didn't confirm for TikTok are never sent.
+>
+> **Content Posting API – Upload (video.upload):** kept from our earlier inbox-upload integration; can be removed if the reviewer prefers only video.publish.
 >
 > Merchants can disconnect TikTok at any time from the same page, which deletes the stored tokens.
 
@@ -100,12 +102,13 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 Um único vídeo de 1 a 2 minutos, com a barra de endereço visível, mostrando `app.stockative.com` / admin.shopify.com:
 
 1. Abrir o app Stockative dentro do Shopify Admin e mostrar rapidamente o dashboard (dá contexto do que é o app).
-2. Ir em **Social accounts → TikTok**, mostrar o texto explicando que os Reels chegam como rascunho, clicar **Connect TikTok**.
-3. Tela de login/autorização do TikTok: fazer login e mostrar **as permissões pedidas** (perfil + upload de vídeo), depois autorizar.
+2. Ir em **Social accounts → TikTok**, clicar **Connect TikTok**.
+3. Tela de login/autorização do TikTok: fazer login e mostrar **as permissões pedidas** (perfil + postar vídeo), depois autorizar.
 4. De volta ao app: mostrar "TikTok account connected (@mangara.official)" (é o user.info.profile em uso).
-5. Abrir um post **Reel** aprovado no app e publicar.
-6. No celular (ou no TikTok web, se o inbox aparecer lá): abrir o TikTok, mostrar a **notificação/rascunho** chegando na caixa de entrada, abrir e mostrar que dá pra editar e postar.
-7. (Opcional) Voltar ao app e mostrar o botão **Disconnect**.
+5. Abrir o **Weekly Plan**, num Reel: mostrar o painel **TikTok** — conta de destino, legenda editável, "Who can see this video" sem valor padrão, Comment/Duet/Stitch desligados, toggle de divulgação comercial (ligar e mostrar Your brand / Branded content, e o "Only me" bloqueado com Branded content), a declaração da Music Usage Confirmation e o aviso de processamento. Escolher a visibilidade e clicar **Post this Reel to TikTok**.
+6. Reagendar o Reel pra daqui a poucos minutos e esperar sair; mostrar no plano o status "Posted on TikTok".
+7. No celular: abrir o perfil do TikTok e mostrar o vídeo publicado (no Sandbox ele sai "Only me", e a conta precisa estar privada — limitação da TikTok pra app não auditado).
+8. (Opcional) Voltar ao app e mostrar o botão **Disconnect**.
 
 Gravar a parte do celular com a gravação de tela do iPhone e juntar os dois trechos num vídeo só, ou mandar como 2 arquivos.
 

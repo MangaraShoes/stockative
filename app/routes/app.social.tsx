@@ -290,11 +290,10 @@ export default function Social() {
 
       <s-section heading="TikTok">
         <s-paragraph>
-          Connect your TikTok account so Reels can go out there too. For now,
-          each Reel lands in your TikTok inbox as a draft — open the TikTok
-          app and tap to confirm it, same as sharing from any other app.
-          Direct, fully automatic posting needs TikTok&apos;s own audit,
-          which we&apos;re applying for.
+          Connect your TikTok account so Reels post there automatically too.
+          For each Reel in your weekly plan, choose once who can see it on
+          TikTok and confirm — from then on it posts at its scheduled time,
+          together with Instagram, without opening TikTok.
         </s-paragraph>
 
         {!data.isTikTokConfigured && (
@@ -356,8 +355,8 @@ export default function Social() {
       <s-section heading="YouTube">
         <s-paragraph>
           Connect your YouTube channel so Reels also go out as Shorts.
-          Shorts publish immediately and publicly — there&apos;s no
-          draft/review step like TikTok&apos;s.
+          Shorts publish immediately and publicly, at the Reel&apos;s
+          scheduled time.
         </s-paragraph>
 
         {!data.isYouTubeConfigured && (

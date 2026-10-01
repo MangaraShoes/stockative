@@ -687,12 +687,16 @@
   <div class="wrap">
 
   <h2 class="privacy-title">Privacy Policy</h2>
-  <div class="meta">Last updated 30 September 2026 · stockative.com</div>
+  <div class="meta">Last updated 1 October 2026 · stockative.com</div>
 
   <p class="intro">
     Stockative ("we", "our") is an AI content-decision tool for Shopify
     merchants. This page explains what data we access through your store
     and your connected social accounts, why, and who else ever sees it.
+  </p>
+  <p class="intro">
+    Stockative is operated by <strong>Mangara Shoes BV</strong>, Belgium,
+    which is the data controller for the data described below.
   </p>
 
   <section>
@@ -719,6 +723,24 @@
       password for any of these platforms.
     </p>
     <p>
+      From Instagram/Facebook we also read, for your own connected
+      account only: its basic profile (username, profile picture), its
+      recent posts (caption, media type, like and comment counts), post
+      insights (reach, saves, shares) for posts published through
+      Stockative, and the account-level "online followers" metric (the
+      hours your followers are most active).
+    </p>
+    <h4>Competitor accounts you choose</h4>
+    <p>
+      If you enter the usernames of public Instagram Business or Creator
+      accounts in "Competitor accounts", we read their <em>public</em>
+      profile (bio, website, follower and post counts) and recent public
+      posts (caption, media type, like and comment counts) through
+      Instagram's Business Discovery API. We never access any private
+      data from those accounts, and we never show it to you as a
+      comparison or score.
+    </p>
+    <p>
       From TikTok we only request the scopes needed to read your basic
       profile and to post the Reels you confirm to your TikTok account. A
       Reel is only posted to TikTok after you choose its visibility and
@@ -735,7 +757,9 @@
       <li>Compute a priority signal per product (sales velocity, days since last sale, inventory age) to decide what's worth promoting next.</li>
       <li>Generate captions, images and Pin copy via the AI providers listed below, grounded in your product data and brand voice — never sent anywhere without your review before it publishes.</li>
       <li>Publish approved content to the social accounts you've explicitly connected, only when you (or your scheduled plan) trigger it.</li>
-      <li>Collect public engagement metrics (likes, comments) on posts published through Stockative, to show you what's working.</li>
+      <li>Collect performance metrics (likes, comments, reach, saves, shares) on posts published through Stockative, to show you what's working in the "Performance" screen and to improve future content decisions for your store.</li>
+      <li>Use your followers' most active hours to schedule posts when your own audience is online.</li>
+      <li>Use competitor accounts' public posts only as a style and format reference for your content decisions.</li>
     </ul>
     <p>We do not sell your data, and we do not use your product or order data to train any AI model.</p>
   </section>
@@ -754,6 +778,10 @@
       <dd>Receives the Reels you confirm for TikTok, posted to your account with the visibility and settings you chose.</dd>
       <dt>Google LLC (YouTube)</dt>
       <dd>Publishes approved Reels as YouTube Shorts to the channel you connect. Stockative's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</dd>
+      <dt>Railway Corporation</dt>
+      <dd>Hosts the Stockative application (EU region, Netherlands).</dd>
+      <dt>Neon, Inc.</dt>
+      <dd>Hosts our database (EU region, Frankfurt, Germany), where your store data and connected-account tokens are stored.</dd>
       <dt>OpenRouter, Inc.</dt>
       <dd>Routes content-generation requests to the underlying model (currently Anthropic or Google) — receives only the product/brand text needed for that one generation.</dd>
     </dl>
@@ -780,9 +808,10 @@
   <section>
     <h3>Security</h3>
     <p>
-      Access tokens (Shopify, Meta, Pinterest) are stored encrypted at
-      rest. Access to production data is limited to what's needed to
-      operate the app.
+      Your data, including access tokens, is stored in our EU-hosted
+      database, which encrypts all data at rest, and is only transmitted
+      over encrypted (HTTPS/TLS) connections. Access to production data
+      is limited to what's needed to operate the app.
     </p>
   </section>
 

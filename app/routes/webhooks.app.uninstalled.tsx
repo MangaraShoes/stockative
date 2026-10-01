@@ -17,9 +17,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // handler removes Shopify sessions, but does not deactivate the shop or
   // cancel pending posts... queued publication could continue while those
   // credentials remain valid"). Marca a loja inativa e cancela tudo que
-  // ainda não publicou — as credenciais sociais (SocialAccount) ficam
-  // salvas, mas publishDueContentItems e o gerador semanal agora ignoram
-  // qualquer loja com uninstalledAt preenchido.
+  // ainda não publicou. Desde 01/10/2026 também apaga na hora os tokens
+  // das redes conectadas (SocialAccount) — a Privacy Policy promete isso, e
+  // não há motivo pra guardar credencial de publicação de uma loja que saiu.
+  // O resto dos dados da loja é apagado ~48h depois, pelo webhook
+  // shop/redact (ver webhooks.compliance.tsx).
   const shopRow = await db.shop.findUnique({ where: { shopifyDomain: shop } });
   if (shopRow) {
     await db.shop.update({ where: { id: shopRow.id }, data: { uninstalledAt: new Date() } });
@@ -27,6 +29,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { shopId: shopRow.id, status: { notIn: ["published", "cancelled"] } },
       data: { status: "cancelled" },
     });
+    await db.socialAccount.deleteMany({ where: { shopId: shopRow.id } });
   }
 
   return new Response();

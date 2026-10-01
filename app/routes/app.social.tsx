@@ -84,6 +84,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     authorizeUrl: isMetaConfigured() ? buildAuthorizeUrl(session.shop) : null,
     igBusinessAccountId: socialAccount?.igBusinessAccountId ?? null,
     fbPageId: socialAccount?.fbPageId ?? null,
+    igUsername: socialAccount?.igUsername ?? null,
+    fbPageName: socialAccount?.fbPageName ?? null,
     isPinterestConfigured: isPinterestConfigured(),
     pinterestAuthorizeUrl: isPinterestConfigured()
       ? buildPinterestAuthorizeUrl(session.shop)
@@ -210,9 +212,21 @@ export default function Social() {
         {data.igBusinessAccountId ? (
           <s-stack direction="inline" gap="base">
             <s-paragraph>
-              {data.fbPageId
-                ? "Instagram and Facebook connected."
-                : "Instagram connected — no Facebook Page found on this account yet."}
+              {data.igUsername ? (
+                <>
+                  Connected: Instagram <strong>@{data.igUsername}</strong>
+                  {data.fbPageName ? (
+                    <>
+                      {" "}· Facebook Page <strong>{data.fbPageName}</strong>
+                    </>
+                  ) : null}
+                  . Posts are published to this account.
+                </>
+              ) : data.fbPageId ? (
+                "Instagram and Facebook connected."
+              ) : (
+                "Instagram connected — no Facebook Page found on this account yet."
+              )}
             </s-paragraph>
             <s-button
               variant="secondary"

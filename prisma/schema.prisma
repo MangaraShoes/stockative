@@ -203,6 +203,11 @@ model SocialAccount {
   expiresAt           DateTime?
   igBusinessAccountId String?
   fbPageId            String?
+  // Identidade visível da conta conectada (01/10/2026, auditoria Meta App
+  // Review: a tela só dizia "Instagram and Facebook connected", sem mostrar
+  // QUAL conta) — preenchidos no callback do OAuth, ver auth.meta.callback.tsx.
+  igUsername          String?
+  fbPageName          String?
   refreshToken        String?
   pinterestUserId     String?
   pinterestUsername   String?

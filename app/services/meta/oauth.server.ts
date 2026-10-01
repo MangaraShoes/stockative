@@ -114,39 +114,55 @@ export async function exchangeForLongLivedToken(
 
 export interface ConnectedInstagramAccount {
   pageId: string;
+  pageName: string;
   pageAccessToken: string;
   igBusinessAccountId: string;
   igUsername: string;
 }
 
+interface PagesResponse {
+  data: { id: string; access_token: string; name: string }[];
+  paging?: { next?: string };
+}
+
 // Lista as Páginas do Facebook que o usuário administra e procura a primeira
 // que tenha uma conta Instagram Business/Creator ligada. Cada Página tem seu
 // próprio access_token (retornado junto em /me/accounts) — é esse token, não
-// o de usuário, que a Graph API espera pra publicar depois.
+// o de usuário, que a Graph API espera pra publicar depois. Segue
+// paging.next (01/10/2026, auditoria Meta App Review) — antes só olhava a
+// primeira página de resultados, então quem administra muitas Páginas podia
+// não ter a sua encontrada. Escolher entre VÁRIAS contas Instagram ainda não
+// existe: continua pegando a primeira (follow-up).
 export async function getInstagramBusinessAccount(
   longLivedUserToken: string,
 ): Promise<ConnectedInstagramAccount | null> {
-  const pages = await graphApiRequest<{
-    data: { id: string; access_token: string; name: string }[];
-  }>("/me/accounts", { access_token: longLivedUserToken });
+  let pages = await graphApiRequest<PagesResponse>("/me/accounts", {
+    access_token: longLivedUserToken,
+  });
 
-  for (const page of pages.data) {
-    const pageWithIg = await graphApiRequest<{
-      instagram_business_account?: { id: string; username: string };
-    }>(`/${page.id}`, {
-      fields: "instagram_business_account{id,username}",
-      access_token: page.access_token,
-    });
+  for (;;) {
+    for (const page of pages.data) {
+      const pageWithIg = await graphApiRequest<{
+        instagram_business_account?: { id: string; username: string };
+      }>(`/${page.id}`, {
+        fields: "instagram_business_account{id,username}",
+        access_token: page.access_token,
+      });
 
-    if (pageWithIg.instagram_business_account) {
-      return {
-        pageId: page.id,
-        pageAccessToken: page.access_token,
-        igBusinessAccountId: pageWithIg.instagram_business_account.id,
-        igUsername: pageWithIg.instagram_business_account.username,
-      };
+      if (pageWithIg.instagram_business_account) {
+        return {
+          pageId: page.id,
+          pageName: page.name,
+          pageAccessToken: page.access_token,
+          igBusinessAccountId: pageWithIg.instagram_business_account.id,
+          igUsername: pageWithIg.instagram_business_account.username,
+        };
+      }
     }
-  }
 
-  return null;
+    if (!pages.paging?.next) return null;
+    const response = await fetch(pages.paging.next);
+    if (!response.ok) return null;
+    pages = (await response.json()) as PagesResponse;
+  }
 }

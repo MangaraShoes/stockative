@@ -64,12 +64,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
         igBusinessAccountId: igAccount.igBusinessAccountId,
         fbPageId: igAccount.pageId,
+        igUsername: igAccount.igUsername,
+        fbPageName: igAccount.pageName,
       },
       update: {
         accessToken: igAccount.pageAccessToken,
         expiresAt: new Date(Date.now() + expiresInSeconds * 1000),
         igBusinessAccountId: igAccount.igBusinessAccountId,
         fbPageId: igAccount.pageId,
+        igUsername: igAccount.igUsername,
+        fbPageName: igAccount.pageName,
       },
     });
 

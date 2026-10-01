@@ -255,5 +255,6 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
   ```
 - [x] Texto desatualizado da tela Performance ("permission we don't have yet") corrigido antes de gravar (30/09/2026)
 - [x] Pedido montado no painel (30/09–01/10/2026): 8 permissões (as 7 + public_profile) com descrição e vídeo — instagram_basic usa "META VIDEO instagram_basic (1+2).mp4" (vídeo 1 + concorrentes a partir de 2:06), as demais "META VIDEO 1 - final.mp4"; Data handling (controller Mangara Shoes BV, Belgium; processors Railway/Neon/OpenRouter, todos "IT solutions…"; requests-4 sustentado por PUBLIC-AUTHORITY-REQUESTS-POLICY.md); plataforma Website `https://app.stockative.com` + Reviewer instructions
+- [x] Privacy Policy atualizada e no ar (01/10/2026): cita Mangara Shoes BV como controller, insights, Business Discovery, Railway/Neon. Netlify: créditos esgotaram em 30/09 porque todo push no main fazia deploy — corrigido com netlify.toml (`ignore` fora de .artifacts/); upgrade pro plano Personal ($9/mês) em 01/10 pra publicar. **Decidir antes de 26/10/2026 se volta pro Free.**
 - [ ] Último bloqueio: "API test calls" do instagram_manage_insights (chamadas feitas 30/09 ~22:26 via refresh da Performance da Mangará, aparecem em até 24h)
 - [ ] Submeter e anotar a data aqui, pra acompanhar o prazo de 2-6 semanas

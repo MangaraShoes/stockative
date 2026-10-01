@@ -1,5 +1,33 @@
 # Revisão crítica para Meta App Review — 1 outubro 2026
 
+## Segunda revisão — após as correções de 1 outubro
+
+Esta atualização substitui os estados antigos abaixo onde indicado. Inspeção direta dos oito itens de Allowed usage, App settings, Data handling, Reviewer instructions e Verification no painel Meta; política publicada; código no commit 7c81198; amostragem visual do vídeo combinado v2; tela Social accounts em produção. Nenhum campo do painel foi alterado e a submissão não foi enviada.
+
+**Confirmado como corrigido:**
+
+- instagram_basic agora descreve username e Página, sem prometer foto; o app em produção mostra @mangara.official e Página Mangará. O vídeo v2 também mostra essa identificação.
+- business_management não alega mais validação explícita de papéis; explica a dependência de ativos de Business portfolio. A necessidade em todos os arranjos de ativos não foi testada, portanto permanece sujeita à avaliação da Meta, mas a contradição anterior foi removida.
+- Descrições e tempos de pages_show_list, pages_manage_posts, pages_read_engagement e instagram_content_publish foram atualizados no painel.
+- As permissões que exibem requisito de chamada de teste estão como Completed, inclusive instagram_manage_insights.
+- Vídeo combinado v2 consta nos anexos das instruções. As permissões que pedem screencast possuem link para vídeo carregado. A equivalência byte a byte entre cada anexo e o arquivo local não foi verificada.
+- A política pública agora explica publicação automática e envio de legendas/usernames/métricas ao provedor de IA.
+- O código agora apaga SocialAccount ao desinstalar e tem serviço de exclusão dos dados da loja, acionado por webhook de compliance. A ativação da configuração em produção e a execução real da exclusão não foram comprovadas nesta revisão.
+- Business verification está Verified. Controller declarado: Mangara Shoes BV, Belgium. Privacy URL configurada e acessível.
+
+**Pontos restantes antes de dar um aval sem ressalvas:**
+
+1. Data handling lista somente OpenRouter, Neon e Railway. O prompt de brand_analysis inclui dados Meta e é enviado a um modelo Anthropic pelo OpenRouter. Conferir e declarar a cadeia real de provedores que recebe Platform Data, inclusive provedor de inferência a jusante; não presumir que listar apenas o intermediário cobre todos. Não acrescentar Google por receber imagens de catálogo se ele não recebe Platform Data nesse fluxo. Países também precisam refletir os destinatários reais; não foram verificados nesta sessão.
+2. Confirmar publicação da configuração dos webhooks de exclusão: o próprio checklist ainda registra esse deploy como pendente. Não tratar presença no código como prova de ativação.
+3. O acesso do revisor ainda usa caixa pública de códigos e senha de baixa complexidade. O risco de recuperação/acesso indevido à loja de teste permanece. A sessão nova do revisor não foi testada novamente nesta revisão; não alterar credenciais sem atualizar também a submissão.
+4. A política ainda contém, na entrada de Meta em “Who else processes it”, a expressão “when you connect and approve a post”, embora a seção principal corretamente descreva automação. Remover essa sobra de texto para consistência; também permanece menção a foto de perfil que o fluxo auditado não lê.
+
+**Pendência externa confirmada:** Access verification (Tech Provider) está **In review**. É distinta de Business verification. Isso impede afirmar que o acesso a negócios de terceiros já foi aprovado; não significa, por si só, que o App Review não possa ser enviado em paralelo se o painel permitir.
+
+**Parecer:** os campos principais e o vídeo melhoraram e não precisam ser refeitos integralmente. Antes do envio, fechar declaração dos destinatários dos dados e confirmação da ativação da exclusão; manter a ressalva de segurança do acesso do revisor. Não foi atribuído status de aprovação pela Meta.
+
+---
+
 **Parecer: corrigir as inconsistências abaixo antes de submeter.** O fluxo principal está demonstrado, mas política, descrições e comportamento ainda não estão alinhados. Prioridade é julgamento desta auditoria, não previsão garantida da decisão da Meta.
 
 ## Escopo e limites

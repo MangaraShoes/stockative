@@ -32,7 +32,7 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 ## `instagram_basic`
 
 **Descrição de uso:**
-> Stockative is a Shopify app that helps small e-commerce brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic for three things, all for the merchant's own connected Instagram Business account: (1) right after the merchant connects their account in our "Social accounts" screen, we read its basic profile info (username, ID, profile picture) to confirm the correct account was linked and display it back to them; (2) we read the account's own recent media (caption, media type, like and comment counts, timestamp) so our content engine can learn which of the brand's past posts performed best; (3) in the "Competitor accounts" screen, the merchant can optionally enter the usernames of up to 3 public Instagram Business/Creator accounts they admire in their niche, and we use Business Discovery to read those accounts' public profile and recent public posts (caption, media type, like and comment counts). This public data is only used as style/format reference inside our content decisions; it is never displayed as a comparison or scoreboard, and we never access any private data from those accounts.
+> Stockative is a Shopify app that helps small e-commerce brands plan and publish Instagram content automatically, based on their store's real inventory and sales data. We use instagram_basic for three things, all for the merchant's own connected Instagram Business account: (1) right after the merchant connects their account in our "Social accounts" screen, we read its username and ID to confirm the correct account was linked, and the app shows "Connected: Instagram @username · Facebook Page <name>" so the merchant always sees which account posts go to; (2) we read the account's own recent media (caption, media type, like and comment counts, timestamp) so our content engine can learn which of the brand's past posts performed best; (3) in the "Competitor accounts" screen, the merchant can optionally enter the usernames of up to 3 public Instagram Business/Creator accounts they admire in their niche, and we use Business Discovery to read those accounts' public profile and recent public posts (caption, media type, like and comment counts). This public data is only used as style/format reference inside our content decisions; it is never displayed as a comparison or scoreboard, and we never access any private data from those accounts.
 
 **Screencast:** login completo do Instagram no app (Social accounts → Connect → dialog OAuth → volta pro app mostrando username/foto da conta conectada) + tela **Competitor accounts** adicionando um username e mostrando o perfil público encontrado.
 
@@ -67,10 +67,12 @@ Social accounts → botão Connect → dialog OAuth da Meta → volta pro app mo
 
 ## `business_management`
 
-**Descrição de uso:**
-> business_management is used to access the Instagram Business Account associated with the merchant's Facebook Business Manager, confirming the merchant has the right role/permissions on the Page and Instagram account before we allow them to connect it in our app.
+**Descrição de uso (versão colada no painel em 30/09/2026):**
+> Many of our merchants' Facebook Pages and Instagram Business accounts are owned by a Business portfolio (Business Manager) rather than by the person directly. business_management is required so that, during Facebook Login, our app can list and access the Page and Instagram Business account that belong to the merchant's Business portfolio; without it, those Pages are not returned and the merchant cannot connect their account to publish. We do not use it to manage ad accounts, assets or users, and we never write to the Business Manager. In the screencast, the merchant selects their business during Facebook Login at 0:12.
 
-**Screencast:** mesmo fluxo de conexão, focando na etapa de verificação da conta business.
+Nota (auditoria 01/10/2026): o texto antigo falava em "verificar papéis/permissões no Business Manager", o que o código não faz — não usar.
+
+**Screencast:** mesmo fluxo de conexão, na etapa de seleção do negócio.
 
 ---
 
@@ -256,5 +258,7 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - [x] Texto desatualizado da tela Performance ("permission we don't have yet") corrigido antes de gravar (30/09/2026)
 - [x] Pedido montado no painel (30/09–01/10/2026): 8 permissões (as 7 + public_profile) com descrição e vídeo — instagram_basic usa "META VIDEO instagram_basic (1+2).mp4" (vídeo 1 + concorrentes a partir de 2:06), as demais "META VIDEO 1 - final.mp4"; Data handling (controller Mangara Shoes BV, Belgium; processors Railway/Neon/OpenRouter, todos "IT solutions…"; requests-4 sustentado por PUBLIC-AUTHORITY-REQUESTS-POLICY.md); plataforma Website `https://app.stockative.com` + Reviewer instructions
 - [x] Privacy Policy atualizada e no ar (01/10/2026): cita Mangara Shoes BV como controller, insights, Business Discovery, Railway/Neon. Netlify: créditos esgotaram em 30/09 porque todo push no main fazia deploy — corrigido com netlify.toml (`ignore` fora de .artifacts/); upgrade pro plano Personal ($9/mês) em 01/10 pra publicar. **Decidir antes de 26/10/2026 se volta pro Free.**
+- Nota (01/10/2026): o guia oficial da Meta diz que chamadas de teste levam **até 2 dias** pra aparecer, não 24h, e precisam ter acontecido nos últimos 30 dias.
+- [x] Auditoria de 01/10/2026 (META-READINESS-AUDIT-2026-10-01.md) tratada: exclusão de dados real (tokens na desinstalação + webhooks GDPR/shop/redact), política alinhada (publicação automática, dados enviados à IA, prazos de exclusão), @Instagram + Página visíveis em Social accounts. **Falta: `shopify app deploy` (registrar webhooks) e regravar ~30s da conexão mostrando o @.** Atualizar no painel o texto do instagram_basic (item 1 agora cita o @ e a Página, não foto de perfil).
 - [ ] Último bloqueio: "API test calls" do instagram_manage_insights (chamadas feitas 30/09 ~22:26 via refresh da Performance da Mangará, aparecem em até 24h)
 - [ ] Submeter e anotar a data aqui, pra acompanhar o prazo de 2-6 semanas

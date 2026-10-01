@@ -755,13 +755,13 @@
     <h3>What we do with it</h3>
     <ul>
       <li>Compute a priority signal per product (sales velocity, days since last sale, inventory age) to decide what's worth promoting next.</li>
-      <li>Generate captions, images and Pin copy via the AI providers listed below, grounded in your product data and brand voice — never sent anywhere without your review before it publishes.</li>
-      <li>Publish approved content to the social accounts you've explicitly connected, only when you (or your scheduled plan) trigger it.</li>
+      <li>Generate captions, images and Pin copy via the AI providers listed below, grounded in your product data and brand voice.</li>
+      <li>Publish content only to the social accounts you've explicitly connected. Your weekly plan publishes each post <strong>automatically at its scheduled time</strong> unless you cancel it, swap its product, reschedule it, or publish it earlier with "Publish now". Reviewing posts beforehand is optional; you can disconnect an account at any time to stop all publishing to it.</li>
       <li>Collect performance metrics (likes, comments, reach, saves, shares) on posts published through Stockative, to show you what's working in the "Performance" screen and to improve future content decisions for your store.</li>
       <li>Use your followers' most active hours to schedule posts when your own audience is online.</li>
       <li>Use competitor accounts' public posts only as a style and format reference for your content decisions.</li>
     </ul>
-    <p>We do not sell your data, and we do not use your product or order data to train any AI model.</p>
+    <p>We do not sell your data, and we do not use your data to train any AI model.</p>
   </section>
 
   <section>
@@ -783,7 +783,7 @@
       <dt>Neon, Inc.</dt>
       <dd>Hosts our database (EU region, Frankfurt, Germany), where your store data and connected-account tokens are stored.</dd>
       <dt>OpenRouter, Inc.</dt>
-      <dd>Routes content-generation requests to the underlying model (currently Anthropic or Google) — receives only the product/brand text needed for that one generation.</dd>
+      <dd>Routes our AI requests to the underlying model (currently Anthropic Claude for text and image checks, Google Gemini for image generation). For each request it receives only what that task needs: product data (title, description, type, price, stock and sales signals) and product photos; your brand voice and content settings; for brand-voice and content suggestions, your own account's recent captions and engagement counts and the public captions, usernames and engagement counts of the competitor accounts you entered. It is used only to generate content for your store.</dd>
     </dl>
   </section>
 
@@ -791,11 +791,17 @@
     <h3>How long we keep it</h3>
     <p>
       We keep your data for as long as the app is installed. When you
-      uninstall, Shopify's mandatory app-uninstalled webhook tells us to
-      revoke stored tokens and schedule deletion of your store data.
-      Disconnecting a social account inside the app deletes the tokens we
+      uninstall, we immediately delete the access tokens of every social
+      account you connected and stop all publishing. About 48 hours later,
+      Shopify sends us its mandatory <code>shop/redact</code> request and we
+      permanently delete all remaining data for your store (products,
+      plans, generated content, performance data, competitor data and
+      settings). Copies in our database provider's automatic backups
+      expire on that provider's standard retention schedule.
+      Disconnecting a social account inside the app deletes the token we
       stored for it immediately. You can also request deletion at any time
-      — see Contact below.
+      — see Contact below. Stockative doesn't store personal data about
+      your store's customers.
     </p>
     <div class="note">
       <strong>Where we are today:</strong> Stockative is in Early Access,

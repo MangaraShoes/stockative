@@ -1,0 +1,10 @@
+# The Netlify site (stockative.com) only serves the static landing page in .artifacts/,
+# but it is connected to this whole repo. Before this file, every push to main triggered a
+# production deploy, even commits that only changed app code: 38 commits in two days, only
+# 3 of which touched the site. That used up the team's deploy credits on 30/09/2026 and
+# paused all deploys.
+#
+# `ignore` cancels the build when the command exits 0, so a deploy only runs when
+# .artifacts/ actually changed since the last deployed commit.
+[build]
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- .artifacts/ netlify.toml"

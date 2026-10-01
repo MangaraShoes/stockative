@@ -86,7 +86,7 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 ### Production → Products
 
 - **Login Kit**: redirect URI `https://app.stockative.com/auth/tiktok/callback`
-- **Content Posting API**: Direct Post **desligado**; Verify domains → `stockative.com` (verificar de novo em Production se não aparecer)
+- **Content Posting API**: Direct Post **ligado** (é o que faz o `video.publish` aparecer nos Scopes); Verify domains → `stockative.com` (verificar de novo em Production se não aparecer)
 
 ### Production → Scopes
 

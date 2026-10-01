@@ -264,5 +264,7 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - [x] API test call do instagram_manage_insights registrada (5 seções verdes em 01/10/2026)
 - [x] Loja de teste ajustada pro revisor (01/10/2026): voz de marca trocada de Mangará (sapatos, FR+NL) para uma loja de snowboard genérica, idioma só English — antes a IA geraria legendas em FR/NL misturando sapato com snowboard. Instruções do revisor: Publish now só em post de imagem (não Reel); nota de que as legendas do screencast são FR/NL.
 - [ ] Depois da aprovação: colocar o app em modo **Live** no painel da Meta.
-- [ ] Último bloqueio: "API test calls" do instagram_manage_insights (chamadas feitas 30/09 ~22:26 via refresh da Performance da Mangará, aparecem em até 24h)
+- [x] **Submetido em 01/10/2026** — status "Review in progress" (Meta: maioria revisada em até 20 dias, ~21/10/2026). 8 permissões. Acompanhar Alert Inbox + e-mail.
+- [ ] Depois da aprovação: remover usuário `review@stockative.com` da organização Shopify e a regra `review` → Mailinator no Purelymail.
+- [x] (antigo) Último bloqueio: "API test calls" do instagram_manage_insights (chamadas feitas 30/09 ~22:26 via refresh da Performance da Mangará, aparecem em até 24h)
 - [ ] Submeter e anotar a data aqui, pra acompanhar o prazo de 2-6 semanas

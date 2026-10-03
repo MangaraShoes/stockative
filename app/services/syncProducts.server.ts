@@ -158,11 +158,19 @@ export async function ensureShopTimezone(
 // mesmo padrão de ensureShopTimezone (chamado uma vez no loader raiz de
 // /app). Usa shopLocales (não `shop.primaryLocale`, que não existe na Admin
 // API — a única fonte pro idioma padrão da loja é essa lista com `primary`).
+//
+// Também cacheia o idioma da loja em storeLanguage (Patricia, 03/10/2026) —
+// é o default do idioma da INTERFACE do app (ver getAppLanguage), que não
+// depende do idioma de publicação. Por isso não para mais só porque o
+// idioma de publicação já foi confirmado: busca enquanto storeLanguage
+// ainda não está gravado, ou sempre quando `force` (página Settings, pra
+// refletir uma troca do idioma padrão feita depois no admin do Shopify).
 export async function ensureShopContentLanguage(
   admin: AdminGraphqlClient,
-  shop: { id: string; languageConfirmed: boolean },
+  shop: { id: string; languageConfirmed: boolean; storeLanguage?: string | null },
+  { force = false }: { force?: boolean } = {},
 ): Promise<void> {
-  if (shop.languageConfirmed) return;
+  if (!force && shop.languageConfirmed && shop.storeLanguage) return;
 
   // Roda no loader RAIZ de /app, junto de ensureShopTimezone — mesma regra:
   // nunca pode derrubar o app inteiro. Confirmado ao vivo na Mangará
@@ -191,7 +199,10 @@ export async function ensureShopContentLanguage(
 
     await prisma.shop.update({
       where: { id: shop.id },
-      data: { contentLanguagePrimary: matched.code },
+      data: {
+        storeLanguage: matched.code,
+        ...(shop.languageConfirmed ? {} : { contentLanguagePrimary: matched.code }),
+      },
     });
   } catch (error) {
     console.error("ensureShopContentLanguage failed, leaving language as-is:", error);

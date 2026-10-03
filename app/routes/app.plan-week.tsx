@@ -23,8 +23,8 @@ import {
   REGENERATION_REASON_SUGGESTIONS,
   CAPTION_REGENERATION_REASON_SUGGESTIONS,
   MAX_CAPTION_REGENERATIONS_PER_POST,
+  getAppLanguage,
   type CommercialObjective,
-  type ContentLanguageCode,
 } from "../services/decisionEngine/constants";
 import { weekdayInTimezone, timeInTimezone, nextWeeklyOccurrenceInTimezone } from "../services/timezone";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
@@ -165,15 +165,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   ).sort();
 
   // Cota mensal de regeneração restante (Fase 3, ver creditUsage.server.ts)
-  // e sugestões de motivo traduzidas pro idioma de conteúdo da loja —
-  // ambos mostrados perto do botão Regenerate antes de clicar.
+  // e sugestões de motivo no idioma do APP (loja ou Settings), não no
+  // idioma dos posts — ambos mostrados perto do botão Regenerate.
   const remainingImageCredits = shop ? await getRemainingCredits(shop, "image") : 0;
-  const regenerationReasonSuggestions =
-    REGENERATION_REASON_SUGGESTIONS[(shop?.contentLanguagePrimary as ContentLanguageCode) ?? "en"] ??
-    REGENERATION_REASON_SUGGESTIONS.en;
-  const captionRegenerationReasonSuggestions =
-    CAPTION_REGENERATION_REASON_SUGGESTIONS[(shop?.contentLanguagePrimary as ContentLanguageCode) ?? "en"] ??
-    CAPTION_REGENERATION_REASON_SUGGESTIONS.en;
+  const appLanguage = getAppLanguage(shop);
+  const regenerationReasonSuggestions = REGENERATION_REASON_SUGGESTIONS[appLanguage];
+  const captionRegenerationReasonSuggestions = CAPTION_REGENERATION_REASON_SUGGESTIONS[appLanguage];
 
   return {
     hasShop: Boolean(shop),

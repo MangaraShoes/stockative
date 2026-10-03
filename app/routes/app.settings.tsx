@@ -3,6 +3,8 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { ensureShopContentLanguage } from "../services/syncProducts.server";
+import { CONTENT_LANGUAGES, getAppLanguage } from "../services/decisionEngine/constants";
 
 const PLAN_OPTIONS = [
   {
@@ -23,14 +25,24 @@ const PLAN_OPTIONS = [
 ] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
 
-  const shop = await prisma.shop.findUnique({
+  let shop = await prisma.shop.findUnique({
     where: { shopifyDomain: session.shop },
   });
 
+  // Relê o idioma padrão da loja aqui (força), pra "Same as your store"
+  // refletir uma troca feita depois no admin do Shopify.
+  if (shop) {
+    await ensureShopContentLanguage(admin, shop, { force: true });
+    shop = await prisma.shop.findUnique({ where: { id: shop.id } });
+  }
+
   return {
     plan: shop?.plan ?? "basic",
+    // "store" = segue o idioma da loja (appLanguage null).
+    appLanguageChoice: shop?.appLanguage ?? "store",
+    storeLanguage: getAppLanguage({ storeLanguage: shop?.storeLanguage }),
   };
 };
 
@@ -56,12 +68,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { intent: "save-plan" as const, error: null };
   }
 
+  if (intent === "save-app-language") {
+    const choice = String(formData.get("appLanguage") ?? "store");
+    if (choice !== "store" && !CONTENT_LANGUAGES.some((lang) => lang.code === choice)) {
+      return { intent: "save-app-language" as const, error: "Unknown language." };
+    }
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { appLanguage: choice === "store" ? null : choice },
+    });
+    return { intent: "save-app-language" as const, error: null };
+  }
+
   return { intent: "unknown" as const, error: "Unknown action." };
 };
 
 export default function Settings() {
   const data = useLoaderData<typeof loader>();
   const planFetcher = useFetcher<typeof action>();
+  const languageFetcher = useFetcher<typeof action>();
 
   const [selectedPlan, setSelectedPlan] = useState(data.plan);
 
@@ -69,8 +94,67 @@ export default function Settings() {
 
   const savePlan = () => planFetcher.submit({ intent: "save-plan", plan: selectedPlan }, { method: "POST" });
 
+  const [selectedLanguage, setSelectedLanguage] = useState(data.appLanguageChoice);
+  const isSavingLanguage = languageFetcher.state !== "idle";
+  const languageUnchanged = selectedLanguage === data.appLanguageChoice;
+  const saveLanguage = () =>
+    languageFetcher.submit({ intent: "save-app-language", appLanguage: selectedLanguage }, { method: "POST" });
+  const storeLanguageLabel =
+    CONTENT_LANGUAGES.find((lang) => lang.code === data.storeLanguage)?.label ?? "English";
+
   return (
-    <s-page heading="Plan">
+    <s-page heading="Settings">
+      <s-section heading="App language">
+        <s-paragraph>
+          The language of the app itself, such as the suggested reasons when
+          you regenerate a caption or image. It doesn't change the language
+          your posts are published in (set that in Store voice).
+        </s-paragraph>
+
+        <select
+          value={selectedLanguage}
+          onChange={(event) => setSelectedLanguage(event.target.value)}
+          style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #ccc" }}
+        >
+          <option value="store">Same as your store ({storeLanguageLabel})</option>
+          {CONTENT_LANGUAGES.map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.label}
+            </option>
+          ))}
+        </select>
+
+        <div style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            onClick={saveLanguage}
+            disabled={isSavingLanguage || languageUnchanged}
+            style={{
+              display: "inline-block",
+              padding: "8px 16px",
+              border: "1px solid #000",
+              borderRadius: 8,
+              background: "#000",
+              color: "#fff",
+              fontWeight: 500,
+              opacity: isSavingLanguage || languageUnchanged ? 0.5 : 1,
+              cursor: isSavingLanguage || languageUnchanged ? "default" : "pointer",
+            }}
+          >
+            {isSavingLanguage ? "Saving…" : "Save language"}
+          </button>
+        </div>
+
+        {languageFetcher.data?.intent === "save-app-language" && !languageFetcher.data.error && (
+          <s-paragraph>Saved.</s-paragraph>
+        )}
+        {languageFetcher.data?.intent === "save-app-language" && languageFetcher.data.error && (
+          <s-paragraph>
+            <strong>{languageFetcher.data.error}</strong>
+          </s-paragraph>
+        )}
+      </s-section>
+
       <s-section heading="Choose your plan">
         <s-paragraph>
           Your plan sets how many posts the AI generates automatically each

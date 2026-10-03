@@ -79,7 +79,7 @@ const NAV_ITEMS = [
   { href: "/app/content-pillars", label: "Weekly objective" },
   { href: "/app/plan-week", label: "Weekly plan" },
   { href: "/app/performance", label: "Performance" },
-  { href: "/app/settings", label: "Plan" },
+  { href: "/app/settings", label: "Settings" },
 ];
 
 export default function App() {

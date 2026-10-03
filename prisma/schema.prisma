@@ -128,6 +128,17 @@ model Shop {
   contentLanguagePrimary   String  @default("en")
   contentLanguageSecondary String?
 
+  // Idioma da INTERFACE do app (sugestões pré-escritas de regeneração etc.),
+  // separado do idioma de publicação acima (Patricia, 03/10/2026: "as
+  // linguagens dos posts não devem definir a linguagem do app, a linguagem
+  // do app deve ser a linguagem da loja... a pessoa pode trocar"). Antes as
+  // sugestões seguiam contentLanguagePrimary, então a Mangará (loja em
+  // inglês, posts em FR+NL) via tudo em francês. storeLanguage é o idioma
+  // primário real da loja no Shopify (shopLocales), atualizado sozinho;
+  // appLanguage é a escolha explícita em Settings — null = segue a loja.
+  storeLanguage String?
+  appLanguage   String?
+
   socialAccounts       SocialAccount[]
   products             ProductCache[]
   contentItems         ContentItem[]

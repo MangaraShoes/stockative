@@ -81,6 +81,20 @@ export const CONTENT_LANGUAGES = [
 
 export type ContentLanguageCode = (typeof CONTENT_LANGUAGES)[number]["code"];
 
+// Idioma da interface do app: escolha explícita em Settings, senão o idioma
+// primário da loja no Shopify, senão inglês — nunca o idioma de publicação
+// dos posts (Patricia, 03/10/2026, ver appLanguage/storeLanguage no schema).
+export function getAppLanguage(shop: {
+  appLanguage?: string | null;
+  storeLanguage?: string | null;
+} | null | undefined): ContentLanguageCode {
+  const isKnown = (code: string | null | undefined): code is ContentLanguageCode =>
+    CONTENT_LANGUAGES.some((lang) => lang.code === code);
+  if (isKnown(shop?.appLanguage)) return shop.appLanguage;
+  if (isKnown(shop?.storeLanguage)) return shop.storeLanguage;
+  return "en";
+}
+
 // Sugestões pré-clicáveis pro campo de explicação obrigatório ao regenerar
 // uma imagem (Patricia, 24/09/2026: "podemos neste campo de explicação
 // deixar pre preenchido na lingua do app algumas ideias que podem estar nao

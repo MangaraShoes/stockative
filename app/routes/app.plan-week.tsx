@@ -189,7 +189,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // loader raiz de /app) garante que isso já existe quando chega aqui.
     shopTimezone: shop?.ianaTimezone ?? "UTC",
     requireApproval: shop?.requireApproval ?? false,
-    publishingPaused: Boolean(shop?.publishingPausedAt),
     onboardingStatus,
     slots,
     tiktokCreator,
@@ -558,7 +557,6 @@ export default function PlanWeek() {
     productCollections,
     shopTimezone,
     requireApproval,
-    publishingPaused,
     onboardingStatus,
     slots,
     remainingImageCredits,
@@ -844,13 +842,6 @@ export default function PlanWeek() {
   return (
     <s-page heading="Weekly plan">
       <OnboardingStepper status={onboardingStatus} currentStepHref="/app/plan-week" />
-
-      {publishingPaused && (
-        <s-banner tone="warning">
-          Publishing is paused. No posts go out and no new weeks are generated
-          until you resume it in <s-link href="/app/settings">Settings</s-link>.
-        </s-banner>
-      )}
 
       {recoveredPendingActionLabel && (
         <s-banner

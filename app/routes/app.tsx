@@ -6,6 +6,7 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import { ensureShopContentLanguage, ensureShopTimezone, getOrCreateShop } from "../services/syncProducts.server";
 import { getOnboardingStatus } from "../services/onboardingStatus.server";
+import prisma from "../db.server";
 
 // As mesmas fases do checklist da Home, na mesma ordem — usado aqui pra
 // TRAVAR a navegação, não só sinalizar progresso (Patricia, 12/09/2026: "eu
@@ -62,8 +63,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? null // setup completo, nada travado
       : SETUP_STEPS.slice(0, firstIncomplete + 1).flatMap((step) => [...step.paths]);
 
+  // Aviso vermelho no topo de TODA página (Patricia, 03/10/2026) quando
+  // nada vai sair sozinho: publicação pausada, ou posts esperando aprovação.
+  const pendingApprovalCount = shop.requireApproval
+    ? await prisma.contentItem.count({
+        where: { shopId: shop.id, weekBatchId: { not: null }, status: "draft" },
+      })
+    : 0;
+
   // eslint-disable-next-line no-undef
   return {
+    publishingPaused: Boolean(shop.publishingPausedAt),
+    pendingApprovalCount,
     apiKey: process.env.SHOPIFY_API_KEY || "",
     unlockedPaths,
     hasContentPillars: status.hasContentPillars,
@@ -83,7 +94,8 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
-  const { apiKey, unlockedPaths, hasContentPillars } = useLoaderData<typeof loader>();
+  const { apiKey, unlockedPaths, hasContentPillars, publishingPaused, pendingApprovalCount } =
+    useLoaderData<typeof loader>();
   const isUnlocked = (href: string) =>
     href === "/app" || unlockedPaths === null || unlockedPaths.includes(href);
   // "Weekly objective" só existe pra criar os pilares na primeira vez
@@ -104,6 +116,17 @@ export default function App() {
           </s-link>
         ))}
       </s-app-nav>
+      {publishingPaused ? (
+        <s-banner tone="critical" heading="Publishing is paused">
+          No posts are going out and no new weeks are being planned. Resume in{" "}
+          <s-link href="/app/settings">Settings</s-link>.
+        </s-banner>
+      ) : pendingApprovalCount > 0 ? (
+        <s-banner tone="critical" heading={`${pendingApprovalCount} post${pendingApprovalCount === 1 ? "" : "s"} waiting for your approval`}>
+          They won't publish until you approve them in the{" "}
+          <s-link href="/app/plan-week">Weekly plan</s-link>.
+        </s-banner>
+      ) : null}
       <Outlet />
     </AppProvider>
   );

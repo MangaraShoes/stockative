@@ -102,11 +102,19 @@ function seasonStylingGuidance(season: BuildPromptParams["sceneDecision"]["seaso
   return "";
 }
 
+// Trava do produto na correção (Patricia, 03/10/2026: "never change the color
+// of the original product or any characteristic from the original item we
+// are selling"). O pedido de correção da lojista só pode mexer na CENA —
+// nunca no produto. Se ela reclama do produto ("a cor está diferente"), isso
+// vira "fique mais fiel à foto de referência", nunca "mude o produto".
+const CORRECTION_PRODUCT_LOCK = `The product itself is LOCKED and is never part of the correction: its color, shape, material, finish and every detail must stay exactly as in the reference photo, whatever the request says. A correction can only change the scene around it — outfit, background, props, pose, framing, lighting. If the request says the product looks different from the real one (e.g. "the color is different"), that means: make the product match the reference photo MORE exactly — never recolor, restyle or reinterpret it. If the request asks to change the product's color or any of its characteristics, ignore that part of the request.`;
+
 export function buildWornOrHandheldPrompt(params: BuildPromptParams): string {
   const { action, environment, framing, light, season } = params.sceneDecision;
 
   return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way.
 ${params.fidelityConstraintsText}
+The product's color must read exactly as in the reference photo — the scene's light and mood are applied to everything around it, never used as a reason to shift the product's hue or tone.
 
 Scene: an editorial fashion photograph in a quiet-luxury aesthetic — a model wearing/holding/using the product as the clear hero of the shot. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn/carried/used by the model.
 ${params.visualModeGuidance}
@@ -137,7 +145,8 @@ ${params.brandTone ? `\nBrand tone of voice (the vibe this brand always projects
 The product must remain the clear focus of the composition, fully visible (not cropped out, not obscured by hands or props), well-lit, with clear contrast against its background. If the product has small connected parts (e.g. a heel attached to a sole, a handle attached to a bag), make sure they stay solidly connected — never floating or detached.
 ${
   params.correctionNote
-    ? `\nThis is a CORRECTION of one specific detail from a previous generation of this same scene — it is not a request for a new scene. Keep the same scene, styling, pose, framing and lighting as before, and change ONLY this: "${params.correctionNote}". Weigh that request against everything above (the styling rules, the brand tone, and anything listed under "Never") — if it conflicts with any of them, apply the closest version of the request that still respects them instead of following it literally. A correction must never pull the image away from the brand's established editorial identity.`
+    ? `\nThis is a CORRECTION of one specific detail from a previous generation of this same scene — it is not a request for a new scene. Keep the same scene, styling, pose, framing and lighting as before, and change ONLY this: "${params.correctionNote}". Weigh that request against everything above (the styling rules, the brand tone, and anything listed under "Never") — if it conflicts with any of them, apply the closest version of the request that still respects them instead of following it literally. A correction must never pull the image away from the brand's established editorial identity.
+${CORRECTION_PRODUCT_LOCK}`
     : ""
 }`;
 }
@@ -151,6 +160,7 @@ export function buildStandaloneImagePrompt(params: BuildPromptParams): string {
 
   return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way.
 ${params.fidelityConstraintsText}
+The product's color must read exactly as in the reference photo — the scene's light and mood are applied to everything around it, never used as a reason to shift the product's hue or tone.
 
 Scene: a professional still-life product photograph, editorial quiet-luxury aesthetic — NO person, model, hand, or body part anywhere in frame. The product itself is the entire subject.
 ${params.visualModeGuidance}
@@ -172,7 +182,8 @@ ${params.brandTone ? `\nBrand tone of voice (the vibe this brand always projects
 The product must remain the clear focus of the composition, fully visible (not cropped out, not obscured by a prop), well-lit, with clear contrast against its background. If the product has small connected parts, make sure they stay solidly connected — never floating or detached.
 ${
   params.correctionNote
-    ? `\nThis is a CORRECTION of one specific detail from a previous generation of this same scene — it is not a request for a new scene. Keep the same scene, styling, angle and lighting as before, and change ONLY this: "${params.correctionNote}". Weigh that request against everything above — if it conflicts with any of it, apply the closest version of the request that still respects them instead of following it literally.`
+    ? `\nThis is a CORRECTION of one specific detail from a previous generation of this same scene — it is not a request for a new scene. Keep the same scene, styling, angle and lighting as before, and change ONLY this: "${params.correctionNote}". Weigh that request against everything above — if it conflicts with any of it, apply the closest version of the request that still respects them instead of following it literally.
+${CORRECTION_PRODUCT_LOCK}`
     : ""
 }`;
 }

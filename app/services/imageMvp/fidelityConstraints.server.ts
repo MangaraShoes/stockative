@@ -14,13 +14,26 @@ export interface FidelityConstraints {
   neverAlter: string[];
 }
 
+// 03/10/2026 (Patricia, depois de uma regeneração em que uma bota khaki/taupe
+// voltou verde-oliva: "strict rule never change the color of the original
+// product or any characteristic from the original item we are selling") —
+// cor ganhou regra própria e explícita, incluindo desvio SUTIL de tom e o
+// álibi da luz da cena, que era exatamente o que deixava passar.
 const UNIVERSAL_CONSTRAINTS: FidelityConstraints = {
-  preserve: ["exact shape and proportions", "color, material, and surface finish", "any visible logo, label, or branding exactly as shown", "all components specific to this variant"],
+  preserve: [
+    "exact shape and proportions",
+    "the exact color — same hue, undertone, saturation and lightness as the reference",
+    "material and surface finish (matte/glossy, texture, grain)",
+    "any visible logo, label, or branding exactly as shown",
+    "all components specific to this variant (stitching, seams, zips, buckles, hardware, toe and heel shape)",
+  ],
   neverAlter: [
     "do not stretch, deform, or change the product's scale in a way that misrepresents it",
-    "do not change the product's real color, material, or finish, or invent an attribute not visible in the reference",
+    "do not shift the product's color in any way, not even subtly — e.g. khaki/taupe turning olive or green, beige turning grey or yellow, black turning brown, cream turning white. The scene's lighting, color grade or mood must never change how the product's color reads; the product must look like the same color it is in the reference",
+    "do not change the product's real material or finish, or invent an attribute not visible in the reference",
     "do not cover, crop out, or replace the logo/label/branding",
     "do not add straps, parts, or accessories that aren't part of the actual product",
+    "do not remove, simplify or restyle any characteristic of the product — every detail visible in the reference stays exactly as it is",
   ],
 };
 

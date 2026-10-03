@@ -42,7 +42,15 @@ interface OpenRouterResponse {
   usage?: { total_tokens?: number };
 }
 
+// Um veredito por eixo em vez de um `passed` solto (03/10/2026, bota khaki
+// que voltou verde-oliva e passou no check): o `passed` final é calculado
+// no código como E lógico de todos os eixos — o avaliador não consegue mais
+// aprovar no geral uma imagem em que ele mesmo notou a cor diferente.
 const fidelityCheckSchema = z.object({
+  colorMatches: z.boolean(),
+  shapeMatches: z.boolean(),
+  materialMatches: z.boolean(),
+  detailsMatch: z.boolean(),
   passed: z.boolean(),
   issues: z.array(z.string()),
 });
@@ -213,9 +221,15 @@ export class OpenRouterProvider implements AIProvider {
 
     const prompt = `Compare these two product images. The FIRST is the original real product photo. The SECOND is an AI-generated recreation of the same product ("${productDescription}") in a new scene.
 
-Check ONLY product fidelity — does the second image show the EXACT SAME product (same shape, color, proportions, materials, details)? Ignore differences in background, scene, model/person, lighting style — those are supposed to differ. Fail it only for real product mismatches: wrong color, wrong proportions, a detached or malformed part (e.g. a heel that looks disconnected from the shoe), missing or invented details.
+Check ONLY product fidelity — does the second image show the EXACT SAME product a customer would receive? Background, scene, model/person and outfit are supposed to differ; ignore those. The product itself must not differ in any way.
 
-Set passed=false if there is a real product mismatch, and list the specific issues.${constraintsInstructions}`;
+Judge each axis separately and strictly — this image will be used to sell the real product, so a customer must never receive something that looks different from the photo:
+- colorMatches: same hue, undertone, saturation and lightness as the reference. A subtle shift counts as a mismatch (e.g. khaki/taupe that now reads olive or green, beige that reads grey or yellow, black that reads brown). Warm, golden, cool or dim scene lighting is NOT an excuse: if the product's color reads differently from the reference, it is false.
+- shapeMatches: same silhouette, proportions, toe/heel/sole shape, and connected parts stay attached (e.g. a heel never detached from the sole).
+- materialMatches: same material and surface finish (matte vs glossy, texture, grain).
+- detailsMatch: every visible detail is present and nothing is invented — seams, stitching, zips, buckles, hardware, logos/labels.
+
+When in doubt on any axis, set it to false. Set passed=false if any axis is false, and list every specific issue.${constraintsInstructions}`;
 
     const json = await this.chat([
       { role: "system", content: systemPrompt },
@@ -229,10 +243,21 @@ Set passed=false if there is a real product mismatch, and list the specific issu
       },
     ]);
 
-    return parseJsonResponse(
+    const result = parseJsonResponse(
       json.choices[0]?.message.content ?? "{}",
       fidelityCheckSchema,
     );
+    const axesFailed = [
+      !result.colorMatches && "product color differs from the reference",
+      !result.shapeMatches && "product shape/proportions differ from the reference",
+      !result.materialMatches && "product material/finish differs from the reference",
+      !result.detailsMatch && "product details are missing, altered or invented",
+    ].filter((issue): issue is string => Boolean(issue));
+
+    return {
+      passed: result.passed && axesFailed.length === 0,
+      issues: [...result.issues, ...axesFailed.filter((issue) => !result.issues.includes(issue))],
+    };
   }
 
   // Guardrail de composição/estilo — roda em toda loja que usa o app, não só

@@ -153,8 +153,10 @@ model Shop {
   // [{ weekday, hour, minute }] escolhida pela lojista, um por post.
   postingScheduleMode String @default("auto")
   customPostingSchedule Json?
-  // E-mail: null = e-mail da loja no Shopify (shop.email).
+  // E-mail: null = e-mail da loja no Shopify (shopEmail, cacheado de
+  // shop.email por ensureShopEmail no loader raiz).
   notificationEmail       String?
+  shopEmail               String?
   notifyWeeklyPlan        Boolean @default(true)
   notifyPublishFailed     Boolean @default(true)
   notifyPublished         Boolean @default(false)

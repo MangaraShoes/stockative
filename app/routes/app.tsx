@@ -4,7 +4,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
-import { ensureShopContentLanguage, ensureShopTimezone, getOrCreateShop } from "../services/syncProducts.server";
+import { ensureShopContentLanguage, ensureShopEmail, ensureShopTimezone, getOrCreateShop } from "../services/syncProducts.server";
 import { getOnboardingStatus } from "../services/onboardingStatus.server";
 import prisma from "../db.server";
 
@@ -38,6 +38,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { shop } = await getOrCreateShop(session.shop, session.accessToken ?? "");
   await ensureShopTimezone(admin, shop);
   await ensureShopContentLanguage(admin, shop);
+  await ensureShopEmail(admin, shop);
 
   const status = await getOnboardingStatus(shop.id);
   const firstIncomplete = SETUP_STEPS.findIndex((step) => !step.keys.every((k) => status[k]));

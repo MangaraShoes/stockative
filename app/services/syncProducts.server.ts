@@ -148,6 +148,29 @@ export async function ensureShopTimezone(
   }
 }
 
+// E-mail da loja (shop.email) — destinatário padrão das notificações por
+// e-mail (Settings, 03/10/2026), cacheado porque o envio acontece no
+// agendador, sem sessão de admin. Mesma regra: nunca derruba o app.
+export async function ensureShopEmail(
+  admin: AdminGraphqlClient,
+  shop: { id: string; shopEmail: string | null },
+): Promise<void> {
+  if (shop.shopEmail) return;
+  try {
+    const response = await admin.graphql(`#graphql
+      query stockativeShopEmail {
+        shop {
+          email
+        }
+      }`);
+    const json = await response.json();
+    const email: string | undefined = json.data?.shop?.email;
+    if (email) await prisma.shop.update({ where: { id: shop.id }, data: { shopEmail: email } });
+  } catch (error) {
+    console.error("ensureShopEmail failed:", error);
+  }
+}
+
 // Pré-preenche o idioma primário de publicação com o idioma REAL da loja
 // (Patricia, 13/09/2026, pergunta direta: "o default language sempre vai
 // ser a linguagem da loja né") — antes disso, contentLanguagePrimary só

@@ -1,3 +1,4 @@
+import { notifyPublishOutcome } from "../email/notify.server";
 import prisma from "../../db.server";
 import {
   publishCarousel,
@@ -557,6 +558,7 @@ export async function publishDueContentItems(): Promise<DueContentItemOutcome[]>
       shopId: true,
       images: { select: { id: true } },
       promotion: { select: { name: true, endsAt: true } },
+      product: { select: { title: true } },
     },
   });
 
@@ -593,6 +595,20 @@ export async function publishDueContentItems(): Promise<DueContentItemOutcome[]>
 
     const result = await publishContentItemToInstagram(item.id, item.shopId);
     outcomes.push({ contentItemId: item.id, shopId: item.shopId, result });
+    // Erros que voltam o post pra "draft" (conta desconectada, vídeo ainda
+    // não pronto…) são retentados a cada rodada — só avisa por e-mail quando
+    // o post terminou mesmo em "failed", senão mandaria um e-mail a cada 5 min.
+    const finalStatus =
+      result.status === "error"
+        ? (await prisma.contentItem.findUnique({ where: { id: item.id }, select: { status: true } }))?.status
+        : null;
+    if (result.status === "success" || finalStatus === "failed") {
+      await notifyPublishOutcome({
+        shopId: item.shopId,
+        productTitle: item.product?.title ?? null,
+        failedReason: result.status === "error" ? result.reason : null,
+      });
+    }
   }
   return outcomes;
 }

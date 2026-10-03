@@ -68,6 +68,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     publishingPaused: Boolean(shop?.publishingPausedAt),
     requireApproval: shop?.requireApproval ?? false,
     postingScheduleMode: shop?.postingScheduleMode === "custom" ? "custom" : "auto",
+    notificationEmail: shop?.notificationEmail ?? "",
+    shopEmail: shop?.shopEmail ?? "",
+    notifyWeeklyPlan: shop?.notifyWeeklyPlan ?? true,
+    notifyPublishFailed: shop?.notifyPublishFailed ?? true,
+    notifyPublished: shop?.notifyPublished ?? false,
     schedule: schedule.map((slot) => ({ weekday: slot.weekday, time: `${pad(slot.hour)}:${pad(slot.minute)}` })),
   };
 };
@@ -182,6 +187,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return ok;
   }
 
+  if (intent === "save-notifications") {
+    const email = String(formData.get("notificationEmail") ?? "").trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("Enter a valid email address.");
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: {
+        notificationEmail: email || null,
+        notifyWeeklyPlan: formData.get("notifyWeeklyPlan") === "1",
+        notifyPublishFailed: formData.get("notifyPublishFailed") === "1",
+        notifyPublished: formData.get("notifyPublished") === "1",
+      },
+    });
+    return ok;
+  }
+
   return fail("Unknown action.");
 };
 
@@ -244,6 +264,7 @@ export default function Settings() {
   const publishingFetcher = useFetcher<typeof action>();
   const scheduleFetcher = useFetcher<typeof action>();
   const planFetcher = useFetcher<typeof action>();
+  const notificationFetcher = useFetcher<typeof action>();
 
   const submit = (fetcher: ReturnType<typeof useFetcher<typeof action>>, payload: Record<string, string>) =>
     fetcher.submit(payload, { method: "POST" });
@@ -265,6 +286,17 @@ export default function Settings() {
     setSchedule((current) => current.map((slot, i) => (i === index ? { ...slot, ...change } : slot)));
 
   const [selectedPlan, setSelectedPlan] = useState(data.plan);
+
+  const initialNotifications = {
+    notificationEmail: data.notificationEmail,
+    notifyWeeklyPlan: data.notifyWeeklyPlan,
+    notifyPublishFailed: data.notifyPublishFailed,
+    notifyPublished: data.notifyPublished,
+  };
+  const [notifications, setNotifications] = useState(initialNotifications);
+  const notificationsUnchanged = JSON.stringify(notifications) === JSON.stringify(initialNotifications);
+  const setNotification = (change: Partial<typeof notifications>) =>
+    setNotifications((current) => ({ ...current, ...change }));
 
   const isSavingPublishing = publishingFetcher.state !== "idle";
 
@@ -356,6 +388,50 @@ export default function Settings() {
           onClick={() => submit(scheduleFetcher, { intent: "save-schedule", mode: scheduleMode, schedule: JSON.stringify(schedule) })}
         />
         <FetcherResult fetcher={scheduleFetcher} />
+      </s-section>
+
+      <s-section heading="Email notifications">
+        <s-stack direction="block" gap="base">
+          <div>
+            <s-paragraph>Send to</s-paragraph>
+            <input
+              type="email"
+              value={notifications.notificationEmail}
+              placeholder={data.shopEmail || "you@yourstore.com"}
+              onChange={(event) => setNotification({ notificationEmail: event.target.value })}
+              style={{ ...selectStyle, width: "100%", maxWidth: 360 }}
+            />
+            <s-paragraph>
+              <s-text color="subdued">
+                Leave empty to use your store's email{data.shopEmail ? ` (${data.shopEmail})` : ""}.
+              </s-text>
+            </s-paragraph>
+          </div>
+          <Toggle checked={notifications.notifyWeeklyPlan} disabled={false} onChange={(checked) => setNotification({ notifyWeeklyPlan: checked })}>
+            <strong>Next week is ready</strong>, with a reminder if posts are waiting for your approval
+          </Toggle>
+          <Toggle checked={notifications.notifyPublishFailed} disabled={false} onChange={(checked) => setNotification({ notifyPublishFailed: checked })}>
+            <strong>A post couldn't be published</strong>
+          </Toggle>
+          <Toggle checked={notifications.notifyPublished} disabled={false} onChange={(checked) => setNotification({ notifyPublished: checked })}>
+            <strong>A post was published</strong>
+          </Toggle>
+        </s-stack>
+        <SaveButton
+          label="Save notifications"
+          disabled={notificationsUnchanged}
+          saving={notificationFetcher.state !== "idle"}
+          onClick={() =>
+            submit(notificationFetcher, {
+              intent: "save-notifications",
+              notificationEmail: notifications.notificationEmail,
+              notifyWeeklyPlan: notifications.notifyWeeklyPlan ? "1" : "0",
+              notifyPublishFailed: notifications.notifyPublishFailed ? "1" : "0",
+              notifyPublished: notifications.notifyPublished ? "1" : "0",
+            })
+          }
+        />
+        <FetcherResult fetcher={notificationFetcher} />
       </s-section>
 
       <s-section heading="Post languages">

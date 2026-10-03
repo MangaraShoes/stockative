@@ -1,3 +1,4 @@
+import { notifyWeeklyPlanReady } from "../email/notify.server";
 import type { ContentPillar, Prisma, Promotion } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
@@ -797,6 +798,7 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
     try {
       const slots = await planWeeklyContent(shop.id);
       outcomes.push({ shopId: shop.id, slotCount: slots.length });
+      await notifyWeeklyPlanReady(shop.id, slots.length);
     } catch (error) {
       console.error(`Failed to generate weekly plan for shop ${shop.id}:`, error);
       outcomes.push({

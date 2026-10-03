@@ -83,7 +83,37 @@ export const DEFAULT_WEEKLY_SCHEDULE: { weekday: number; hour: number; minute: n
   { weekday: 3, hour: 12, minute: 0 }, // quarta 12h — melhor horário isolado
   { weekday: 4, hour: 9, minute: 0 }, // quinta 9h — segundo melhor horário
   { weekday: 2, hour: 19, minute: 0 }, // terça 19h — pico noturno de moda/compra
+  // Dias extras pros planos Grow (5) e Plus (7) — antes eram só os 3 acima
+  // reaproveitados em ciclo (`schedule[index % 3]`), então o 4º post saía
+  // no MESMO dia e minuto do 1º (achado de 03/10/2026). Mesmo critério da
+  // pesquisa: segunda à noite e sexta ao meio-dia antes do fim de semana.
+  { weekday: 1, hour: 19, minute: 0 }, // segunda 19h
+  { weekday: 5, hour: 12, minute: 0 }, // sexta 12h
+  { weekday: 0, hour: 19, minute: 0 }, // domingo 19h
+  { weekday: 6, hour: 11, minute: 0 }, // sábado 11h
 ];
+
+export type WeeklyScheduleSlot = { weekday: number; hour: number; minute: number };
+
+// Lê o horário personalizado salvo em Settings (Shop.customPostingSchedule)
+// e devolve exatamente `count` slots — se a lojista trocou de plano depois
+// de salvar, completa com os dias padrão (sem repetir um dia já escolhido)
+// ou corta o excesso. Valor inválido vira o padrão, nunca quebra a geração.
+export function normalizeCustomSchedule(raw: unknown, count: number): WeeklyScheduleSlot[] {
+  const valid = (Array.isArray(raw) ? raw : []).filter(
+    (slot): slot is WeeklyScheduleSlot =>
+      typeof slot === "object" && slot !== null &&
+      Number.isInteger(slot.weekday) && slot.weekday >= 0 && slot.weekday <= 6 &&
+      Number.isInteger(slot.hour) && slot.hour >= 0 && slot.hour <= 23 &&
+      Number.isInteger(slot.minute) && slot.minute >= 0 && slot.minute <= 59,
+  );
+  const result = valid.slice(0, count).map(({ weekday, hour, minute }) => ({ weekday, hour, minute }));
+  for (const fallback of DEFAULT_WEEKLY_SCHEDULE) {
+    if (result.length >= count) break;
+    if (!result.some((slot) => slot.weekday === fallback.weekday)) result.push(fallback);
+  }
+  return result;
+}
 
 // Resolve o cronograma real da semana: mantém os DIAS da pesquisa de
 // mercado (terça/quarta/quinta, essa parte não tem como vir da conta —
@@ -95,24 +125,33 @@ export const DEFAULT_WEEKLY_SCHEDULE: { weekday: number; hour: number; minute: n
 // que o Instagram devolve já é a hora local da conta (mesma premissa do
 // próprio painel de Insights dele) — combinada depois com o fuso real da
 // loja em planWeeklyContent/nextWeeklyOccurrenceInTimezone.
+//
+// Horário personalizado em Settings (postingScheduleMode "custom") vence
+// tudo isso — a lojista escolheu dia e hora de cada post.
 async function resolveWeeklySchedule(
-  shopId: string,
-): Promise<{ weekday: number; hour: number; minute: number }[]> {
+  shop: { id: string; postingScheduleMode: string; customPostingSchedule: unknown },
+  count: number,
+): Promise<WeeklyScheduleSlot[]> {
+  if (shop.postingScheduleMode === "custom") {
+    return normalizeCustomSchedule(shop.customPostingSchedule, count);
+  }
+
+  const defaults = DEFAULT_WEEKLY_SCHEDULE.slice(0, count);
   const socialAccount = await prisma.socialAccount.findUnique({
-    where: { shopId_platform: { shopId, platform: "instagram" } },
+    where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
   });
-  if (!socialAccount?.igBusinessAccountId) return DEFAULT_WEEKLY_SCHEDULE;
+  if (!socialAccount?.igBusinessAccountId) return defaults;
 
   const topHours = await getTopOnlineHours(
     socialAccount.igBusinessAccountId,
     socialAccount.accessToken,
-    DEFAULT_WEEKLY_SCHEDULE.length,
+    defaults.length,
   );
   if (topHours.status !== "success" || topHours.hours.length === 0) {
-    return DEFAULT_WEEKLY_SCHEDULE;
+    return defaults;
   }
 
-  return DEFAULT_WEEKLY_SCHEDULE.map((defaultSlot, index) => ({
+  return defaults.map((defaultSlot, index) => ({
     weekday: defaultSlot.weekday,
     hour: topHours.hours[index] ?? defaultSlot.hour,
     minute: 0,
@@ -644,7 +683,7 @@ export async function planWeeklyContent(
 
     const weeklySlotPlan = getWeeklySlotPlan(shop);
     const pillarsForSlots = await allocatePillarsForWeek(shopId, weeklySlotPlan.postsPerWeek);
-    const schedule = await resolveWeeklySchedule(shopId);
+    const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek);
 
     const usedProductIds = new Set<string>(cancelledProductIds);
     const slots: WeeklyPlanSlot[] = [];
@@ -720,6 +759,8 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
   const candidateShops = await prisma.shop.findMany({
     where: {
       uninstalledAt: null,
+      // Pausa em Settings para também a geração (sem custo de IA).
+      publishingPausedAt: null,
       socialAccounts: { some: { platform: "instagram", igBusinessAccountId: { not: null } } },
     },
     select: { id: true, lastWeeklyPlanGeneratedAt: true },
@@ -1204,6 +1245,39 @@ export async function cancelWeeklyPlanSlot(params: {
     return { status: "error", reason: "This post can no longer be cancelled (already published or publishing)." };
   }
   return { status: "success" };
+}
+
+// Aprovar / desfazer aprovação de um post (Settings → "Approve posts
+// before they publish", 03/10/2026). Só faz diferença quando
+// Shop.requireApproval está ligado — aí só "approved" publica sozinho (ver
+// publishDueContentItems). Aprovar depois do horário publica na próxima
+// rodada do agendador.
+export async function setWeeklyPlanSlotApproval(params: {
+  shopId: string;
+  contentItemId: string;
+  approved: boolean;
+}): Promise<CancelResult> {
+  const result = await prisma.contentItem.updateMany({
+    where: {
+      id: params.contentItemId,
+      shopId: params.shopId,
+      status: params.approved ? "draft" : "approved",
+    },
+    data: { status: params.approved ? "approved" : "draft" },
+  });
+  if (result.count === 0) {
+    return { status: "error", reason: "This post can no longer be changed (already published or publishing)." };
+  }
+  return { status: "success" };
+}
+
+// Legenda ou imagem regenerada depois de aprovada = conteúdo que a lojista
+// ainda não viu; volta pra "draft" pra nunca publicar sem nova aprovação.
+export async function resetApprovalAfterEdit(shopId: string, contentItemId: string): Promise<void> {
+  await prisma.contentItem.updateMany({
+    where: { id: contentItemId, shopId, status: "approved" },
+    data: { status: "draft" },
+  });
 }
 
 export interface CreatePromotionInput {

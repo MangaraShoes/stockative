@@ -538,12 +538,19 @@ export async function publishDueContentItems(): Promise<DueContentItemOutcome[]>
       // antes de terminar Story/Facebook/Pinterest/a escrita final — precisa
       // ser retomado, não fica esperando um novo agendamento (já tem data
       // no passado de qualquer forma).
-      status: { in: ["draft", "approved", "partial"] },
+      //
+      // "draft" só entra quando a loja NÃO exige aprovação (Settings,
+      // 03/10/2026) — com aprovação ligada, draft espera a lojista aprovar.
+      OR: [
+        { status: { in: ["approved", "partial"] } },
+        { status: "draft", shop: { requireApproval: false } },
+      ],
       scheduledAt: { lte: new Date() },
       // Corrigido em 12/09/2026 (achado de revisão externa: "the uninstall
       // handler... does not deactivate the shop... queued publication could
-      // continue"). Loja desinstalada nunca mais é considerada aqui.
-      shop: { uninstalledAt: null },
+      // continue"). Loja desinstalada nunca mais é considerada aqui — nem
+      // loja com publicação pausada em Settings.
+      shop: { uninstalledAt: null, publishingPausedAt: null },
     },
     select: {
       id: true,

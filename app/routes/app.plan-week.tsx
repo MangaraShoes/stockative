@@ -10,6 +10,8 @@ import {
   swapWeeklyPlanSlotProduct,
   rescheduleWeeklyPlanSlot,
   cancelWeeklyPlanSlot,
+  setWeeklyPlanSlotApproval,
+  resetApprovalAfterEdit,
   regenerateWeeklyPlanSlotImage,
   regenerateWeeklyPlanSlotCaption,
   getActivePromotion,
@@ -186,6 +188,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // navegador aberto num fuso diferente. ensureShopTimezone (chamado no
     // loader raiz de /app) garante que isso já existe quando chega aqui.
     shopTimezone: shop?.ianaTimezone ?? "UTC",
+    requireApproval: shop?.requireApproval ?? false,
+    publishingPaused: Boolean(shop?.publishingPausedAt),
     onboardingStatus,
     slots,
     tiktokCreator,
@@ -246,6 +250,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         contentItemId,
         feedback: feedback ? String(feedback) : undefined,
       });
+      if (result.status === "success") await resetApprovalAfterEdit(shop.id, contentItemId);
     } catch (error) {
       console.error("Failed to regenerate image:", error);
       result = {
@@ -265,6 +270,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         contentItemId,
         feedback: String(formData.get("feedback") ?? ""),
       });
+      if (result.status === "success") await resetApprovalAfterEdit(shop.id, contentItemId);
     } catch (error) {
       console.error("Failed to regenerate caption:", error);
       result = {
@@ -310,6 +316,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const contentItemId = String(formData.get("contentItemId"));
     const result = await clearTikTokPostSettings({ shopId: shop.id, contentItemId });
     return { intent: "tiktok-settings" as const, contentItemId, result };
+  }
+
+  if (intent === "set-approval") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await setWeeklyPlanSlotApproval({
+      shopId: shop.id,
+      contentItemId,
+      approved: formData.get("approved") === "1",
+    });
+    return { intent: "set-approval" as const, contentItemId, result };
   }
 
   if (intent === "cancel") {
@@ -541,6 +557,8 @@ export default function PlanWeek() {
     products,
     productCollections,
     shopTimezone,
+    requireApproval,
+    publishingPaused,
     onboardingStatus,
     slots,
     remainingImageCredits,
@@ -782,6 +800,13 @@ export default function PlanWeek() {
     publishFetcher.submit({ intent: "publish-now", contentItemId }, { method: "POST" });
   };
 
+  const setApproval = (contentItemId: string, approved: boolean) => {
+    manageFetcher.submit(
+      { intent: "set-approval", contentItemId, approved: approved ? "1" : "0" },
+      { method: "POST" },
+    );
+  };
+
   const publishOutcome =
     publishFetcher.state === "idle" && publishFetcher.data?.intent === "publish-now"
       ? publishFetcher.data
@@ -794,7 +819,9 @@ export default function PlanWeek() {
 
   const manageFailure =
     manageFetcher.data &&
-    (manageFetcher.data.intent === "reschedule" || manageFetcher.data.intent === "cancel") &&
+    (manageFetcher.data.intent === "reschedule" ||
+      manageFetcher.data.intent === "cancel" ||
+      manageFetcher.data.intent === "set-approval") &&
     manageFetcher.data.result.status === "error"
       ? manageFetcher.data
       : null;
@@ -817,6 +844,13 @@ export default function PlanWeek() {
   return (
     <s-page heading="Weekly plan">
       <OnboardingStepper status={onboardingStatus} currentStepHref="/app/plan-week" />
+
+      {publishingPaused && (
+        <s-banner tone="warning">
+          Publishing is paused. No posts go out and no new weeks are generated
+          until you resume it in <s-link href="/app/settings">Settings</s-link>.
+        </s-banner>
+      )}
 
       {recoveredPendingActionLabel && (
         <s-banner
@@ -1088,7 +1122,10 @@ export default function PlanWeek() {
               );
               const currentWeekday = scheduleChoices[slot.contentItemId]?.weekday ?? slotWeekday(slot, shopTimezone);
               const currentTime = scheduleChoices[slot.contentItemId]?.time ?? slotTime(slot, shopTimezone);
-              const statusInfo = STATUS_LABELS[slot.status] ?? { label: slot.status, tone: "neutral" as const };
+              const statusInfo =
+                requireApproval && slot.status === "draft"
+                  ? { label: "Waiting for approval", tone: "critical" as const }
+                  : (STATUS_LABELS[slot.status] ?? { label: slot.status, tone: "neutral" as const });
 
               return (
                 <s-box
@@ -1565,6 +1602,23 @@ export default function PlanWeek() {
                             Cancel this post
                           </s-button>
                         </s-stack>
+
+                        {requireApproval && (
+                          <s-stack direction="inline" gap="small" alignItems="center">
+                            <s-button
+                              variant={slot.status === "draft" ? "primary" : "secondary"}
+                              onClick={() => setApproval(slot.contentItemId, slot.status === "draft")}
+                              {...(isManaging ? { loading: true } : {})}
+                            >
+                              {slot.status === "draft" ? "Approve" : "Undo approval"}
+                            </s-button>
+                            <s-text color="subdued">
+                              {slot.status === "draft"
+                                ? "This post won't publish until you approve it."
+                                : "Approved. It publishes at its scheduled time."}
+                            </s-text>
+                          </s-stack>
+                        )}
 
                         <s-stack direction="inline" gap="small" alignItems="center">
                           <s-button

@@ -139,6 +139,26 @@ model Shop {
   storeLanguage String?
   appLanguage   String?
 
+  // Opções de Settings (Patricia, 03/10/2026). Todas com default que mantém
+  // o comportamento de sempre — "tem gente que nem abre o settings".
+  //
+  // Pausa: para de publicar E de gerar semana nova (sem custo de IA). Ao
+  // retomar, posts cujo horário passou durante a pausa são pulados.
+  publishingPausedAt DateTime?
+  // Aprovação: quando true, post em "draft" nunca publica sozinho — espera
+  // a lojista aprovar; aprovado depois do horário, sai na próxima rodada.
+  requireApproval Boolean @default(false)
+  // Horários: "auto" = dias da pesquisa + horário em que a audiência do
+  // Instagram está online (resolveWeeklySchedule); "custom" = lista
+  // [{ weekday, hour, minute }] escolhida pela lojista, um por post.
+  postingScheduleMode String @default("auto")
+  customPostingSchedule Json?
+  // E-mail: null = e-mail da loja no Shopify (shop.email).
+  notificationEmail       String?
+  notifyWeeklyPlan        Boolean @default(true)
+  notifyPublishFailed     Boolean @default(true)
+  notifyPublished         Boolean @default(false)
+
   socialAccounts       SocialAccount[]
   products             ProductCache[]
   contentItems         ContentItem[]

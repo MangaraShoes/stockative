@@ -1,9 +1,10 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useFetcher, useLoaderData } from "react-router";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ensureShopContentLanguage } from "../services/syncProducts.server";
+import { deleteAllShopData } from "../services/shopDataDeletion.server";
 import { CONTENT_LANGUAGES, getAppLanguage } from "../services/decisionEngine/constants";
 import { getWeeklySlotPlan } from "../services/decisionEngine/planTiers.server";
 import {
@@ -84,8 +85,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const formData = await request.formData();
   const intent = String(formData.get("intent") ?? "");
-  const ok = { intent, error: null as string | null };
-  const fail = (error: string) => ({ intent, error });
+  const ok = { intent, error: null as string | null, exportData: null as unknown };
+  const fail = (error: string) => ({ intent, error, exportData: null as unknown });
 
   // Não existe cobrança real ainda (Fase 7, Shopify Billing, fica de fora —
   // ver plano de implementação) — trocar de plano aqui só muda a cadência e
@@ -202,6 +203,68 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return ok;
   }
 
+  // Exportar dados (GDPR, direito de acesso/portabilidade). Nunca inclui
+  // tokens de acesso nem imagens binárias — só o que a lojista configurou e
+  // o que o app gerou/mediu pra ela.
+  if (intent === "export-data") {
+    const [pillars, competitors, socialAccounts, promotions, contentItems] = await Promise.all([
+      prisma.contentPillar.findMany({ where: { shopId: shop.id } }),
+      prisma.competitorAccount.findMany({
+        where: { shopId: shop.id },
+        select: { instagramUsername: true, addedAt: true, biography: true, website: true },
+      }),
+      prisma.socialAccount.findMany({ where: { shopId: shop.id }, select: { platform: true } }),
+      prisma.promotion.findMany({ where: { shopId: shop.id } }),
+      prisma.contentItem.findMany({
+        where: { shopId: shop.id },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          platform: true,
+          format: true,
+          commercialObjective: true,
+          decisionBrief: true,
+          captionText: true,
+          hashtags: true,
+          cta: true,
+          status: true,
+          scheduledAt: true,
+          publishedAt: true,
+          createdAt: true,
+          product: { select: { title: true } },
+          performanceSignals: {
+            select: {
+              platform: true, reach: true, likes: true, comments: true, saves: true, shares: true,
+              clicks: true, productPageVisits: true, addToCart: true, orders: true, revenue: true, capturedAt: true,
+            },
+          },
+        },
+      }),
+    ]);
+    const { accessToken: _token, logoUrl: _logo, ...shopSettings } = shop;
+    return {
+      ...ok,
+      exportData: {
+        exportedAt: new Date().toISOString(),
+        shop: shopSettings,
+        socialAccounts,
+        competitors,
+        contentPillars: pillars,
+        promotions,
+        posts: contentItems,
+      },
+    };
+  }
+
+  // Apagar tudo e recomeçar: mesma função do webhook shop/redact. A loja
+  // continua com o app instalado — a próxima página recria a loja do zero
+  // (onboarding de novo, contas sociais precisam ser reconectadas).
+  if (intent === "delete-data") {
+    if (formData.get("confirm") !== "DELETE") return fail('Type DELETE to confirm.');
+    await deleteAllShopData(session.shop);
+    return ok;
+  }
+
   return fail("Unknown action.");
 };
 
@@ -265,6 +328,23 @@ export default function Settings() {
   const scheduleFetcher = useFetcher<typeof action>();
   const planFetcher = useFetcher<typeof action>();
   const notificationFetcher = useFetcher<typeof action>();
+  const dataFetcher = useFetcher<typeof action>();
+  const navigate = useNavigate();
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+
+  useEffect(() => {
+    if (dataFetcher.state !== "idle" || !dataFetcher.data || dataFetcher.data.error) return;
+    if (dataFetcher.data.intent === "export-data" && dataFetcher.data.exportData) {
+      const blob = new Blob([JSON.stringify(dataFetcher.data.exportData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `stockative-data-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+    if (dataFetcher.data.intent === "delete-data") navigate("/app");
+  }, [dataFetcher.state, dataFetcher.data, navigate]);
 
   const submit = (fetcher: ReturnType<typeof useFetcher<typeof action>>, payload: Record<string, string>) =>
     fetcher.submit(payload, { method: "POST" });
@@ -500,6 +580,57 @@ export default function Settings() {
           onClick={() => submit(languageFetcher, { intent: "save-app-language", appLanguage: selectedLanguage })}
         />
         <FetcherResult fetcher={languageFetcher} />
+      </s-section>
+
+      <s-section heading="Your data">
+        <s-stack direction="block" gap="base">
+          <s-paragraph>
+            Download everything Stockative stores about your store: settings,
+            content pillars, competitors and every post with its results.
+          </s-paragraph>
+          <div>
+            <button
+              type="button"
+              disabled={dataFetcher.state !== "idle"}
+              onClick={() => submit(dataFetcher, { intent: "export-data" })}
+              style={buttonStyle(dataFetcher.state !== "idle")}
+            >
+              {dataFetcher.state !== "idle" && dataFetcher.formData?.get("intent") === "export-data" ? "Preparing…" : "Download my data"}
+            </button>
+          </div>
+          <s-paragraph>
+            <strong>Delete all my data and start over.</strong> Permanently
+            removes your settings, brand voice, plans, posts history and
+            connected accounts from Stockative. Posts already published stay
+            on your social accounts. This can't be undone. If you uninstall
+            the app, your data is deleted automatically 48 hours later.
+          </s-paragraph>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              value={deleteConfirm}
+              onChange={(event) => setDeleteConfirm(event.target.value)}
+              placeholder="Type DELETE to confirm"
+              style={selectStyle}
+            />
+            <button
+              type="button"
+              disabled={deleteConfirm !== "DELETE" || dataFetcher.state !== "idle"}
+              onClick={() => submit(dataFetcher, { intent: "delete-data", confirm: deleteConfirm })}
+              style={{
+                ...buttonStyle(deleteConfirm !== "DELETE" || dataFetcher.state !== "idle"),
+                background: "#b42318",
+                borderColor: "#b42318",
+              }}
+            >
+              Delete all my data
+            </button>
+          </div>
+          {dataFetcher.data?.error && (
+            <s-paragraph>
+              <strong>{dataFetcher.data.error}</strong>
+            </s-paragraph>
+          )}
+        </s-stack>
       </s-section>
 
       <s-section heading="Plan">

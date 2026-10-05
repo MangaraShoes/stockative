@@ -294,3 +294,28 @@ export function summarizeModelProfile(profile: ModelProfile): string {
     .filter(Boolean);
   return [subject, ...lists].join(" · ");
 }
+
+// Escolhas pontuais de uma regeneração (Patricia, 05/10/2026: "quando ele
+// pedir para regenerar, perguntamos se deseja refazer o perfil da modelo ou
+// da situação") — valem só pra essa imagem, nunca viram memória do produto.
+export interface RegenerationOverrides {
+  newModel?: boolean;
+  occasion?: string;
+}
+
+export function describeModelWithOverrides(
+  profile: ModelProfile | null,
+  overrides: RegenerationOverrides | undefined,
+  random: () => number = Math.random,
+): string | undefined {
+  const occasion = overrides?.occasion && MODEL_OCCASIONS.some((o) => o.value === overrides.occasion) ? overrides.occasion : null;
+  const base = profile ?? DEFAULT_MODEL_PROFILE;
+  const effective = occasion ? { ...base, occasions: [occasion] } : base;
+  let description = isDefaultModelProfile(effective) ? undefined : describeModel(effective, random);
+  if (overrides?.newModel) {
+    const newModelText =
+      "The merchant asked for a different model this time: show a clearly different person (different face and hair) from the previous image of this post, still within the profile above.";
+    description = description ? `${description} ${newModelText}` : newModelText;
+  }
+  return description;
+}

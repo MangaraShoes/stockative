@@ -7,7 +7,7 @@ import { getOrClassifyProductVisuals } from "./productClassification.server";
 import { getRepertoireForInteraction } from "./categoryDispatch.server";
 import { selectVisualStrategy, VISUAL_MODE_GUIDANCE } from "./visualMode.server";
 import { MAX_IMAGE_CANDIDATES } from "./imageCandidates.server";
-import { describeModel, isDefaultModelProfile, parseModelProfile } from "./modelProfile";
+import { describeModelWithOverrides, parseModelProfile, type RegenerationOverrides } from "./modelProfile";
 import { getFidelityConstraints, describeFidelityConstraints, type FidelityConstraints } from "./fidelityConstraints.server";
 import type { CommercialObjective, ImageStylePreference } from "../decisionEngine/constants";
 
@@ -38,6 +38,8 @@ interface GenerateProductImageParams {
   // resto da cena igual, mesmo princípio de "corrigir o detalhe, não
   // refazer a imagem" já usado manualmente no projeto da Mangará.
   correctionNote?: string;
+  // Trocar modelo / situação só nesta regeneração (ver modelProfile.ts).
+  regenerationOverrides?: RegenerationOverrides;
   // Brand voice da loja (Patricia, 12/09/2026: "este comentario a AI deve
   // saber como avaliar pois nao devemos nunca nos afastar do brand voice")
   // — passado pro prompt pra correção nunca pisar no tom da marca, além das
@@ -351,8 +353,9 @@ export async function generateProductImage(
   const modelProfile = parseModelProfile(shop?.modelProfile);
   // Uma modelo por geração — as retentativas da mesma imagem mantêm o
   // mesmo retrato ("vary" sorteia só aqui).
-  const modelDescription =
-    hasModel && modelProfile && !isDefaultModelProfile(modelProfile) ? describeModel(modelProfile) : undefined;
+  const modelDescription = hasModel
+    ? describeModelWithOverrides(modelProfile, params.regenerationOverrides)
+    : undefined;
   let retryNote: string | undefined;
   let usedStructuralRetry = false;
   let fallback: { imageDataUrl: string; model: string; generationLogId: string } | null = null;

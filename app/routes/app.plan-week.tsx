@@ -26,6 +26,7 @@ import {
   applyShopifyPhotosToPost,
   applyUploadedImageToPost,
 } from "../services/imageMvp/imageCandidates.server";
+import { MODEL_OCCASIONS } from "../services/imageMvp/modelProfile";
 import {
   COMMERCIAL_OBJECTIVES,
   OBJECTIVE_LABELS,
@@ -251,10 +252,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (formData.get("acceptExtraCharge") === "1" && (await getRemainingCredits(shop, "image")) <= 0) {
         await purchaseExtraCredits(shop.id, "image", 1);
       }
+      const occasion = formData.get("occasion");
       result = await regenerateWeeklyPlanSlotImage({
         shopId: shop.id,
         contentItemId,
         feedback: feedback ? String(feedback) : undefined,
+        overrides: {
+          newModel: formData.get("newModel") === "1",
+          occasion: occasion ? String(occasion) : undefined,
+        },
       });
       if (result.status === "success") await resetApprovalAfterEdit(shop.id, contentItemId);
     } catch (error) {
@@ -680,6 +686,9 @@ export default function PlanWeek() {
         : [...current, objective],
     );
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
+  // "Trocar a modelo" / "trocar a situação" só nesta regeneração (Patricia,
+  // 05/10/2026) — ver RegenerationOverrides em modelProfile.ts.
+  const [imageChanges, setImageChanges] = useState<Record<string, { newModel: boolean; occasion: string }>>({});
   const [captionFeedback, setCaptionFeedback] = useState<Record<string, string>>({});
   // Post em que a lojista clicou "Regenerate" sem crédito — o aviso de cota
   // esgotada (com o link pra crédito extra) só aparece depois desse clique,
@@ -784,6 +793,7 @@ export default function PlanWeek() {
 
   const regenerateImage = (contentItemId: string, acceptExtraCharge = false) => {
     const feedback = imageFeedback[contentItemId]?.trim();
+    const changes = imageChanges[contentItemId];
     markPendingAction("regenerate this post's image");
     setOutOfCreditsClickedFor(null);
     imageFetcher.submit(
@@ -791,6 +801,8 @@ export default function PlanWeek() {
         intent: "regenerate-image",
         contentItemId,
         ...(feedback ? { feedback } : {}),
+        ...(changes?.newModel ? { newModel: "1" } : {}),
+        ...(changes?.occasion ? { occasion: changes.occasion } : {}),
         ...(acceptExtraCharge ? { acceptExtraCharge: "1" } : {}),
       },
       { method: "POST" },
@@ -1377,7 +1389,11 @@ export default function PlanWeek() {
                       // obrigatório a ponto de pausar os posts").
                       const isRegeneration = slot.images.length > 0;
                       const feedbackValue = imageFeedback[slot.contentItemId] ?? "";
-                      const feedbackMissing = isRegeneration && !feedbackValue.trim();
+                      const changes = imageChanges[slot.contentItemId] ?? { newModel: false, occasion: "" };
+                      const setChanges = (patch: Partial<typeof changes>) =>
+                        setImageChanges((current) => ({ ...current, [slot.contentItemId]: { ...changes, ...patch } }));
+                      const feedbackMissing =
+                        isRegeneration && !feedbackValue.trim() && !changes.newModel && !changes.occasion;
                       const outOfCredits = isRegeneration && remainingImageCredits <= 0;
                       return (
                         <div>
@@ -1386,6 +1402,34 @@ export default function PlanWeek() {
                             After that, you choose between the AI images, a photo from your Shopify
                             store, or an image you upload.
                           </p>
+                          {isRegeneration && (
+                            <div style={{ marginBottom: 8, display: "flex", flexWrap: "wrap", gap: 16, alignItems: "center", fontSize: 13 }}>
+                              <span>What should change?</span>
+                              <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={changes.newModel}
+                                  onChange={(e) => setChanges({ newModel: e.target.checked })}
+                                />
+                                A different model
+                              </label>
+                              <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                                Situation:
+                                <select
+                                  value={changes.occasion}
+                                  onChange={(e) => setChanges({ occasion: e.target.value })}
+                                  style={{ padding: 6 }}
+                                >
+                                  <option value="">Keep as is</option>
+                                  {MODEL_OCCASIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                      {option.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                          )}
                           {isRegeneration && (
                             <div style={{ marginBottom: 8 }}>
                               <s-stack direction="inline" gap="small">
@@ -1425,7 +1469,9 @@ export default function PlanWeek() {
                             }
                             placeholder={
                               isRegeneration
-                                ? "Required: what should change? (e.g. walking outdoors, show more of the shoe)"
+                                ? changes.newModel || changes.occasion
+                                  ? "Optional: anything else to change? (e.g. walking outdoors, show more of the shoe)"
+                                  : "Required: what should change? (e.g. walking outdoors, show more of the shoe)"
                                 : "Optional: tell us what to show (e.g. walking outdoors, show more of the shoe)"
                             }
                             rows={2}
@@ -1577,8 +1623,8 @@ export default function PlanWeek() {
                             <p style={{ fontSize: 13, marginTop: 0, marginBottom: 8 }}>
                               <strong>Choose this post&apos;s image.</strong>
                               {slot.imageRegenerationsLeft === 0
-                                ? " You've used this post's one regeneration — pick one of these, upload your own, or cancel the post."
-                                : " Pick one of these, upload your own, or cancel the post."}
+                                ? " You've used this post's one regeneration — pick one of these or upload your own."
+                                : " Pick one of these or upload your own."}
                               {slot.imageCandidates.length > 0
                                 ? " The new AI images show your product correctly but didn't pass every style check."
                                 : ""}
@@ -1633,14 +1679,6 @@ export default function PlanWeek() {
                                     Keep the image in use
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  disabled={isChoosing}
-                                  onClick={() => cancelSlot(slot.contentItemId)}
-                                  style={optionButtonStyle}
-                                >
-                                  Cancel this post
-                                </button>
                               </s-stack>
                             </div>
                             {isChoosing && <p style={{ fontSize: 13, marginBottom: 0 }}>Saving…</p>}

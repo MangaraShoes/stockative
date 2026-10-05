@@ -1,6 +1,7 @@
 import prisma from "../../db.server";
 import { generateProductImage } from "./generateProductImage.server";
 import type { CommercialObjective } from "../decisionEngine/constants";
+import type { RegenerationOverrides } from "./modelProfile";
 import { getRepertoireForInteraction } from "./categoryDispatch.server";
 import type { VisualCategory, ProductInteraction } from "./productClassification.server";
 
@@ -26,6 +27,7 @@ interface BuildCarouselParams {
   // que melhorasse, como opcional") — repassado como correctionNote pro
   // Nano Banana, mesmo mecanismo já usado nas correções manuais de imagem.
   correctionNote?: string;
+  regenerationOverrides?: RegenerationOverrides;
 }
 
 interface CarouselImage {
@@ -125,6 +127,7 @@ export async function buildCarousel(
       format: params.format,
       objective: params.objective,
       correctionNote: params.correctionNote,
+      regenerationOverrides: params.regenerationOverrides,
     });
 
     if (generated.status !== "success") {

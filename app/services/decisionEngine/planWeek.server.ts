@@ -8,6 +8,7 @@ import {
   type ImageCandidate,
 } from "../imageMvp/imageCandidates.server";
 import { MAX_IMAGE_REGENERATIONS_PER_POST } from "./constants";
+import type { RegenerationOverrides } from "../imageMvp/modelProfile";
 import type { ContentPillar, Prisma, Promotion } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
@@ -1030,6 +1031,9 @@ export async function regenerateWeeklyPlanSlotImage(params: {
   // falhou) — aí não é regeneração, não exige explicação nem consome a cota
   // de regeneração, só a geração normal do plano.
   feedback?: string;
+  // "Trocar a modelo" / "trocar a situação" só nesta imagem — também valem
+  // como motivo da regeneração (dispensam o texto).
+  overrides?: RegenerationOverrides;
 }): Promise<RegenerateImageResult> {
   const item = await prisma.contentItem.findUnique({
     where: { id: params.contentItemId },
@@ -1058,7 +1062,8 @@ export async function regenerateWeeklyPlanSlotImage(params: {
 
   const isRegeneration = item.images.length > 0;
   const trimmedFeedback = params.feedback?.trim() ?? "";
-  if (isRegeneration && !trimmedFeedback) {
+  const hasOverrides = Boolean(params.overrides?.newModel || params.overrides?.occasion);
+  if (isRegeneration && !trimmedFeedback && !hasOverrides) {
     return { status: "error", reason: "Explain what you'd like to change before regenerating." };
   }
 
@@ -1101,6 +1106,7 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     format: brief.format,
     forceNewHero: true,
     correctionNote: trimmedFeedback || undefined,
+    regenerationOverrides: params.overrides,
   });
 
   // Depois da única regeneração a lojista sempre cai no painel de escolha —

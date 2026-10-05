@@ -270,3 +270,27 @@ export function describeModel(profile: ModelProfile, random: () => number = Math
   if (profile.notes.trim()) description += ` Also: ${profile.notes.trim()}`;
   return description;
 }
+
+// Valores válidos por campo — usados pelo schema da sugestão automática no
+// Brand Analysis (ver draftBrandVoice.server.ts).
+export const MODEL_SUBJECT_VALUES = MODEL_SUBJECTS.map((option) => option.value);
+export const MODEL_LIST_VALUES: Record<ModelProfileListField, string[]> = Object.fromEntries(
+  (Object.keys(LIST_OPTIONS) as ModelProfileListField[]).map((field) => [
+    field,
+    LIST_OPTIONS[field].map((option) => option.value),
+  ]),
+) as Record<ModelProfileListField, string[]>;
+
+// Resumo legível do perfil pra tela ("Woman · 30–40 · Slender · Chic …").
+export function summarizeModelProfile(profile: ModelProfile): string {
+  const subject = MODEL_SUBJECTS.find((option) => option.value === profile.subject)?.label ?? "";
+  const lists = (Object.keys(LIST_OPTIONS) as ModelProfileListField[])
+    .map((field) =>
+      LIST_OPTIONS[field]
+        .filter((option) => profile[field].includes(option.value))
+        .map((option) => option.label)
+        .join(" / "),
+    )
+    .filter(Boolean);
+  return [subject, ...lists].join(" · ");
+}

@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  isDefaultModelProfile,
+  parseModelProfile,
+  summarizeModelProfile,
+} from "../services/imageMvp/modelProfile";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { redirect, useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
@@ -47,6 +52,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     brandTone: shop?.brandTone ?? "",
     brandAvoid: shop?.brandAvoid ?? "",
     imageStylePreference: shop?.imageStylePreference ?? "ai_decide",
+    hasPhotoProfile: (() => {
+      const profile = parseModelProfile(shop?.modelProfile);
+      return Boolean(profile && !isDefaultModelProfile(profile));
+    })(),
     logoUrl: shop?.logoUrl ?? null,
     applyLogoOverlay: shop?.applyLogoOverlay ?? false,
     productCount,
@@ -182,10 +191,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const brandAvoid = String(formData.get("brandAvoid") ?? "").trim();
   const applyLogoOverlay = formData.get("applyLogoOverlay") === "true";
   const imageStylePreference = String(formData.get("imageStylePreference") ?? "ai_decide");
+  // Perfil de foto sugerido pela análise da marca — só aplica se a lojista
+  // deixou marcado "use this photo profile" (ver photoProfile no rascunho).
+  let suggestedPhotoProfile = null;
+  if (formData.get("applyPhotoProfile") === "1") {
+    try {
+      suggestedPhotoProfile = parseModelProfile(JSON.parse(String(formData.get("photoProfile") ?? "null")));
+    } catch {
+      suggestedPhotoProfile = null;
+    }
+  }
 
   await prisma.shop.update({
     where: { shopifyDomain: session.shop },
-    data: { brandDescription, brandTone, brandAvoid, applyLogoOverlay, imageStylePreference },
+    data: {
+      brandDescription,
+      brandTone,
+      brandAvoid,
+      applyLogoOverlay,
+      imageStylePreference,
+      ...(suggestedPhotoProfile ? { modelProfile: suggestedPhotoProfile as unknown as object } : {}),
+    },
   });
 
   // Leva direto pra próxima tela quando é a única coisa que falta pra essa
@@ -215,6 +241,10 @@ export default function StoreVoice() {
   const [contentLanguagePrimary, setContentLanguagePrimary] = useState(data.contentLanguagePrimary);
   const [contentLanguageSecondary, setContentLanguageSecondary] = useState(data.contentLanguageSecondary);
   const [regenerateFeedback, setRegenerateFeedback] = useState("");
+  const [suggestedPhotoProfile, setSuggestedPhotoProfile] = useState<{ profile: unknown; reason: string } | null>(null);
+  // Primeira vez (ainda sem perfil salvo) já vem marcado; se ela já escolheu
+  // um perfil em Settings, nunca sobrescreve sem ela marcar.
+  const [applyPhotoProfile, setApplyPhotoProfile] = useState(!data.hasPhotoProfile);
 
   // Sincroniza os campos com um novo rascunho da IA assim que ele chega,
   // sem passar por useEffect (evita o re-render em cascata que a regra
@@ -228,6 +258,8 @@ export default function StoreVoice() {
       setBrandDescription(draftFetcher.data.draft.brandDescription);
       setBrandTone(draftFetcher.data.draft.brandTone);
       setBrandAvoid(draftFetcher.data.draft.brandAvoid);
+      const { reason, ...profile } = draftFetcher.data.draft.photoProfile;
+      setSuggestedPhotoProfile({ profile: { ...profile, notes: "" }, reason });
       setRegenerateFeedback("");
     }
   }
@@ -272,6 +304,9 @@ export default function StoreVoice() {
         brandAvoid,
         imageStylePreference,
         applyLogoOverlay: String(applyLogoOverlay),
+        ...(suggestedPhotoProfile && applyPhotoProfile
+          ? { applyPhotoProfile: "1", photoProfile: JSON.stringify(suggestedPhotoProfile.profile) }
+          : {}),
       },
       { method: "POST" },
     );
@@ -496,6 +531,29 @@ export default function StoreVoice() {
               style={{ width: "100%", padding: 8 }}
             />
           </div>
+
+          {suggestedPhotoProfile && (() => {
+            const parsed = parseModelProfile(suggestedPhotoProfile.profile);
+            if (!parsed) return null;
+            return (
+              <div style={{ padding: 12, border: "1px solid #e1e3e5", borderRadius: 8 }}>
+                <s-paragraph>Suggested photo profile</s-paragraph>
+                <p style={{ fontSize: 13, margin: "4px 0" }}>{summarizeModelProfile(parsed) || "Vary freely"}</p>
+                <p style={{ fontSize: 13, margin: "4px 0", color: "#616161" }}>{suggestedPhotoProfile.reason}</p>
+                <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={applyPhotoProfile}
+                    onChange={(e) => setApplyPhotoProfile(e.target.checked)}
+                  />
+                  {data.hasPhotoProfile
+                    ? "Replace my current photo profile with this one"
+                    : "Use this for my AI photos"}{" "}
+                  (you can change it anytime in Settings)
+                </label>
+              </div>
+            );
+          })()}
 
           <div>
             <s-paragraph>What kind of product photo do you have in mind?</s-paragraph>

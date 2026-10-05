@@ -1,6 +1,31 @@
 import { z } from "zod";
+import prisma from "../../db.server";
 import { generateStructuredForTask } from "../ai/index.server";
 import type { BrandSources } from "../brandSources.server";
+import { MODEL_LIST_VALUES, MODEL_SUBJECT_VALUES, type ModelProfileListField } from "../imageMvp/modelProfile";
+
+function enumOf(values: string[]) {
+  return z.enum(values as [string, ...string[]]);
+}
+
+const listField = (field: ModelProfileListField) => z.array(enumOf(MODEL_LIST_VALUES[field]));
+
+// Sugestão de perfil de foto junto com o brand voice (Patricia, 05/10/2026:
+// "criar uma sugestão de modelo no momento do brand analysis, quando cria o
+// brand voice já define a modelo") — a lojista vê e pode mudar em Settings.
+const photoProfileSuggestionSchema = z.object({
+  subject: enumOf(MODEL_SUBJECT_VALUES),
+  occasions: listField("occasions"),
+  outfitStyles: listField("outfitStyles"),
+  ageRanges: listField("ageRanges"),
+  bodyTypes: listField("bodyTypes"),
+  heights: listField("heights"),
+  ethnicities: listField("ethnicities"),
+  hairColors: listField("hairColors"),
+  hairStyles: listField("hairStyles"),
+  attitudes: listField("attitudes"),
+  reason: z.string().describe("One short sentence: why this photo profile fits the brand"),
+});
 
 interface ProductSample {
   title: string;
@@ -19,6 +44,9 @@ const brandDraftSchema = z.object({
   brandAvoid: z
     .string()
     .describe("Things this brand's copy should never say or imply"),
+  photoProfile: photoProfileSuggestionSchema.describe(
+    "Suggested people and settings for this brand's AI product photos",
+  ),
 });
 
 export type BrandDraft = z.infer<typeof brandDraftSchema>;
@@ -45,6 +73,18 @@ export async function draftBrandVoice(
   feedback?: string,
 ): Promise<BrandDraft> {
   const sample = products.slice(0, 20);
+  // Fotos lifestyle da própria loja (já classificadas, ver
+  // imageCandidates.server.ts) — a melhor evidência de que pessoas e
+  // cenários a marca já usa, pra sugestão do perfil de foto.
+  const lifestyleImageUrls = (
+    await prisma.productImage.findMany({
+      where: { shotType: "lifestyle", product: { shopId } },
+      orderBy: { createdAt: "desc" },
+      take: 4,
+      select: { url: true },
+    })
+  ).map((image) => image.url);
+  const lifestyleImageCount = lifestyleImageUrls.length;
   const priceRange =
     sample.length > 0
       ? `€${Math.min(...sample.map((p) => p.price)).toFixed(2)} - €${Math.max(...sample.map((p) => p.price)).toFixed(2)}`
@@ -118,6 +158,12 @@ Ground the brand description in what the PRIMARY sources actually say. If those 
 
 Even when the sources mention craftsmanship, heritage, or sustainability, don't let that become the LEAD of the brand description — those are supporting proof of quality, never the main hook. Lead with the brand's most concrete, differentiating claim instead (a specific design point of view, a real price-to-quality argument, something distinctive about the product itself). If craftsmanship/sustainability appear in the sources, mention them as secondary support, not the opening idea (Patricia, 10/09/2026 — decided explicitly after seeing this exact pattern happen once already).
 
+Also suggest a photoProfile for the brand's AI product photos: who appears (subject — "auto" when the catalog mixes products for different people), the occasions and outfit style that fit the brand's positioning and price tier, and the look of the people (age, body type, height, hair, mood). Pick 1 to 3 values per list where the brand clearly points somewhere, and leave a list empty when nothing in the sources supports a choice (empty = the app varies freely). Leave ethnicities empty unless the brand's own sources explicitly define it — diverse by default, never inferred from the brand's country or origin story. Base it on the brand's audience and positioning, not on stereotypes.${
+    lifestyleImageCount
+      ? ` The attached images are this brand's own lifestyle product photos: match the people and settings shown there.`
+      : ""
+  }
+
 Draft the brand description, tone of voice, and things to avoid saying. Never use an em dash (—) anywhere in the output; use a comma, period, colon, or parentheses instead.${
     feedback
       ? `\n\nThe merchant reviewed a previous draft and asked for this specific change: "${feedback}". Address that directly in this new draft, while still respecting the grounding rules above.`
@@ -130,5 +176,6 @@ Draft the brand description, tone of voice, and things to avoid saying. Never us
   return generateStructuredForTask("brand_analysis", brandDraftSchema, prompt, {
     shopId,
     countsAsCredit: true,
+    ...(lifestyleImageUrls.length ? { imageUrls: lifestyleImageUrls } : {}),
   });
 }

@@ -222,6 +222,27 @@ export class OpenRouterProvider implements AIProvider {
     return { imageDataUrl: imageUrl, model: this.model };
   }
 
+  async editImage(prompt: string, imageUrls: string[]): Promise<GenerateImageResult> {
+    const json = await this.request({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
+          ],
+        },
+      ],
+      modalities: ["image", "text"],
+    });
+
+    const imageUrl = json.choices[0]?.message.images?.[0]?.image_url.url;
+    if (!imageUrl) {
+      throw new Error(`Model did not return an image. Raw response: ${JSON.stringify(json)}`);
+    }
+    return { imageDataUrl: imageUrl, model: this.model };
+  }
+
   async checkImageFidelity(
     referenceImageUrl: string,
     generatedImageDataUrl: string,
@@ -273,9 +294,17 @@ When in doubt on any axis, set it to false. Set passed=false if any axis is fals
       !result.detailsMatch && "product details are missing, altered or invented",
     ].filter((issue): issue is string => Boolean(issue));
 
+    const failedAxes = [
+      !result.colorMatches && "color",
+      !result.shapeMatches && "shape",
+      !result.materialMatches && "material",
+      !result.detailsMatch && "details",
+    ].filter((axis): axis is string => Boolean(axis));
+
     return {
       passed: result.passed && axesFailed.length === 0,
       issues: [...result.issues, ...axesFailed.filter((issue) => !result.issues.includes(issue))],
+      failedAxes,
     };
   }
 

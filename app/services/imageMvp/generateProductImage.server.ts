@@ -239,6 +239,10 @@ The product must remain the clear focus of the composition, fully visible (not c
 `;
 }
 
+function buildColorCorrectionPrompt(productTitle: string): string {
+  return `Edit the FIRST image. Change ONLY the color of the product ("${productTitle}") so it exactly matches the product in the SECOND image (the real product photo): the same hue, undertone, saturation and lightness, with the scene's light falling on it naturally. Keep everything else in the first image exactly as it is — the person, pose, outfit, background, framing, composition, lighting, and the product's shape, material, finish and every detail. Do not add, remove or move anything. ${COLOR_NAME_WARNING}`;
+}
+
 // Compara o solicitado com o observado só nos eixos ESTRUTURAIS (ação,
 // ambiente) — luz fica de fora de propósito (ver repertoire.server.ts).
 // "unknown"/"not_applicable" nunca contam como descumprimento: uma
@@ -379,13 +383,36 @@ export async function generateProductImage(
     };
     const prompt = hasModel ? buildWornOrHandheldPrompt(promptParams) : buildStandaloneImagePrompt(promptParams);
 
-    const generated = await imageProvider.generateImage(prompt, params.referenceImageUrl);
-    const fidelity = await fidelityProvider.checkImageFidelity(
+    let generated = await imageProvider.generateImage(prompt, params.referenceImageUrl);
+    let fidelity = await fidelityProvider.checkImageFidelity(
       params.referenceImageUrl,
       generated.imageDataUrl,
       params.productTitle,
       fidelityConstraints,
     );
+    // Só a cor reprovada → corrige a cor na própria imagem em vez de jogar
+    // a cena fora e refazer (05/10/2026: o Gemini erra o tom do produto com
+    // frequência, às vezes num desvio que nem a lojista enxerga; refazer do
+    // zero perdia cenas boas e uma tentativa inteira). Mesmo princípio das
+    // correções manuais da Mangará: corrigir o detalhe, não refazer a
+    // imagem. A versão corrigida passa pelo check de fidelidade de novo —
+    // a regra de cor continua sem exceção.
+    if (!fidelity.passed && fidelity.failedAxes?.length === 1 && fidelity.failedAxes[0] === "color") {
+      const recolored = await imageProvider.editImage(buildColorCorrectionPrompt(params.productTitle), [
+        generated.imageDataUrl,
+        params.referenceImageUrl,
+      ]);
+      const recoloredFidelity = await fidelityProvider.checkImageFidelity(
+        params.referenceImageUrl,
+        recolored.imageDataUrl,
+        params.productTitle,
+        fidelityConstraints,
+      );
+      if (recoloredFidelity.passed) {
+        generated = recolored;
+        fidelity = recoloredFidelity;
+      }
+    }
     // Só vale checar composição se o produto em si já bateu — não faz
     // sentido avaliar estilo de uma imagem que nem é o produto certo.
     const composition = fidelity.passed

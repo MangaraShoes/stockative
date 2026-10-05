@@ -35,6 +35,10 @@ export interface GenerateImageResult {
 export interface FidelityCheckResult {
   passed: boolean;
   issues: string[];
+  // Eixos de fidelidade reprovados ("color" | "shape" | "material" |
+  // "details") — só cor reprovada = dá pra corrigir a imagem com uma edição
+  // pontual em vez de refazer (ver generateProductImage.server.ts).
+  failedAxes?: string[];
 }
 
 // Classificação do que REALMENTE apareceu na imagem gerada, pra comparar
@@ -77,6 +81,9 @@ export interface AIProvider {
     prompt: string,
     referenceImageUrl: string,
   ): Promise<GenerateImageResult>;
+  // Edição pontual de uma imagem já gerada (imagens na ordem de `imageUrls`,
+  // referidas no prompt como primeira, segunda...).
+  editImage(prompt: string, imageUrls: string[]): Promise<GenerateImageResult>;
   // Guardrail de fidelidade: compara a imagem gerada com a original.
   // `constraints` (ver fidelityConstraints.server.ts) é o que checar
   // explicitamente, além do julgamento geral — AJUDA a avaliar fidelidade,

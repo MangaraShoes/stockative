@@ -385,8 +385,16 @@ export async function generateProductImage(
     // (violava o princípio "1 crédito = 1 imagem ENTREGUE" já documentado
     // aqui). Se este acabar sendo o fallback realmente entregue (a correção
     // falhar), o crédito é ligado depois, no update logo abaixo.
+    // Nunca com direção da lojista (achado 05/10/2026): ela pediu
+    // restaurante, o sorteio tinha escolhido rua, a imagem seguiu o pedido
+    // dela — e o retry estrutural mandava refazer NA RUA, brigando com o
+    // pedido e queimando 2 tentativas. A direção dela manda no cenário.
     const isStructuralHold =
-      passed && !usedStructuralRetry && attempt < MAX_ATTEMPTS && hasStructuralMismatch(sceneDecision, composition.observed);
+      passed &&
+      !merchantDirection &&
+      !usedStructuralRetry &&
+      attempt < MAX_ATTEMPTS &&
+      hasStructuralMismatch(sceneDecision, composition.observed);
 
     const generationLog = await prisma.generationLog.create({
       data: {

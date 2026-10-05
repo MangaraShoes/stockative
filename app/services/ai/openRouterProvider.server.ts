@@ -70,13 +70,27 @@ function toEnumTuple(values: string[]): [string, ...string[]] {
   return values as [string, ...string[]];
 }
 
+// `productProminent` e `followsMerchantDirection` são vereditos próprios,
+// somados ao `passed` no código (05/10/2026, Patricia: "ficou pior ainda, o
+// produto sem destaque... todas as instruções que eu coloquei foram
+// ignoradas") — a bota saiu num plano de corpo inteiro, pequena no pé da
+// foto, e a imagem passou mesmo assim porque "produto em destaque" era só
+// um item numa lista de critérios que o avaliador pesava no geral. Mesmo
+// princípio do check de fidelidade: o avaliador não aprova no geral algo
+// que ele mesmo marcou como falho.
+const compositionVerdicts = {
+  productProminent: z.boolean(),
+  followsMerchantDirection: z.boolean(),
+};
+
 function buildCompositionCheckSchema(sceneOptions?: SceneOptions) {
   if (!sceneOptions) {
-    return z.object({ passed: z.boolean(), issues: z.array(z.string()) });
+    return z.object({ passed: z.boolean(), issues: z.array(z.string()), ...compositionVerdicts });
   }
   return z.object({
     passed: z.boolean(),
     issues: z.array(z.string()),
+    ...compositionVerdicts,
     observed: z.object({
       action: z.enum(toEnumTuple([...sceneOptions.actions, ...OBSERVED_FALLBACK])),
       environment: z.enum(toEnumTuple([...sceneOptions.environments, ...OBSERVED_FALLBACK])),
@@ -271,6 +285,7 @@ When in doubt on any axis, set it to false. Set passed=false if any axis is fals
     productDescription: string,
     sceneOptions?: SceneOptions,
     hasModel: boolean = true,
+    merchantDirection?: string,
   ): Promise<CompositionCheckResult> {
     const compositionCheckSchema = buildCompositionCheckSchema(sceneOptions);
     const systemPrompt = `You must respond with a single JSON object that conforms exactly to this JSON Schema, and nothing else (no prose, no markdown fences):\n\n${JSON.stringify(z.toJSONSchema(compositionCheckSchema))}`;
@@ -283,6 +298,16 @@ When in doubt on any axis, set it to false. Set passed=false if any axis is fals
 - light: describe the lighting in a few words (free text, no fixed list).
 Never guess or force a match — "unknown"/"not_applicable" are correct answers when the image genuinely doesn't show enough to tell.`
       : "";
+
+    const verdictInstructions = `
+
+Also give these two verdicts on their own — each one failing fails the whole image:
+- productProminent: is the product big and eye-catching enough to sell it? Picture this image at phone size in an Instagram feed: would a shopper see the product's shape, details and color clearly at first glance, as one of the first things the eye lands on? If they would have to look for it, or it reads as a small accessory to the outfit, false${hasModel ? " — for footwear, the framing alone doesn't decide it (a low camera can make shoes large even in a head-to-toe shot), only how large and clear the shoes actually read" : ""}. When in doubt, false.
+- followsMerchantDirection: ${
+      merchantDirection
+        ? `the merchant gave this direction for the image: """${merchantDirection}""". Does the image clearly follow every part of it that concerns the scene, outfit, colors, setting or framing? (Ignore any part asking to change the product itself — the product must never change.) If any of it was ignored, false, and name what was ignored as an issue.`
+        : "no direction was given, set true."
+    }`;
 
     // `hasModel=false` é still-life puro (ver productClassification.server.ts,
     // paradigm "standalone") — os vetos e critérios de pose/mãos/corpo do
@@ -310,7 +335,7 @@ If it clears all vetoes, then also assess:
 8. Hand/object realism: if the model is holding or touching an object (a cup, a door, a railing, furniture), does the hand-object interaction look anatomically real — a natural grip, a plausible number of fingers, the object solidly held rather than floating or warped? If it looks off, issue "unnatural hand/object interaction".
 9. Everyday authenticity: does the moment read as a real, candid, everyday situation the customer could actually picture herself in — not an obviously posed photoshoot stance? A genuine little action (sipping a drink, resting a hand naturally) reads better than a static, camera-aware pose.
 
-Set passed=false if the image reads as generic, flat, "stock photo" boring, or fails any of the above — even when nothing is technically wrong with the product itself. List the specific issues (e.g. "flat lighting", "outfit reads as generic basics", "background doesn't contrast with product").${observedInstructions}`
+Set passed=false if the image reads as generic, flat, "stock photo" boring, or fails any of the above — even when nothing is technically wrong with the product itself. List the specific issues (e.g. "flat lighting", "outfit reads as generic basics", "background doesn't contrast with product").${observedInstructions}${verdictInstructions}`
       : `Assess this AI-generated still-life product photo of "${productDescription}" against a real, professional e-commerce/editorial product-photography standard.
 
 HARD VETOES — check these first. If any applies, you MUST set passed=false, even if the lighting and styling are otherwise excellent.
@@ -327,7 +352,7 @@ If it clears all vetoes, then also assess:
 5. Scene plausibility: does the surface and any props make physical sense together (nothing floating, nothing physically implausible)?
 6. Purchase desire: stepping back from the technical checklist, does this photo genuinely make you want to own the product — does it feel considered and desirable, or cold, sterile, or forgettable even if nothing above is technically wrong? If it doesn't create desire, issue "doesn't create desire for the product".
 
-Set passed=false if the image reads as generic, flat, "stock photo" boring, or fails any of the above — even when nothing is technically wrong with the product itself. List the specific issues.${observedInstructions}`;
+Set passed=false if the image reads as generic, flat, "stock photo" boring, or fails any of the above — even when nothing is technically wrong with the product itself. List the specific issues.${observedInstructions}${verdictInstructions}`;
 
     const json = await this.chat([
       { role: "system", content: systemPrompt },
@@ -340,10 +365,20 @@ Set passed=false if the image reads as generic, flat, "stock photo" boring, or f
       },
     ]);
 
-    return parseJsonResponse(
+    const result = parseJsonResponse(
       json.choices[0]?.message.content ?? "{}",
       compositionCheckSchema,
     );
+    const verdictIssues = [
+      !result.productProminent && "product is not prominent enough in the frame",
+      !result.followsMerchantDirection && "the merchant's direction was not followed",
+    ].filter((issue): issue is string => Boolean(issue));
+
+    return {
+      ...result,
+      passed: result.passed && verdictIssues.length === 0,
+      issues: [...result.issues, ...verdictIssues],
+    };
   }
 }
 

@@ -99,5 +99,9 @@ export interface AIProvider {
     productDescription: string,
     sceneOptions?: SceneOptions,
     hasModel?: boolean,
+    // Pedido da lojista nesta regeneração + direções anteriores dela pro
+    // mesmo produto (ver generateProductImage.server.ts) — quando vem, o
+    // avaliador precisa confirmar que a imagem seguiu, ou ela é reprovada.
+    merchantDirection?: string,
   ): Promise<CompositionCheckResult>;
 }

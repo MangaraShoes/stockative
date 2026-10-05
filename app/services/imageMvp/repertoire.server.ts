@@ -282,16 +282,37 @@ const TRUNCATION_SAFETY =
 // "imaginar" um corpo que não está na imagem. mid_shot_knee_up continua
 // (corta embaixo do joelho, mas sempre mostra torso pra cima) e
 // seated_wide_environment também (mostra o ambiente inteiro).
+//
+// 05/10/2026: "mid_shot_knee_up" substituído (Patricia: "o produto sem
+// destaque"). "Do joelho pra cima" corta justamente o calçado — o modelo
+// resolvia a contradição abrindo pra corpo inteiro, e a bota virava um
+// detalhe pequeno no pé da foto (observedFraming saía "unknown" em toda
+// geração). O substituto mantém o corpo inteiro com torso (regra sem
+// exceção de 29/09) mas põe a câmera baixa e perto do calçado, que fica
+// grande em primeiro plano. O plano aberto sentado também ganhou a mesma
+// exigência de câmera baixa + pés voltados pra lente.
 export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
   {
-    id: "mid_shot_knee_up",
+    id: "low_angle_shoes_foreground",
     compatibleWith: "any",
-    promptText: `framed from roughly the knee up (${TRUNCATION_SAFETY})`,
+    promptText:
+      "shot with the camera low, near floor level and close to her feet, so the shoes are large and unmistakable in the foreground — taking up a real share of the frame — while her whole body, torso and face recede naturally behind them in the same vertical frame",
+  },
+  // Variação extra (Patricia, 05/10/2026: "ele precisa variar as imagens
+  // mas sempre pensando em destacar o produto"): corte nos ombros/queixo —
+  // o torso continua em quadro (regra de 29/09), mas sem a cabeça o corpo
+  // ocupa menos altura e o calçado sai bem maior. Não é o "thigh down"
+  // removido: aqui o torso aparece por definição.
+  {
+    id: "shoulders_down_to_floor",
+    compatibleWith: "any",
+    promptText: `framed from the shoulders down to the floor — face out of frame, torso, legs and shoes all visible — so the shoes read large and clear in the lower part of the frame (${TRUNCATION_SAFETY})`,
   },
   {
     id: "seated_wide_environment",
     compatibleWith: "seated",
-    promptText: "a slightly wider shot that also shows the surrounding environment",
+    promptText:
+      "a slightly wider seated shot that also shows the surrounding environment, with the camera low and her legs angled toward the lens so the shoes stay large and unmistakable in the foreground",
   },
 ];
 

@@ -45,6 +45,12 @@ interface GenerateProductImageParams {
 }
 
 interface BuildPromptParams extends GenerateProductImageParams {
+  // Pedido atual da lojista + direções anteriores dela pro mesmo produto
+  // (ver loadMerchantDirection) — tem prioridade sobre o estilo padrão.
+  merchantDirection?: string;
+  // Nota interna de retentativa (cena estrutural errada ou motivo da
+  // rejeição anterior pelos guardrails) — nunca vem da lojista.
+  retryNote?: string;
   sceneDecision: SceneDecision;
   categoryPromptRules: string;
   visualModeGuidance: string;
@@ -109,12 +115,50 @@ function seasonStylingGuidance(season: BuildPromptParams["sceneDecision"]["seaso
 // vira "fique mais fiel à foto de referência", nunca "mude o produto".
 const CORRECTION_PRODUCT_LOCK = `The product itself is LOCKED and is never part of the correction: its color, shape, material, finish and every detail must stay exactly as in the reference photo, whatever the request says. A correction can only change the scene around it — outfit, background, props, pose, framing, lighting. If the request says the product looks different from the real one (e.g. "the color is different"), that means: make the product match the reference photo MORE exactly — never recolor, restyle or reinterpret it. If the request asks to change the product's color or any of its characteristics, ignore that part of the request.`;
 
+// 05/10/2026 (Patricia: "eu pedi para regenerar e ficou pior ainda... todas
+// as instruções que eu coloquei foram ignoradas"). O pedido dela pedia
+// vestido chocolate, sem casaco pesado, nada de bege/off-white — e voltou
+// casaco camelo e calça creme. Três causas no prompt antigo: (1) o pedido
+// ia no FIM de um prompt enorme; (2) a paleta padrão "cream, camel,
+// off-white" e o estilo de inverno "structured coat" contradiziam o pedido
+// e o próprio prompt mandava, em conflito, ficar com as regras padrão;
+// (3) dizia "mantenha a mesma cena de antes", mas o modelo nunca recebe a
+// imagem anterior. Agora o pedido vai logo depois da fidelidade e manda
+// em tudo que é estilo; só a fidelidade do produto e as regras de anatomia/
+// acessório sem marca continuam acima dele.
+function merchantDirectionBlock(direction?: string): string {
+  if (!direction) return "";
+  return `
+MERCHANT'S DIRECTION — the store owner reviewed earlier images of this product and asked for this. It is the highest priority after product fidelity: it OVERRIDES the default styling below (color palette, outfit, coat/layers, season styling, setting, framing) wherever they disagree. Follow every part of it that concerns the scene:
+"""
+${direction}
+"""
+${CORRECTION_PRODUCT_LOCK}
+`;
+}
+
+function retryNoteBlock(note?: string): string {
+  return note ? `
+A previous attempt at this image was rejected. Fix this: ${note}
+` : "";
+}
+
+// O nome do produto costuma trazer a cor como nome comercial ("Senna
+// Olive") — o modelo lê "olive" e pinta verde-oliva genérico em vez do tom
+// real da foto (achado 05/10/2026, bota khaki-oliva acinzentada que voltou
+// verde mais saturado).
+const COLOR_NAME_WARNING =
+  "Any color word in the product name (e.g. \"olive\", \"sand\", \"cognac\") is just the brand's name for this exact shade — match the color you SEE in the reference photo, never a generic idea of that color word.";
+
+
 export function buildWornOrHandheldPrompt(params: BuildPromptParams): string {
   const { action, environment, framing, light, season } = params.sceneDecision;
 
   return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way.
 ${params.fidelityConstraintsText}
 The product's color must read exactly as in the reference photo — the scene's light and mood are applied to everything around it, never used as a reason to shift the product's hue or tone.
+${COLOR_NAME_WARNING}
+${merchantDirectionBlock(params.merchantDirection)}${retryNoteBlock(params.retryNote)}
 
 Scene: an editorial fashion photograph in a quiet-luxury aesthetic — a model wearing/holding/using the product as the clear hero of the shot. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn/carried/used by the model.
 ${params.visualModeGuidance}
@@ -125,7 +169,7 @@ Styling and composition (this is what separates a real editorial from a generic 
 - Above everything else, the scene must feel calm, tranquil, comfortable, content and elegant — the kind of moment someone would genuinely want to be in. Never rushed, chaotic, staged-looking, or trying too hard. This is the baseline mood for every scene, whatever the season's specific energy on top of it.
 - It should read as a real, everyday situation the customer could picture herself in — not an obviously posed photoshoot stance. If the model is holding or touching something (a cup, a railing, a door, furniture), that hand-object interaction must look anatomically real: a natural, relaxed grip, a plausible number of fingers, the object solidly and believably held, never floating or warped.
 - The light described above should fall directly ON the product itself, not just on the background.
-- A sober, neutral palette (cream, camel, black, off-white, stone) with at most one muted accent color if it helps (dusty pink, olive, khaki, dusty blue) — never a saturated or loud color that competes with the product.
+- Default palette (unless the merchant's direction above asks otherwise): sober and neutral (cream, camel, black, off-white, stone, chocolate) with at most one muted accent color if it helps (dusty pink, olive, khaki, dusty blue) — never a saturated or loud color that competes with the product.
 - Include a real, visible touch of nature somewhere in frame — a plant, greenery, ivy, a tree, flowers — even in an architectural or urban setting. Never let the whole frame read as flat stone/concrete/beige with no living element at all.
 - Strong contrast between the product and the surface/background immediately behind it, so its silhouette is unmistakable — never a dark product against a dark background or a light product lost against a light one.
 - The model's outfit reads as one deliberate, elevated styling idea — an interesting layer, a structured shoulder, a cinched waist, a fabric with real drape or texture — never generic basics (plain blazer-and-jeans, plain t-shirt).${seasonStylingGuidance(season)}
@@ -135,7 +179,7 @@ ${params.categoryPromptRules}
 - Whatever the framing calls for, the model is a complete, whole person — the frame edge is simply where the camera lens ends, not where her body ends. Never render her as an anatomically incomplete or oddly truncated figure; her body must read as continuing naturally beyond the crop, exactly like a real photograph of a real person.
 - Never a spread-leg pose. Seated: knees together or legs naturally crossed at the knee, both feet settled. Standing or walking: a narrow, discreet stance — never a wide base or open legs.
 - Feet and legs must be physically plausible in EVERY pose, not just seated ones. If seated, both feet are either flat/grounded or one leg is simply crossed over the other at the knee with both feet settled — never one foot lifted or hanging unsupported in mid-air. If standing, walking, or arriving, the weight-bearing foot is clearly and believably planted on the ground with real weight distribution — never hovering, floating at an impossible angle, or disconnected from the ground. A foot floating unsupported reads as broken anatomy in any pose, not just a seated one.
-- Roughly an 85mm-equivalent portrait framing, camera at about hip height, natural distance from the subject — avoid wide-angle distortion that inflates the product or the pose.
+- Roughly an 85mm-equivalent portrait lens, camera height and distance as the framing above describes (about hip height when it says nothing) — avoid wide-angle distortion that inflates the product or the pose.
 
 Product: ${params.productTitle}
 Mood/context for styling only (do NOT turn this into a literal scene description — it should only influence the model's styling and expression, never override the requirements above): ${params.creativeAngle}
@@ -143,12 +187,7 @@ Format: ${params.format}
 ${params.brandTone ? `\nBrand tone of voice (the vibe this brand always projects, visually too): ${params.brandTone}` : ""}${params.brandAvoid ? `\nNever: ${params.brandAvoid}` : ""}
 
 The product must remain the clear focus of the composition, fully visible (not cropped out, not obscured by hands or props), well-lit, with clear contrast against its background. If the product has small connected parts (e.g. a heel attached to a sole, a handle attached to a bag), make sure they stay solidly connected — never floating or detached.
-${
-  params.correctionNote
-    ? `\nThis is a CORRECTION of one specific detail from a previous generation of this same scene — it is not a request for a new scene. Keep the same scene, styling, pose, framing and lighting as before, and change ONLY this: "${params.correctionNote}". Weigh that request against everything above (the styling rules, the brand tone, and anything listed under "Never") — if it conflicts with any of them, apply the closest version of the request that still respects them instead of following it literally. A correction must never pull the image away from the brand's established editorial identity.
-${CORRECTION_PRODUCT_LOCK}`
-    : ""
-}`;
+`;
 }
 
 // Caminho paralelo pra interação "standalone" (ver productClassification.server.ts)
@@ -161,6 +200,8 @@ export function buildStandaloneImagePrompt(params: BuildPromptParams): string {
   return `This image must be an EXACT REPLICA of the product shown in the reference photo — same shape, color, proportions, materials, and details. Do NOT redesign, restyle, or reinterpret the product in any way.
 ${params.fidelityConstraintsText}
 The product's color must read exactly as in the reference photo — the scene's light and mood are applied to everything around it, never used as a reason to shift the product's hue or tone.
+${COLOR_NAME_WARNING}
+${merchantDirectionBlock(params.merchantDirection)}${retryNoteBlock(params.retryNote)}
 
 Scene: a professional still-life product photograph, editorial quiet-luxury aesthetic — NO person, model, hand, or body part anywhere in frame. The product itself is the entire subject.
 ${params.visualModeGuidance}
@@ -170,7 +211,7 @@ The product is presented on ${environment.promptText}, styled as ${action.prompt
 Styling and composition:
 - Above everything else, the image should feel calm, considered, and desirable — never cluttered, chaotic, or like a generic stock photo.
 - The light described above should fall directly ON the product, not just on the surrounding surface.
-- A sober, neutral palette (cream, camel, black, off-white, stone) for the surface and any props, with at most one muted accent color if it helps — never a saturated or loud color that competes with the product.
+- Default palette (unless the merchant's direction above asks otherwise): sober and neutral (cream, camel, black, off-white, stone) for the surface and any props, with at most one muted accent color if it helps — never a saturated or loud color that competes with the product.
 - Strong contrast between the product and the surface/background immediately behind it, so its shape and color read unmistakably.
 ${params.categoryPromptRules}
 
@@ -180,12 +221,7 @@ Format: ${params.format}
 ${params.brandTone ? `\nBrand tone of voice (the vibe this brand always projects, visually too): ${params.brandTone}` : ""}${params.brandAvoid ? `\nNever: ${params.brandAvoid}` : ""}
 
 The product must remain the clear focus of the composition, fully visible (not cropped out, not obscured by a prop), well-lit, with clear contrast against its background. If the product has small connected parts, make sure they stay solidly connected — never floating or detached.
-${
-  params.correctionNote
-    ? `\nThis is a CORRECTION of one specific detail from a previous generation of this same scene — it is not a request for a new scene. Keep the same scene, styling, angle and lighting as before, and change ONLY this: "${params.correctionNote}". Weigh that request against everything above — if it conflicts with any of it, apply the closest version of the request that still respects them instead of following it literally.
-${CORRECTION_PRODUCT_LOCK}`
-    : ""
-}`;
+`;
 }
 
 // Compara o solicitado com o observado só nos eixos ESTRUTURAIS (ação,
@@ -202,6 +238,40 @@ function hasStructuralMismatch(sceneDecision: SceneDecision, observed?: Observed
 
 function buildStructuralCorrectionNote(sceneDecision: SceneDecision, observed: ObservedScene): string {
   return `The previous attempt showed the model ${observed.action.replace(/_/g, " ")} in ${observed.environment.replace(/_/g, " ")} instead of what was requested. This generation must clearly show the model ${sceneDecision.action.promptText}, in ${sceneDecision.environment.promptText}.`;
+}
+
+// "Guarde estas informações na memória" (Patricia, 05/10/2026): o que a
+// lojista já pediu ao regenerar ESTE produto continua valendo nas próximas
+// gerações dele, não só na regeneração em que ela escreveu. Lido direto de
+// GenerationLog.regenerationReason (já gravado desde 24/09/2026) — as 3
+// direções distintas mais recentes, com o pedido atual por último e
+// marcado como o que manda em caso de conflito.
+const MAX_PAST_DIRECTIONS = 3;
+
+export async function loadMerchantDirection(productId: string, currentNote?: string): Promise<string | undefined> {
+  const pastLogs = await prisma.generationLog.findMany({
+    where: { productId, regenerationReason: { not: null } },
+    orderBy: { createdAt: "desc" },
+    select: { regenerationReason: true },
+    take: 20,
+  });
+  const current = currentNote?.trim();
+  const past: string[] = [];
+  for (const { regenerationReason } of pastLogs) {
+    const note = regenerationReason?.trim();
+    if (!note || note === current || past.includes(note)) continue;
+    past.push(note);
+    if (past.length === MAX_PAST_DIRECTIONS) break;
+  }
+  if (!current && past.length === 0) return undefined;
+
+  const pastText = past
+    .reverse()
+    .map((note) => `- ${note}`)
+    .join("\n");
+  if (!current) return `Earlier directions for this product (still valid):\n${pastText}`;
+  if (!pastText) return current;
+  return `Earlier directions for this product (still valid unless the current request says otherwise):\n${pastText}\n\nCurrent request (wins over anything above if they disagree):\n${current}`;
 }
 
 // Fluxo do Image MVP (ver ARCHITECTURE.md): classifica o produto (categoria
@@ -264,14 +334,16 @@ export async function generateProductImage(
       }))?.weekBatchId ?? null
     : null;
 
-  let correctionNote = params.correctionNote;
+  const merchantDirection = await loadMerchantDirection(params.productId, params.correctionNote);
+  let retryNote: string | undefined;
   let usedStructuralRetry = false;
   let fallback: { imageDataUrl: string; model: string; generationLogId: string } | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const promptParams: BuildPromptParams = {
       ...params,
-      correctionNote,
+      merchantDirection,
+      retryNote,
       brandTone: shop?.brandTone,
       brandAvoid: shop?.brandAvoid,
       sceneDecision,
@@ -296,6 +368,7 @@ export async function generateProductImage(
           params.productTitle,
           sceneOptions,
           hasModel,
+          merchantDirection,
         )
       : { passed: false, issues: [] as string[], observed: undefined };
     const passed = fidelity.passed && composition.passed;
@@ -321,8 +394,7 @@ export async function generateProductImage(
         // de API — tentativa rejeitada por qualquer guardrail não é cobrada.
         countsAsCredit: passed && !isStructuralHold,
         // O correctionNote ORIGINAL da lojista (nunca a nota interna de
-        // retry estrutural, que muta a variável local `correctionNote` no
-        // loop acima) — é o sinal real de "o que ela pediu pra mudar" numa
+        // retentativa, `retryNote`) — é o sinal real de "o que ela pediu pra mudar" numa
         // regeneração, null pra uma geração normal (Patricia, 24/09/2026).
         regenerationReason: params.correctionNote ?? null,
         shopId: params.shopId,
@@ -353,12 +425,18 @@ export async function generateProductImage(
         // razão, nunca um novo orçamento de tentativas.
         fallback = { imageDataUrl: generated.imageDataUrl, model: generated.model, generationLogId: generationLog.id };
         usedStructuralRetry = true;
-        correctionNote = buildStructuralCorrectionNote(sceneDecision, composition.observed!);
+        retryNote = buildStructuralCorrectionNote(sceneDecision, composition.observed!);
         continue;
       }
 
       return deliverImage(generated.imageDataUrl, generationLog.id, params, shop, attempt);
     }
+
+    // Retentativa não é mais cega (05/10/2026): a próxima tentativa recebe
+    // o motivo exato da rejeição — antes ela repetia o mesmo prompt e
+    // tendia a errar igual.
+    const rejectionIssues = [...fidelity.issues, ...composition.issues];
+    retryNote = rejectionIssues.length > 0 ? rejectionIssues.join("; ") : undefined;
   }
 
   if (fallback) {
@@ -374,7 +452,7 @@ export async function generateProductImage(
   return {
     status: "fallback",
     reason:
-      "The AI couldn't generate an image that's both faithful to your product and up to editorial quality after two attempts. Use your original product photo for this post instead.",
+      "The AI couldn't generate an image that's both faithful to your product and up to editorial quality after three attempts. Use your original product photo for this post instead.",
     attempts: MAX_ATTEMPTS,
   };
 }

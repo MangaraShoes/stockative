@@ -549,9 +549,9 @@ export async function planOneSlot(
     format: brief.format,
   });
   const needsManualImage = result.status !== "success";
-  // Sem imagem = a lojista vai cair no painel de escolha; a foto da Shopify
-  // só aparece lá se for lifestyle, então classifica agora (uma vez).
-  if (needsManualImage) await classifyShopifyShotTypes(product.id).catch(() => undefined);
+  // A foto lifestyle da Shopify é sempre opção no painel de escolha (ver
+  // app.plan-week.tsx) — classifica agora, uma vez por foto, nunca no loader.
+  await classifyShopifyShotTypes(product.id).catch(() => undefined);
 
   // Monta o Reel automaticamente quando o pilar pede esse formato (Patricia,
   // 20/09/2026: "integrar Reel no Weekly plan automático") — mesmo pipeline
@@ -588,7 +588,7 @@ export async function planOneSlot(
     imageCandidates: needsManualImage ? await loadPendingImageCandidates(contentItem.id) : [],
     imageRegenerationsLeft: MAX_IMAGE_REGENERATIONS_PER_POST,
     previousImage: null,
-    shopifyLifestyleImage: needsManualImage ? await loadLifestyleShopifyImage(product.id) : null,
+    shopifyLifestyleImage: await loadLifestyleShopifyImage(product.id),
     scheduledAt: scheduledAt.toISOString(),
     publishedAt: null, // recém-criado — nunca publicado ainda neste ponto
     status: contentItem.status,

@@ -1533,7 +1533,12 @@ export default function PlanWeek() {
                     {editable &&
                       (slot.imageRegenerationsLeft === 0 ||
                         slot.imageCandidates.length > 0 ||
-                        slot.needsManualImage) &&
+                        slot.needsManualImage ||
+                        // Foto lifestyle da Shopify sempre escolhível, mesmo
+                        // antes de regenerar (Patricia, 05/10/2026: "o app
+                        // deveria mostrar esta imagem como opção").
+                        (slot.shopifyLifestyleImage !== null &&
+                          slot.shopifyLifestyleImage.url !== slot.images[0]?.url)) &&
                       (() => {
                         const isChoosing = choosingImageContentItemId === slot.contentItemId;
                         const currentHeroUrl = slot.images[0]?.url ?? null;

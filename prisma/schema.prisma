@@ -335,6 +335,11 @@ model ProductImage {
   shopifyImageId String
   url            String
   position       Int // ordem na galeria da Shopify (1 = primeira)
+  // "still" (produto sozinho em fundo neutro) | "lifestyle" (com modelo ou
+  // ambiente) — classificado por IA uma vez, sob demanda (ver
+  // imageCandidates.server.ts). Só "lifestyle" pode abrir um post: nunca
+  // postar só still (regra de 09/09/2026). null = ainda não classificada.
+  shotType       String?
   createdAt      DateTime @default(now())
 
   contentItemImages ContentItemImage[]
@@ -384,6 +389,14 @@ model ContentItem {
   // uma chamada de IA paga (Patricia, 30/09/2026: "não podemos permitir que
   // a pessoa clica 50 vezes").
   captionRegenerationCount Int      @default(0)
+  // Uma regeneração de imagem por post (Patricia, 05/10/2026: "ele tem
+  // apenas uma tentativa de regenerar") — depois disso a lojista escolhe
+  // entre as imagens de IA, a foto da Shopify (não-still) ou um upload. Ver
+  // MAX_IMAGE_REGENERATIONS_PER_POST e imageCandidates.server.ts.
+  imageRegenerationCount Int      @default(0)
+  // A editorial que estava no post antes da última troca — continua
+  // disponível como opção ("escolher entre as 2").
+  previousHeroAssetId    String?
   creativeAssetId     String?
   creativeAsset       CreativeAsset? @relation(fields: [creativeAssetId], references: [id])
   status              String        @default("draft") // draft | approved | publishing | partial | published | failed | cancelled

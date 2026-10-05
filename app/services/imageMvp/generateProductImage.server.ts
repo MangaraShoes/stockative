@@ -6,6 +6,7 @@ import { isInconclusiveObservation, type SceneDecision, type CategoryRepertoire 
 import { getOrClassifyProductVisuals } from "./productClassification.server";
 import { getRepertoireForInteraction } from "./categoryDispatch.server";
 import { selectVisualStrategy, VISUAL_MODE_GUIDANCE } from "./visualMode.server";
+import { MAX_IMAGE_CANDIDATES } from "./imageCandidates.server";
 import { getFidelityConstraints, describeFidelityConstraints, type FidelityConstraints } from "./fidelityConstraints.server";
 import type { CommercialObjective, ImageStylePreference } from "../decisionEngine/constants";
 
@@ -59,7 +60,7 @@ interface BuildPromptParams extends GenerateProductImageParams {
 
 export type GenerateProductImageResult =
   | { status: "success"; creativeAssetId: string; imageUrl: string; attempts: number }
-  | { status: "fallback"; reason: string; attempts: number };
+  | { status: "fallback"; reason: string; attempts: number; candidateCount: number };
 
 // 1ª tentativa + 2 retries internos (não cobrados se falharem). Subido de 2
 // pra 3 em 11/09/2026 com evidência real: mesmo com o prompt de composição
@@ -338,6 +339,10 @@ export async function generateProductImage(
   let retryNote: string | undefined;
   let usedStructuralRetry = false;
   let fallback: { imageDataUrl: string; model: string; generationLogId: string } | null = null;
+  // Tentativas com o produto fiel mas reprovadas por composição/estilo —
+  // viram opção pra lojista escolher se nenhuma passar (ver
+  // imageCandidates.server.ts). Reprovada por fidelidade nunca entra aqui.
+  const candidates: { imageDataUrl: string; generationLogId: string }[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const promptParams: BuildPromptParams = {
@@ -432,6 +437,8 @@ export async function generateProductImage(
       return deliverImage(generated.imageDataUrl, generationLog.id, params, shop, attempt);
     }
 
+    if (fidelity.passed) candidates.push({ imageDataUrl: generated.imageDataUrl, generationLogId: generationLog.id });
+
     // Retentativa não é mais cega (05/10/2026): a próxima tentativa recebe
     // o motivo exato da rejeição — antes ela repetia o mesmo prompt e
     // tendia a errar igual.
@@ -449,11 +456,31 @@ export async function generateProductImage(
     return deliverImage(fallback.imageDataUrl, fallback.generationLogId, params, shop, MAX_ATTEMPTS);
   }
 
+  const keptCandidates = candidates.slice(-MAX_IMAGE_CANDIDATES);
+  for (const candidate of keptCandidates) {
+    const imageUrl =
+      shop?.applyLogoOverlay && shop.logoUrl
+        ? await applyLogoOverlay(candidate.imageDataUrl, shop.logoUrl)
+        : candidate.imageDataUrl;
+    await prisma.creativeAsset.create({
+      data: {
+        shopId: params.shopId,
+        productId: params.productId,
+        imageUrl,
+        source: "ai_candidate",
+        generationLogId: candidate.generationLogId,
+      },
+    });
+  }
+
   return {
     status: "fallback",
     reason:
-      "The AI couldn't generate an image that's both faithful to your product and up to editorial quality after three attempts. Use your original product photo for this post instead.",
+      keptCandidates.length > 0
+        ? "None of the AI images passed every quality check. Pick one of the options below, use your Shopify photos, upload your own image, or cancel the post."
+        : "The AI couldn't generate an image faithful to your product after three attempts. Use your Shopify photos, upload your own image, or cancel the post.",
     attempts: MAX_ATTEMPTS,
+    candidateCount: keptCandidates.length,
   };
 }
 

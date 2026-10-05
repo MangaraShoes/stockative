@@ -1,4 +1,13 @@
 import { notifyWeeklyPlanReady } from "../email/notify.server";
+import {
+  classifyShopifyShotTypes,
+  discardPendingImageCandidates,
+  loadLifestyleShopifyImage,
+  loadPendingImageCandidates,
+  loadPreviousHeroImage,
+  type ImageCandidate,
+} from "../imageMvp/imageCandidates.server";
+import { MAX_IMAGE_REGENERATIONS_PER_POST } from "./constants";
 import type { ContentPillar, Prisma, Promotion } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
@@ -48,6 +57,12 @@ export interface WeeklyPlanSlot {
   pillarName: string | null; // qual pilar (Fase 1) orientou este post, se algum
   promotionName: string | null; // qual promoção real gerou este post, se alguma (ver Promotion)
   needsManualImage: boolean; // ainda sem nenhuma imagem — não pode ser publicado assim (ver publishDueContentItems)
+  // Imagens de IA com o produto fiel mas reprovadas por estilo/destaque,
+  // esperando a lojista escolher (ver imageCandidates.server.ts).
+  imageCandidates: ImageCandidate[];
+  imageRegenerationsLeft: number; // de MAX_IMAGE_REGENERATIONS_PER_POST
+  previousImage: ImageCandidate | null; // editorial anterior, ainda escolhível
+  shopifyLifestyleImage: ImageCandidate | null; // foto não-still da Shopify, se houver
   scheduledAt: string; // ISO — quando o post sai no ar se ninguém mexer, ver DEFAULT_WEEKLY_SCHEDULE
   publishedAt: string | null; // ISO — quando de fato saiu no ar, se já publicou
   status: string; // draft | approved | publishing | partial | published | failed | cancelled
@@ -534,6 +549,9 @@ export async function planOneSlot(
     format: brief.format,
   });
   const needsManualImage = result.status !== "success";
+  // Sem imagem = a lojista vai cair no painel de escolha; a foto da Shopify
+  // só aparece lá se for lifestyle, então classifica agora (uma vez).
+  if (needsManualImage) await classifyShopifyShotTypes(product.id).catch(() => undefined);
 
   // Monta o Reel automaticamente quando o pilar pede esse formato (Patricia,
   // 20/09/2026: "integrar Reel no Weekly plan automático") — mesmo pipeline
@@ -567,6 +585,10 @@ export async function planOneSlot(
     pillarName: pillar?.name ?? null,
     promotionName: promotion?.name ?? null,
     needsManualImage,
+    imageCandidates: needsManualImage ? await loadPendingImageCandidates(contentItem.id) : [],
+    imageRegenerationsLeft: MAX_IMAGE_REGENERATIONS_PER_POST,
+    previousImage: null,
+    shopifyLifestyleImage: needsManualImage ? await loadLifestyleShopifyImage(product.id) : null,
     scheduledAt: scheduledAt.toISOString(),
     publishedAt: null, // recém-criado — nunca publicado ainda neste ponto
     status: contentItem.status,
@@ -846,6 +868,22 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     orderBy: { createdAt: "asc" },
   });
 
+  const choiceDataByItem = new Map(
+    await Promise.all(
+      items.map(
+        async (item) =>
+          [
+            item.id,
+            {
+              candidates: await loadPendingImageCandidates(item.id),
+              previousImage: await loadPreviousHeroImage(item.previousHeroAssetId),
+              shopifyLifestyleImage: item.productId ? await loadLifestyleShopifyImage(item.productId) : null,
+            },
+          ] as const,
+      ),
+    ),
+  );
+
   return items.map((item) => ({
     contentItemId: item.id,
     productId: item.productId ?? "",
@@ -854,6 +892,10 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     pillarName: item.contentPillar?.name ?? null,
     promotionName: item.promotion?.name ?? null,
     needsManualImage: item.images.length === 0,
+    imageCandidates: choiceDataByItem.get(item.id)?.candidates ?? [],
+    imageRegenerationsLeft: Math.max(0, MAX_IMAGE_REGENERATIONS_PER_POST - item.imageRegenerationCount),
+    previousImage: choiceDataByItem.get(item.id)?.previousImage ?? null,
+    shopifyLifestyleImage: choiceDataByItem.get(item.id)?.shopifyLifestyleImage ?? null,
     scheduledAt: (item.scheduledAt ?? item.createdAt).toISOString(),
     publishedAt: item.publishedAt ? item.publishedAt.toISOString() : null,
     status: item.status,
@@ -991,13 +1033,19 @@ export async function regenerateWeeklyPlanSlotImage(params: {
 }): Promise<RegenerateImageResult> {
   const item = await prisma.contentItem.findUnique({
     where: { id: params.contentItemId },
-    include: { images: { select: { id: true } } },
+    include: { images: { select: { id: true, position: true, creativeAssetId: true } } },
   });
   if (!item || item.shopId !== params.shopId) {
     return { status: "error", reason: "This post is no longer part of the current plan." };
   }
   if (!["draft", "approved"].includes(item.status)) {
     return { status: "error", reason: "This post has already been scheduled or published." };
+  }
+  if (item.imageRegenerationCount >= MAX_IMAGE_REGENERATIONS_PER_POST) {
+    return {
+      status: "error",
+      reason: "You've already used this post's image regeneration. Choose one of the options below.",
+    };
   }
   if (!item.productId) {
     return { status: "error", reason: "Product not found." };
@@ -1030,7 +1078,19 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     }
   }
 
-  await prisma.contentItemImage.deleteMany({ where: { contentItemId: item.id } });
+  // As imagens atuais só saem se a nova der certo (achado 05/10/2026: antes
+  // eram apagadas aqui, ANTES de gerar — se as 3 tentativas falhassem, o
+  // post ficava sem imagem nenhuma). Opções pendentes de uma falha anterior
+  // são substituídas pelas desta rodada.
+  const previousImageIds = item.images.map((image) => image.id);
+  const previousHeroAssetId = item.images.find((image) => image.position === 1)?.creativeAssetId ?? null;
+  await discardPendingImageCandidates(item.id);
+  // Conta a tentativa antes de chamar a IA — sucesso ou falha, ela já foi
+  // usada (o custo de até 3 gerações acontece de qualquer jeito).
+  await prisma.contentItem.update({
+    where: { id: item.id },
+    data: { imageRegenerationCount: { increment: 1 } },
+  });
 
   const result = await buildCarousel({
     shopId: params.shopId,
@@ -1043,8 +1103,18 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     correctionNote: trimmedFeedback || undefined,
   });
 
+  // Depois da única regeneração a lojista sempre cai no painel de escolha —
+  // a foto da Shopify só aparece lá se for lifestyle.
+  await classifyShopifyShotTypes(item.productId).catch(() => undefined);
+
   if (result.status !== "success") {
     return { status: "error", reason: result.reason };
+  }
+  if (previousImageIds.length > 0) {
+    await prisma.contentItemImage.deleteMany({ where: { id: { in: previousImageIds } } });
+  }
+  if (previousHeroAssetId) {
+    await prisma.contentItem.update({ where: { id: item.id }, data: { previousHeroAssetId } });
   }
 
   const images = await loadSlotImages(item.id);

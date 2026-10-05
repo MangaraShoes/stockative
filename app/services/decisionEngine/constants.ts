@@ -154,6 +154,12 @@ export const REGENERATION_REASON_SUGGESTIONS: Record<ContentLanguageCode, string
 // tipo tentativa 1 de 3").
 export const MAX_CAPTION_REGENERATIONS_PER_POST = 3;
 
+// Uma regeneração de imagem por post (Patricia, 05/10/2026: "temos que
+// sempre avisar o cliente que ele tem apenas uma tentativa de regenerar") —
+// depois disso ela escolhe entre as imagens de IA, a foto da Shopify
+// (não-still) ou um upload, ver imageCandidates.server.ts.
+export const MAX_IMAGE_REGENERATIONS_PER_POST = 1;
+
 export const CAPTION_REGENERATION_REASON_SUGGESTIONS: Record<ContentLanguageCode, string[]> = {
   en: [
     "Too long",

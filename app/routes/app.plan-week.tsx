@@ -20,6 +20,13 @@ import {
   type WeeklyPlanSlot,
 } from "../services/decisionEngine/planWeek.server";
 import {
+  chooseImageCandidate,
+  choosePreviousHeroImage,
+  dismissImageCandidates,
+  applyShopifyPhotosToPost,
+  applyUploadedImageToPost,
+} from "../services/imageMvp/imageCandidates.server";
+import {
   COMMERCIAL_OBJECTIVES,
   OBJECTIVE_LABELS,
   REGENERATION_REASON_SUGGESTIONS,
@@ -258,6 +265,40 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }
     return { intent: "regenerate-image" as const, contentItemId, result };
+  }
+
+  // Escolha manual quando a IA não chegou numa imagem aprovada (Patricia,
+  // 05/10/2026) — ver imageCandidates.server.ts.
+  if (intent === "image-choice") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const choice = String(formData.get("choice"));
+    let result;
+    try {
+      if (choice === "candidate") {
+        result = await chooseImageCandidate({
+          shopId: shop.id,
+          contentItemId,
+          creativeAssetId: String(formData.get("creativeAssetId")),
+        });
+      } else if (choice === "previous") {
+        result = await choosePreviousHeroImage({ shopId: shop.id, contentItemId });
+      } else if (choice === "shopify") {
+        result = await applyShopifyPhotosToPost({ shopId: shop.id, contentItemId });
+      } else if (choice === "upload") {
+        result = await applyUploadedImageToPost({
+          shopId: shop.id,
+          contentItemId,
+          imageDataUrl: String(formData.get("image") ?? ""),
+        });
+      } else {
+        result = await dismissImageCandidates({ shopId: shop.id, contentItemId });
+      }
+      if (result.status === "success" && choice !== "keep") await resetApprovalAfterEdit(shop.id, contentItemId);
+    } catch (error) {
+      console.error("Failed to apply image choice:", error);
+      result = { status: "error" as const, reason: "Something went wrong saving your choice. Please try again." };
+    }
+    return { intent: "image-choice" as const, contentItemId, result };
   }
 
   if (intent === "regenerate-caption") {
@@ -582,6 +623,7 @@ export default function PlanWeek() {
   const swapFetcher = useFetcher<typeof action>();
   const manageFetcher = useFetcher<typeof action>();
   const imageFetcher = useFetcher<typeof action>();
+  const imageChoiceFetcher = useFetcher<typeof action>();
   const promotionFetcher = useFetcher<typeof action>();
   const tiktokFetcher = useFetcher<typeof action>();
   const publishFetcher = useFetcher<typeof action>();
@@ -599,6 +641,7 @@ export default function PlanWeek() {
   useClearPendingActionOnSettle(swapFetcher.state);
   useClearPendingActionOnSettle(manageFetcher.state);
   useClearPendingActionOnSettle(imageFetcher.state);
+  useClearPendingActionOnSettle(imageChoiceFetcher.state);
   useClearPendingActionOnSettle(promotionFetcher.state);
 
   // Lido uma vez, na montagem (inicializador preguiçoso, não efeito — evita
@@ -765,6 +808,25 @@ export default function PlanWeek() {
       { method: "POST" },
     );
   };
+
+  const submitImageChoice = (contentItemId: string, choice: string, extra: Record<string, string> = {}) => {
+    markPendingAction("update this post's image");
+    imageChoiceFetcher.submit({ intent: "image-choice", contentItemId, choice, ...extra }, { method: "POST" });
+  };
+
+  const uploadPostImage = (contentItemId: string, file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => submitImageChoice(contentItemId, "upload", { image: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
+  const choosingImageContentItemId = submittingContentItemId(imageChoiceFetcher);
+  const imageChoiceFailure =
+    imageChoiceFetcher.state === "idle" &&
+    imageChoiceFetcher.data?.intent === "image-choice" &&
+    imageChoiceFetcher.data.result.status === "error"
+      ? imageChoiceFetcher.data
+      : null;
 
   const cancelSlot = (contentItemId: string) => {
     markPendingAction("cancel this post");
@@ -1303,7 +1365,7 @@ export default function PlanWeek() {
                       </s-stack>
                     )}
 
-                    {editable && (() => {
+                    {editable && slot.imageRegenerationsLeft > 0 && (() => {
                       // Pra quando ela gosta do post e do produto, só não
                       // gosta da imagem (ou ainda não tem nenhuma) — mesma
                       // ação serve os dois casos, sem precisar ir até
@@ -1319,6 +1381,11 @@ export default function PlanWeek() {
                       const outOfCredits = isRegeneration && remainingImageCredits <= 0;
                       return (
                         <div>
+                          <p style={{ fontSize: 13, marginTop: 0, marginBottom: 8 }}>
+                            <strong>You can {isRegeneration ? "regenerate" : "generate"} this image only once.</strong>{" "}
+                            After that, you choose between the AI images, a photo from your Shopify
+                            store, or an image you upload.
+                          </p>
                           {isRegeneration && (
                             <div style={{ marginBottom: 8 }}>
                               <s-stack direction="inline" gap="small">
@@ -1458,10 +1525,130 @@ export default function PlanWeek() {
                           No image yet — this post won&apos;t publish
                           automatically until one exists.
                         </strong>{" "}
-                        Use &quot;Generate image now&quot; above, or swap it
-                        for a different product below.
+                        Choose an option below, or swap it for a different
+                        product.
                       </s-paragraph>
                     )}
+
+                    {editable &&
+                      (slot.imageRegenerationsLeft === 0 ||
+                        slot.imageCandidates.length > 0 ||
+                        slot.needsManualImage) &&
+                      (() => {
+                        const isChoosing = choosingImageContentItemId === slot.contentItemId;
+                        const currentHeroUrl = slot.images[0]?.url ?? null;
+                        const optionButtonStyle = {
+                          padding: "8px 16px",
+                          border: "1px solid #a8abae",
+                          borderRadius: 8,
+                          background: "#fff",
+                          color: "#202223",
+                          fontWeight: 500,
+                          cursor: isChoosing ? "default" : "pointer",
+                          opacity: isChoosing ? 0.5 : 1,
+                        } as const;
+                        // Tudo que dá pra escolher, lado a lado: a capa
+                        // atual, a editorial anterior ou as candidatas da
+                        // falha, e a foto lifestyle da Shopify (still nunca
+                        // abre post) — ver imageCandidates.server.ts.
+                        const options: { key: string; url: string; label: string; choice: string | null; extra?: Record<string, string> }[] = [
+                          ...(currentHeroUrl ? [{ key: "current", url: currentHeroUrl, label: "In use now", choice: null }] : []),
+                          ...(slot.previousImage && slot.previousImage.url !== currentHeroUrl
+                            ? [{ key: "previous", url: slot.previousImage.url, label: "Previous AI image", choice: "previous" }]
+                            : []),
+                          ...slot.imageCandidates.map((candidate, index) => ({
+                            key: candidate.id,
+                            url: candidate.url,
+                            label: `New AI image ${index + 1}`,
+                            choice: "candidate",
+                            extra: { creativeAssetId: candidate.id },
+                          })),
+                          ...(slot.shopifyLifestyleImage && slot.shopifyLifestyleImage.url !== currentHeroUrl
+                            ? [{ key: "shopify", url: slot.shopifyLifestyleImage.url, label: "Your Shopify photo", choice: "shopify" }]
+                            : []),
+                        ];
+                        return (
+                          <div style={{ marginTop: 8, padding: 12, border: "1px solid #e1e3e5", borderRadius: 8 }}>
+                            <p style={{ fontSize: 13, marginTop: 0, marginBottom: 8 }}>
+                              <strong>Choose this post&apos;s image.</strong>
+                              {slot.imageRegenerationsLeft === 0
+                                ? " You've used this post's one regeneration — pick one of these, upload your own, or cancel the post."
+                                : " Pick one of these, upload your own, or cancel the post."}
+                              {slot.imageCandidates.length > 0
+                                ? " The new AI images show your product correctly but didn't pass every style check."
+                                : ""}
+                            </p>
+                            {options.length > 0 && (
+                              <s-stack direction="inline" gap="small">
+                                {options.map((option) => (
+                                  <div key={option.key} style={{ textAlign: "center", width: 160 }}>
+                                    <img
+                                      src={option.url}
+                                      alt={`${option.label} — ${slot.productTitle}`}
+                                      style={{ width: 160, height: 200, objectFit: "cover", borderRadius: 4, display: "block" }}
+                                    />
+                                    <p style={{ fontSize: 12, margin: "4px 0" }}>{option.label}</p>
+                                    {option.choice && (
+                                      <button
+                                        type="button"
+                                        disabled={isChoosing}
+                                        onClick={() => submitImageChoice(slot.contentItemId, option.choice!, option.extra)}
+                                        style={optionButtonStyle}
+                                      >
+                                        Use this image
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </s-stack>
+                            )}
+                            <div style={{ marginTop: 8 }}>
+                              <s-stack direction="inline" gap="small">
+                                <label style={{ ...optionButtonStyle, display: "inline-block" }}>
+                                  Upload my own image
+                                  <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    disabled={isChoosing}
+                                    style={{ display: "none" }}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) uploadPostImage(slot.contentItemId, file);
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                </label>
+                                {currentHeroUrl && slot.imageCandidates.length > 0 && (
+                                  <button
+                                    type="button"
+                                    disabled={isChoosing}
+                                    onClick={() => submitImageChoice(slot.contentItemId, "keep")}
+                                    style={optionButtonStyle}
+                                  >
+                                    Keep the image in use
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={isChoosing}
+                                  onClick={() => cancelSlot(slot.contentItemId)}
+                                  style={optionButtonStyle}
+                                >
+                                  Cancel this post
+                                </button>
+                              </s-stack>
+                            </div>
+                            {isChoosing && <p style={{ fontSize: 13, marginBottom: 0 }}>Saving…</p>}
+                            {imageChoiceFailure?.contentItemId === slot.contentItemId && (
+                              <p style={{ fontSize: 13, marginBottom: 0 }}>
+                                <strong>
+                                  {imageChoiceFailure.result.status === "error" ? imageChoiceFailure.result.reason : ""}
+                                </strong>
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                     {swapFailure?.contentItemId === slot.contentItemId && (
                       <s-paragraph>

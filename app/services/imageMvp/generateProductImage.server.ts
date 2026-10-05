@@ -7,6 +7,7 @@ import { getOrClassifyProductVisuals } from "./productClassification.server";
 import { getRepertoireForInteraction } from "./categoryDispatch.server";
 import { selectVisualStrategy, VISUAL_MODE_GUIDANCE } from "./visualMode.server";
 import { MAX_IMAGE_CANDIDATES } from "./imageCandidates.server";
+import { describeModel, isDefaultModelProfile, parseModelProfile } from "./modelProfile";
 import { getFidelityConstraints, describeFidelityConstraints, type FidelityConstraints } from "./fidelityConstraints.server";
 import type { CommercialObjective, ImageStylePreference } from "../decisionEngine/constants";
 
@@ -49,6 +50,9 @@ interface BuildPromptParams extends GenerateProductImageParams {
   // Pedido atual da lojista + direções anteriores dela pro mesmo produto
   // (ver loadMerchantDirection) — tem prioridade sobre o estilo padrão.
   merchantDirection?: string;
+  // Retrato da modelo resolvido do perfil da loja (ver modelProfile.ts) —
+  // só no caminho com modelo.
+  modelDescription?: string;
   // Nota interna de retentativa (cena estrutural errada ou motivo da
   // rejeição anterior pelos guardrails) — nunca vem da lojista.
   retryNote?: string;
@@ -138,6 +142,14 @@ ${CORRECTION_PRODUCT_LOCK}
 `;
 }
 
+function modelProfileBlock(description?: string): string {
+  if (!description) return "";
+  return `
+MODEL — the store's chosen people and occasion for its photos. Follow it exactly (only the merchant's direction above can change it). Wherever this brief says "the model", "she" or "her", it means the person or people described here:
+${description}
+`;
+}
+
 function retryNoteBlock(note?: string): string {
   return note ? `
 A previous attempt at this image was rejected. Fix this: ${note}
@@ -159,7 +171,7 @@ export function buildWornOrHandheldPrompt(params: BuildPromptParams): string {
 ${params.fidelityConstraintsText}
 The product's color must read exactly as in the reference photo — the scene's light and mood are applied to everything around it, never used as a reason to shift the product's hue or tone.
 ${COLOR_NAME_WARNING}
-${merchantDirectionBlock(params.merchantDirection)}${retryNoteBlock(params.retryNote)}
+${merchantDirectionBlock(params.merchantDirection)}${modelProfileBlock(params.modelDescription)}${retryNoteBlock(params.retryNote)}
 
 Scene: an editorial fashion photograph in a quiet-luxury aesthetic — a model wearing/holding/using the product as the clear hero of the shot. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn/carried/used by the model.
 ${params.visualModeGuidance}
@@ -336,6 +348,11 @@ export async function generateProductImage(
     : null;
 
   const merchantDirection = await loadMerchantDirection(params.productId, params.correctionNote);
+  const modelProfile = parseModelProfile(shop?.modelProfile);
+  // Uma modelo por geração — as retentativas da mesma imagem mantêm o
+  // mesmo retrato ("vary" sorteia só aqui).
+  const modelDescription =
+    hasModel && modelProfile && !isDefaultModelProfile(modelProfile) ? describeModel(modelProfile) : undefined;
   let retryNote: string | undefined;
   let usedStructuralRetry = false;
   let fallback: { imageDataUrl: string; model: string; generationLogId: string } | null = null;
@@ -348,6 +365,7 @@ export async function generateProductImage(
     const promptParams: BuildPromptParams = {
       ...params,
       merchantDirection,
+      modelDescription,
       retryNote,
       brandTone: shop?.brandTone,
       brandAvoid: shop?.brandAvoid,
@@ -374,6 +392,7 @@ export async function generateProductImage(
           sceneOptions,
           hasModel,
           merchantDirection,
+          modelDescription,
         )
       : { passed: false, issues: [] as string[], observed: undefined };
     const passed = fidelity.passed && composition.passed;

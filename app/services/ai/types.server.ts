@@ -103,5 +103,7 @@ export interface AIProvider {
     // mesmo produto (ver generateProductImage.server.ts) — quando vem, o
     // avaliador precisa confirmar que a imagem seguiu, ou ela é reprovada.
     merchantDirection?: string,
+    // Retrato da modelo resolvido do perfil da loja (ver modelProfile.ts).
+    modelDescription?: string,
   ): Promise<CompositionCheckResult>;
 }

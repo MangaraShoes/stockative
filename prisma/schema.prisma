@@ -67,6 +67,11 @@ model Shop {
   // visualMode.server.ts). Nunca obrigatório preencher.
   imageStylePreference String?
 
+  // Perfil da modelo nas imagens geradas (idade, corpo, altura, etnia,
+  // cabelo, atitude, notas) — ver app/services/imageMvp/modelProfile.ts.
+  // null = sem preferência, a IA decide como sempre fez.
+  modelProfile Json?
+
   // Brand Intelligence (Camada 1) — onboarding curto por questionário, ver
   // CLAUDE.md. Ainda não tem análise automática de site/logo (Phase 2).
   brandDescription String? // quem é a marca, em poucas frases

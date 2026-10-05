@@ -5,6 +5,24 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ensureShopContentLanguage } from "../services/syncProducts.server";
 import { deleteAllShopData } from "../services/shopDataDeletion.server";
+import {
+  DEFAULT_MODEL_PROFILE,
+  MODEL_AGE_RANGES,
+  MODEL_ATTITUDES,
+  MODEL_BODY_TYPES,
+  MODEL_ETHNICITIES,
+  MODEL_HAIR_COLORS,
+  MODEL_HAIR_STYLES,
+  MODEL_HEIGHTS,
+  MODEL_NOTES_MAX_LENGTH,
+  MODEL_OCCASIONS,
+  MODEL_OUTFIT_STYLES,
+  MODEL_SUBJECTS,
+  parseModelProfile,
+  type ModelOption,
+  type ModelProfile,
+  type ModelProfileListField,
+} from "../services/imageMvp/modelProfile";
 import { CONTENT_LANGUAGES, getAppLanguage } from "../services/decisionEngine/constants";
 import { getWeeklySlotPlan } from "../services/decisionEngine/planTiers.server";
 import {
@@ -74,6 +92,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     notifyWeeklyPlan: shop?.notifyWeeklyPlan ?? true,
     notifyPublishFailed: shop?.notifyPublishFailed ?? true,
     notifyPublished: shop?.notifyPublished ?? false,
+    modelProfile: parseModelProfile(shop?.modelProfile) ?? DEFAULT_MODEL_PROFILE,
     schedule: schedule.map((slot) => ({ weekday: slot.weekday, time: `${pad(slot.hour)}:${pad(slot.minute)}` })),
   };
 };
@@ -185,6 +204,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { id: shop.id },
       data: { postingScheduleMode: "custom", customPostingSchedule: normalized },
     });
+    return ok;
+  }
+
+  // Perfil de foto (quem aparece, ocasiões, modelo) — ver modelProfile.ts.
+  if (intent === "save-photo-profile") {
+    let profile: ModelProfile | null = null;
+    try {
+      profile = parseModelProfile(JSON.parse(String(formData.get("modelProfile") ?? "null")));
+    } catch {
+      profile = null;
+    }
+    if (!profile) return fail("Couldn't read these choices. Please try again.");
+    await prisma.shop.update({ where: { id: shop.id }, data: { modelProfile: profile as unknown as object } });
     return ok;
   }
 
@@ -328,6 +360,7 @@ export default function Settings() {
   const scheduleFetcher = useFetcher<typeof action>();
   const planFetcher = useFetcher<typeof action>();
   const notificationFetcher = useFetcher<typeof action>();
+  const photoProfileFetcher = useFetcher<typeof action>();
   const dataFetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -377,6 +410,16 @@ export default function Settings() {
   const notificationsUnchanged = JSON.stringify(notifications) === JSON.stringify(initialNotifications);
   const setNotification = (change: Partial<typeof notifications>) =>
     setNotifications((current) => ({ ...current, ...change }));
+
+  const [photoProfile, setPhotoProfile] = useState<ModelProfile>(data.modelProfile);
+  const photoProfileUnchanged = JSON.stringify(photoProfile) === JSON.stringify(data.modelProfile);
+  const updatePhotoProfile = (change: Partial<ModelProfile>) =>
+    setPhotoProfile((current) => ({ ...current, ...change }));
+  const togglePhotoProfileList = (field: ModelProfileListField, value: string, checked: boolean) =>
+    updatePhotoProfile({
+      [field]: checked ? [...photoProfile[field], value] : photoProfile[field].filter((item) => item !== value),
+    });
+  const showsAdultTraits = photoProfile.subject !== "child";
 
   const isSavingPublishing = publishingFetcher.state !== "idle";
 
@@ -468,6 +511,67 @@ export default function Settings() {
           onClick={() => submit(scheduleFetcher, { intent: "save-schedule", mode: scheduleMode, schedule: JSON.stringify(schedule) })}
         />
         <FetcherResult fetcher={scheduleFetcher} />
+      </s-section>
+
+      <s-section heading="Who appears in your photos">
+        <s-stack direction="block" gap="base">
+          <s-paragraph>
+            <s-text color="subdued">
+              Used in every AI image with people in it, and you can change it anytime. Tick one option
+              to always use it, several to vary between them, or none to let us vary freely, so your
+              feed doesn&apos;t repeat the same look.
+            </s-text>
+          </s-paragraph>
+          <PhotoProfileSelect
+            label="Who"
+            value={photoProfile.subject}
+            options={MODEL_SUBJECTS}
+            onChange={(subject) => updatePhotoProfile({ subject })}
+          />
+          {(
+            [
+              ["occasions", "Occasions that fit your brand", MODEL_OCCASIONS, true],
+              ["outfitStyles", "Outfit style", MODEL_OUTFIT_STYLES, showsAdultTraits],
+              ["ageRanges", "Age", MODEL_AGE_RANGES, showsAdultTraits],
+              ["bodyTypes", "Body type", MODEL_BODY_TYPES, showsAdultTraits],
+              ["heights", "Height", MODEL_HEIGHTS, showsAdultTraits],
+              ["ethnicities", "Ethnicity", MODEL_ETHNICITIES, true],
+              ["hairColors", "Hair color", MODEL_HAIR_COLORS, true],
+              ["hairStyles", "Hair style", MODEL_HAIR_STYLES, true],
+              ["attitudes", "Mood and expression", MODEL_ATTITUDES, showsAdultTraits],
+            ] as const
+          )
+            .filter(([, , , visible]) => visible)
+            .map(([field, label, options]) => (
+              <div key={field}>
+                <s-paragraph>{label}</s-paragraph>
+                <CheckboxGroup
+                  options={options}
+                  selected={photoProfile[field]}
+                  onChange={(value, checked) => togglePhotoProfileList(field, value, checked)}
+                />
+              </div>
+            ))}
+          <div>
+            <s-paragraph>Anything else?</s-paragraph>
+            <textarea
+              value={photoProfile.notes}
+              onChange={(event) => updatePhotoProfile({ notes: event.target.value.slice(0, MODEL_NOTES_MAX_LENGTH) })}
+              placeholder="e.g. natural makeup, neutral nails, no visible tattoos"
+              rows={2}
+              style={{ ...selectStyle, width: "100%" }}
+            />
+          </div>
+        </s-stack>
+        <SaveButton
+          label="Save photo profile"
+          disabled={photoProfileUnchanged}
+          saving={photoProfileFetcher.state !== "idle"}
+          onClick={() =>
+            submit(photoProfileFetcher, { intent: "save-photo-profile", modelProfile: JSON.stringify(photoProfile) })
+          }
+        />
+        <FetcherResult fetcher={photoProfileFetcher} />
       </s-section>
 
       <s-section heading="Email notifications">
@@ -665,5 +769,55 @@ export default function Settings() {
         <FetcherResult fetcher={planFetcher} />
       </s-section>
     </s-page>
+  );
+}
+
+function PhotoProfileSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ModelOption[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
+      {label}
+      <select value={value} onChange={(event) => onChange(event.target.value)} style={selectStyle}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CheckboxGroup({
+  options,
+  selected,
+  onChange,
+}: {
+  options: ModelOption[];
+  selected: string[];
+  onChange: (value: string, checked: boolean) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+      {options.map((option) => (
+        <label key={option.value} style={{ fontSize: 13, display: "flex", gap: 4, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={selected.includes(option.value)}
+            onChange={(event) => onChange(option.value, event.target.checked)}
+          />
+          {option.label}
+        </label>
+      ))}
+    </div>
   );
 }

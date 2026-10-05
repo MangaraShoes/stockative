@@ -85,6 +85,7 @@ const compositionVerdicts = {
   productProminent: z.boolean(),
   productContrast: z.boolean(),
   followsMerchantDirection: z.boolean(),
+  matchesModelProfile: z.boolean(),
 };
 
 function buildCompositionCheckSchema(sceneOptions?: SceneOptions) {
@@ -290,6 +291,7 @@ When in doubt on any axis, set it to false. Set passed=false if any axis is fals
     sceneOptions?: SceneOptions,
     hasModel: boolean = true,
     merchantDirection?: string,
+    modelDescription?: string,
   ): Promise<CompositionCheckResult> {
     const compositionCheckSchema = buildCompositionCheckSchema(sceneOptions);
     const systemPrompt = `You must respond with a single JSON object that conforms exactly to this JSON Schema, and nothing else (no prose, no markdown fences):\n\n${JSON.stringify(z.toJSONSchema(compositionCheckSchema))}`;
@@ -312,6 +314,11 @@ Also give these verdicts on their own — each one failing fails the whole image
       merchantDirection
         ? `the merchant gave this direction for the image: """${merchantDirection}""". Does the image clearly follow every part of it that concerns the scene, outfit, colors, setting or framing? (Ignore any part asking to change the product itself — the product must never change.) If any of it was ignored, false, and name what was ignored as an issue.`
         : "no direction was given, set true."
+    }
+- matchesModelProfile: ${
+      modelDescription
+        ? `the store asked for this model: """${modelDescription}""". Does the person shown clearly match it (age range, build, height/proportions, ethnicity, hair, expression)? If the person is only partly visible, judge what is visible. If it clearly doesn't match, false, and name what differs as an issue.`
+        : "no model profile was given, set true."
     }`;
 
     // `hasModel=false` é still-life puro (ver productClassification.server.ts,
@@ -378,6 +385,7 @@ Set passed=false if the image reads as generic, flat, "stock photo" boring, or f
       !result.productProminent && "product is not prominent enough in the frame",
       !result.productContrast && "product doesn't contrast with the surface behind it",
       !result.followsMerchantDirection && "the merchant's direction was not followed",
+      !result.matchesModelProfile && "the model doesn't match the store's model profile",
     ].filter((issue): issue is string => Boolean(issue));
 
     return {

@@ -44,6 +44,12 @@ O Sandbox basta pro piloto com a Mangará (até 10 contas). Pra outras lojistas,
 - Teste manual com o reel `cmuo3pdy80006qz2u55rc204s` como SELF_ONLY: `PUBLISH_COMPLETE` em ~10s (publish_id `v_pub_url~v2-1.7691393057065355270`).
 - Até a auditoria do Direct Post, Reels agendados pro TikTok só saem com a conta privada. Com a conta pública, falham com o erro acima.
 
+## 06/10/2026: regra real do app não auditado
+
+- Mesmo com a conta **privada** (creator_info sem PUBLIC_TO_EVERYONE), um post como `FOLLOWER_OF_CREATOR` volta `403 unaudited_client_can_only_post_to_private_accounts`. Só **`SELF_ONLY`** passa. Na prática, até a auditoria valem as duas condições juntas: conta privada **e** post "Only me".
+- O Reel `cmuqou7zn06hmpe01o3ub5zv3` foi publicado assim (`v_pub_url~v2-1.7693642413244385281`, PUBLISH_COMPLETE). Depois dá pra mudar a visibilidade do vídeo no próprio app do TikTok.
+- Reel sem confirmação no painel TikTok do Weekly Plan (`tiktokSettings` vazio) é pulado de propósito, não é falha.
+
 ## Checklist de acompanhamento
 
 - [ ] Confirmado se `video.upload` precisa de revisão separada ou está dentro do mesmo processo do Direct Post

@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stockative</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -560,6 +562,43 @@
   .note strong { color: var(--ink); }
 
   footer a { color: var(--ink-faint); }
+
+  /* ---- Smartphone ---- */
+  header.rail, section.rail { padding-left: 28px; padding-right: 28px; }
+  section.manifesto .copy p.tag { white-space: normal; }
+  section.manifesto, section.demo .intro, section.brand .intro { grid-template-columns: 220px minmax(0, 1fr); }
+  @media (max-width: 760px) {
+    section.manifesto, section.demo .intro, section.brand .intro { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  }
+  img, svg { max-width: 100%; height: auto; }
+  body { margin: 0; overflow-wrap: break-word; -webkit-text-size-adjust: 100%; }
+  @media (max-width: 560px) {
+    .rail, header.rail, section.rail { padding-left: 16px; padding-right: 16px; }
+    nav.rail { padding-top: 18px; padding-bottom: 18px; gap: 12px; }
+    .wordmark { gap: 8px; }
+    .wordmark .mark { width: 32px; height: auto; }
+    .wordtext { font-size: 21px; }
+    nav a.cta { font-size: 12px; padding: 8px 12px; white-space: nowrap; }
+    header.hero { padding-top: 32px; padding-bottom: 48px; }
+    h1 { font-size: 2.3rem; max-width: none; }
+    .lede { font-size: 1.05rem; }
+    section.manifesto, section.demo, section.brand { padding-top: 48px; padding-bottom: 48px; }
+    section.manifesto .copy p { font-size: 1.3rem; }
+    section.manifesto .copy p.lead-line { font-size: 1.6rem; }
+    section.outcome { padding-top: 48px; padding-bottom: 48px; }
+    section.closing { padding-top: 56px; padding-bottom: 64px; }
+    section.closing .cta-row { flex-direction: column; gap: 18px; }
+    section.closing a.cta-big { width: 100%; text-align: center; }
+    .steps .step { padding: 22px 20px; }
+    .signal-row { padding: 16px; }
+    .tag { justify-self: start; }
+    footer .rail { padding: 20px 16px; flex-direction: column; align-items: flex-start; }
+    footer .links { flex-wrap: wrap; gap: 12px 20px; }
+    #privacy .wrap, #terms .wrap, .wrap { padding: 48px 16px 72px; }
+    #privacy .meta, #terms .meta { margin-bottom: 36px; }
+    .processor-table, #privacy .processor-table, #terms .processor-table { grid-template-columns: 1fr; gap: 0; }
+    .processor-table dd, #privacy .processor-table dd, #terms .processor-table dd { border-top: none; padding-top: 0; }
+  }
 </style>
 
 <nav class="rail">

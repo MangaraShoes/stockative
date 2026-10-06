@@ -1,3 +1,5 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stockative Privacy</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -169,6 +171,37 @@
     gap: 8px;
   }
   footer a { color: var(--ink-faint); }
+
+  /* ---- Smartphone ---- */
+  img, svg { max-width: 100%; height: auto; }
+  body { margin: 0; overflow-wrap: break-word; -webkit-text-size-adjust: 100%; }
+  @media (max-width: 560px) {
+    .rail { padding: 0 16px; }
+    nav.rail { padding-top: 18px; padding-bottom: 18px; gap: 12px; }
+    .wordmark { gap: 8px; }
+    .wordmark .mark { width: 32px; height: auto; }
+    .wordtext { font-size: 21px; }
+    nav a.cta { font-size: 12px; padding: 8px 12px; white-space: nowrap; }
+    header.hero { padding: 32px 0 48px; }
+    h1 { font-size: 2.3rem; max-width: none; }
+    .lede { font-size: 1.05rem; }
+    section.manifesto, section.demo, section.brand { padding: 48px 0; }
+    section.manifesto .copy p { font-size: 1.3rem; }
+    section.manifesto .copy p.lead-line { font-size: 1.6rem; }
+    section.outcome { padding: 48px 0; }
+    section.closing { padding: 56px 0 64px; }
+    section.closing .cta-row { flex-direction: column; gap: 18px; }
+    section.closing a.cta-big { width: 100%; text-align: center; }
+    .steps .step { padding: 22px 20px; }
+    .signal-row { padding: 16px; }
+    .tag { justify-self: start; }
+    footer .rail { padding: 20px 16px; flex-direction: column; align-items: flex-start; }
+    footer .links { flex-wrap: wrap; gap: 12px 20px; }
+    #privacy .wrap, #terms .wrap, .wrap { padding: 48px 16px 72px; }
+    #privacy .meta, #terms .meta { margin-bottom: 36px; }
+    .processor-table, #privacy .processor-table, #terms .processor-table { grid-template-columns: 1fr; gap: 0; }
+    .processor-table dd, #privacy .processor-table dd, #terms .processor-table dd { border-top: none; padding-top: 0; }
+  }
 </style>
 
 <div class="wrap">

@@ -153,6 +153,48 @@ ${description}
 `;
 }
 
+// Foto lifestyle da própria loja como referência de ESTILO (Patricia,
+// 06/10/2026: "a imagem do Shopify foi a melhor de todas, como descrever
+// para criar imagens com esta luz e destaque para o produto e ao mesmo
+// tempo elegante"). Mostrar a foto funciona melhor que descrevê-la — no
+// teste com a Senna, 2 de 2 passaram na fidelidade de primeira, com piso
+// claro e produto em destaque, sem copiar modelo/pose/ambiente.
+const STYLE_REFERENCE_BLOCK = `
+IMAGES: the FIRST image is the real product (match it exactly). The SECOND image is this brand's own best photo — use it ONLY as a style reference: match its quality of light (soft, warm, directional light falling on the product), its light and calm palette, the contrast between the product and the floor/background, its quiet elegance, and how large and clear the product reads in the frame. Where the merchant's direction or the occasion above asks for something different, follow them. Do NOT copy its person, face, pose, outfit, furniture or room — create a new, different scene following everything above.
+`;
+
+// Foto lifestyle do próprio produto; senão, a mais recente da loja.
+async function findStyleReferenceUrl(shopId: string, productId: string): Promise<string | null> {
+  const own = await prisma.productImage.findFirst({
+    where: { productId, shotType: "lifestyle" },
+    orderBy: { position: "asc" },
+    select: { url: true },
+  });
+  if (own) return own.url;
+  const shopWide = await prisma.productImage.findFirst({
+    where: { shotType: "lifestyle", product: { shopId } },
+    orderBy: { createdAt: "desc" },
+    select: { url: true },
+  });
+  return shopWide?.url ?? null;
+}
+
+// Padrão de foto da marca pra TODA imagem gerada — roupa, calçado,
+// acessório, com ou sem modelo (Patricia, 06/10/2026, depois de comparar
+// as imagens geradas com a foto lifestyle da Senna na Shopify: "estas
+// métricas — luz, contraste, paleta, destaque e cena simples — devem valer
+// para todas as imagens geradas para roupas e acessórios"). Também é
+// conferido pelo check de composição (productProminent, productContrast,
+// meetsPhotoStandard), não só pedido aqui.
+const PHOTO_STANDARD_BLOCK = `
+PHOTO STANDARD — every image must meet all five:
+1. Light: soft, warm, directional light (like a lamp or window to one side) falling directly on the product; the rest of the scene can be softer and dimmer.
+2. Contrast: the product clearly separates from whatever is right behind and under it — a light wall/floor/surface for a mid-tone or dark product, a darker one only for a light product.
+3. Palette: calm, close tones around the product (cream, taupe, sand, caramel, soft brown, stone); nothing saturated or busy competing with it.
+4. Prominence: the product is large, sharp and the first thing the eye lands on.
+5. Simple scene: few elements, uncluttered, quietly elegant — one or two pieces of furniture or props at most, never a busy room or crowded background.
+`;
+
 function retryNoteBlock(note?: string): string {
   return note ? `
 A previous attempt at this image was rejected. Fix this: ${note}
@@ -174,7 +216,7 @@ export function buildWornOrHandheldPrompt(params: BuildPromptParams): string {
 ${params.fidelityConstraintsText}
 The product's color must read exactly as in the reference photo — the scene's light and mood are applied to everything around it, never used as a reason to shift the product's hue or tone.
 ${COLOR_NAME_WARNING}
-${merchantDirectionBlock(params.merchantDirection)}${modelProfileBlock(params.modelDescription)}${retryNoteBlock(params.retryNote)}
+${merchantDirectionBlock(params.merchantDirection)}${modelProfileBlock(params.modelDescription)}${PHOTO_STANDARD_BLOCK}${retryNoteBlock(params.retryNote)}
 
 Scene: an editorial fashion photograph in a quiet-luxury aesthetic — a model wearing/holding/using the product as the clear hero of the shot. This is NOT a workshop/craftsman/behind-the-scenes shot and must NOT show hands assembling, crafting, or working on the product — only the finished product worn/carried/used by the model.
 ${params.visualModeGuidance}
@@ -217,7 +259,7 @@ export function buildStandaloneImagePrompt(params: BuildPromptParams): string {
 ${params.fidelityConstraintsText}
 The product's color must read exactly as in the reference photo — the scene's light and mood are applied to everything around it, never used as a reason to shift the product's hue or tone.
 ${COLOR_NAME_WARNING}
-${merchantDirectionBlock(params.merchantDirection)}${retryNoteBlock(params.retryNote)}
+${merchantDirectionBlock(params.merchantDirection)}${PHOTO_STANDARD_BLOCK}${retryNoteBlock(params.retryNote)}
 
 Scene: a professional still-life product photograph, editorial quiet-luxury aesthetic — NO person, model, hand, or body part anywhere in frame. The product itself is the entire subject.
 ${params.visualModeGuidance}
@@ -378,6 +420,8 @@ export async function generateProductImage(
     : null;
 
   const merchantDirection = await loadMerchantDirection(params.productId, params.correctionNote);
+  // Só no caminho com modelo — still-life tem outra linguagem visual.
+  const styleReferenceUrl = hasModel ? await findStyleReferenceUrl(params.shopId, params.productId) : null;
   const modelProfile = parseModelProfile(shop?.modelProfile);
   // Uma modelo por geração — as retentativas da mesma imagem mantêm o
   // mesmo retrato ("vary" sorteia só aqui).
@@ -407,7 +451,9 @@ export async function generateProductImage(
     };
     const prompt = hasModel ? buildWornOrHandheldPrompt(promptParams) : buildStandaloneImagePrompt(promptParams);
 
-    let generated = await imageProvider.generateImage(prompt, params.referenceImageUrl);
+    let generated = styleReferenceUrl
+      ? await imageProvider.editImage(prompt + STYLE_REFERENCE_BLOCK, [params.referenceImageUrl, styleReferenceUrl])
+      : await imageProvider.generateImage(prompt, params.referenceImageUrl);
     let fidelity = await fidelityProvider.checkImageFidelity(
       params.referenceImageUrl,
       generated.imageDataUrl,

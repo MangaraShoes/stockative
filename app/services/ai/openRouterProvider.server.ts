@@ -84,6 +84,7 @@ function toEnumTuple(values: string[]): [string, ...string[]] {
 const compositionVerdicts = {
   productProminent: z.boolean(),
   productContrast: z.boolean(),
+  meetsPhotoStandard: z.boolean(),
   followsMerchantDirection: z.boolean(),
   matchesModelProfile: z.boolean(),
 };
@@ -339,6 +340,7 @@ Never guess or force a match — "unknown"/"not_applicable" are correct answers 
 Also give these verdicts on their own — each one failing fails the whole image:
 - productProminent: is the product big and eye-catching enough to sell it? Picture this image at phone size in an Instagram feed: would a shopper see the product's shape, details and color clearly at first glance, as one of the first things the eye lands on? If they would have to look for it, or it reads as a small accessory to the outfit, false${hasModel ? " — for footwear, the framing alone doesn't decide it (a low camera can make shoes large even in a head-to-toe shot), only how large and clear the shoes actually read" : ""}. When in doubt, false.
 - productContrast: does the product clearly stand out from the surface immediately behind and under it, so its silhouette and color read instantly${hasModel ? " — for footwear, judge the shoes against the floor right under them: a mid-tone or dark shoe on a dark floor is false" : ""}? When in doubt, false.
+- meetsPhotoStandard: this brand's photo standard (06/10/2026) — (a) soft, warm, directional light falls directly on the product; (b) a calm palette of close tones around the product, nothing saturated or busy competing with it; (c) a simple, uncluttered, quietly elegant scene with few elements. If any of the three clearly fails, false, and name which. When in doubt, false.
 - followsMerchantDirection: ${
       merchantDirection
         ? `the merchant gave this direction for the image: """${merchantDirection}""". Does the image clearly follow every part of it that concerns the scene, outfit, colors, setting or framing? (Ignore any part asking to change the product itself — the product must never change.) If any of it was ignored, false, and name what was ignored as an issue.`
@@ -413,6 +415,7 @@ Set passed=false if the image reads as generic, flat, "stock photo" boring, or f
     const verdictIssues = [
       !result.productProminent && "product is not prominent enough in the frame",
       !result.productContrast && "product doesn't contrast with the surface behind it",
+      !result.meetsPhotoStandard && "doesn't meet the brand's photo standard (light, palette, simple scene)",
       !result.followsMerchantDirection && "the merchant's direction was not followed",
       !result.matchesModelProfile && "the model doesn't match the store's model profile",
     ].filter((issue): issue is string => Boolean(issue));

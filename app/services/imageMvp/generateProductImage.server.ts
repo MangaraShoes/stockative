@@ -406,7 +406,21 @@ export async function generateProductImage(
   const fidelityConstraints: FidelityConstraints = getFidelityConstraints(classification.category);
   const fidelityConstraintsText = describeFidelityConstraints(fidelityConstraints);
 
-  const sceneDecision = await repertoire.selectScene(params.shopId, params.productTitle);
+  // Regeneração: o ambiente da imagem rejeitada sai do sorteio (05/10/2026:
+  // a regeneração voltou à mesma sala de jantar).
+  const previousEnvironment =
+    params.correctionNote && params.contentItemId
+      ? (
+          await prisma.generationLog.findFirst({
+            where: { contentItemId: params.contentItemId, taskType: "image", requestedEnvironment: { not: null } },
+            orderBy: { createdAt: "desc" },
+            select: { requestedEnvironment: true },
+          })
+        )?.requestedEnvironment
+      : null;
+  const sceneDecision = await repertoire.selectScene(params.shopId, params.productTitle, {
+    excludeEnvironmentIds: previousEnvironment ? [previousEnvironment] : [],
+  });
   // Retry estrutural (ver hasStructuralMismatch) só faz sentido pro caminho
   // com modelo — sem sceneOptions aqui, o guardrail de composição não
   // preenche `observed` nenhum pro caminho standalone, então

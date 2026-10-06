@@ -170,6 +170,8 @@ interface FootwearEnvironment extends RepertoireOption {
   // Só pra cena de praia/resort — nunca combina com calçado fechado
   // (mocassim, oxford, sapatilha), mesmo sendo tecnicamente "verão".
   requiresOpenFootwear?: boolean;
+  // Cena de noite — só combina com luz de noite (ver FootwearLight.evening).
+  evening?: boolean;
 }
 
 // Ambientes de verão sempre com sol/luz quente explícita no texto — não
@@ -249,6 +251,27 @@ export const FOOTWEAR_ENVIRONMENTS: FootwearEnvironment[] = [
     promptText:
       "an airy, warmly lit dining room or atelier-style interior, with a chair at a table and fresh flowers or a plant nearby",
   },
+  // Inverno tinha só 2 interiores, os dois simples, e nenhum de noite
+  // (Patricia, 05/10/2026, sobre uma bota de salto: "o ambiente está muito
+  // simples para uma bota requintada... um look pronto para um jantar ou
+  // evento"). Piso claro nos dois: a regra de contraste vale de noite também.
+  {
+    id: "evening_salon",
+    seasons: ["winter"],
+    setting: "indoor",
+    supportsSeated: true,
+    evening: true,
+    promptText:
+      "an elegant Parisian salon in the evening before a dinner out, pale herringbone parquet, a deep velvet sofa or armchair, tall windows with the city lights beyond, a vase of fresh flowers and glowing table lamps",
+  },
+  {
+    id: "gallery_hallway",
+    seasons: ["winter"],
+    setting: "indoor",
+    supportsSeated: true,
+    promptText:
+      "a bright, refined apartment hallway or private gallery with a pale stone floor, tall windows, framed artwork on light walls, a sculptural upholstered bench and a large potted plant",
+  },
 ];
 
 interface FootwearFraming extends RepertoireOption {
@@ -318,6 +341,7 @@ export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
 
 interface FootwearLight extends RepertoireOption {
   setting: Setting[]; // com quais ambientes isso combina
+  evening?: boolean; // só pra ambiente de noite, e ambiente de noite só com ela
 }
 
 // Luz NÃO entra na exigência de diversidade de propósito (Patricia,
@@ -333,6 +357,13 @@ export const FOOTWEAR_LIGHTS: FootwearLight[] = [
     promptText: "bright, warm daylight with soft shadows — never flat, grey, or overcast-looking",
   },
   { id: "window_light_interior", setting: ["indoor"], promptText: "soft, warm natural window light" },
+  {
+    id: "evening_lamplight",
+    setting: ["indoor"],
+    evening: true,
+    promptText:
+      "warm evening lamplight, with a soft directional lamp placed so its light falls directly on the shoes and the floor around them",
+  },
 ];
 
 export interface SceneDecision {
@@ -407,7 +438,11 @@ export async function pickWeighted<T extends RepertoireOption>(
   return weightedRandomPick(weighted);
 }
 
-async function selectFootwearScene(shopId: string, productTitle: string): Promise<SceneDecision> {
+async function selectFootwearScene(
+  shopId: string,
+  productTitle: string,
+  options: SelectSceneOptions = {},
+): Promise<SceneDecision> {
   // "O cenário segue a estação do sapato, não o contrário" continua valendo
   // pra sandália/bota (inferProductSeason). Só quando o produto não pede
   // uma estação fixa (mocassim, sapatilha) é que a estação REAL da loja
@@ -423,9 +458,13 @@ async function selectFootwearScene(shopId: string, productTitle: string): Promis
   // se checavam entre si). Praia/resort também exige calçado aberto, senão
   // um mocassim fechado pode acabar lá só por não ter estação definida (ver
   // requiresOpenFootwear).
-  const compatibleEnvironments = FOOTWEAR_ENVIRONMENTS.filter(
+  const seasonalEnvironments = FOOTWEAR_ENVIRONMENTS.filter(
     (e) => e.seasons.includes(season) && (!e.requiresOpenFootwear || openFootwear),
   );
+  // Regeneração: nunca o mesmo ambiente da imagem que a lojista rejeitou,
+  // enquanto houver outro possível.
+  const freshEnvironments = seasonalEnvironments.filter((e) => !options.excludeEnvironmentIds?.includes(e.id));
+  const compatibleEnvironments = freshEnvironments.length > 0 ? freshEnvironments : seasonalEnvironments;
   const environment = await pickWeighted(shopId, "footwear", "observedEnvironment", compatibleEnvironments);
 
   const compatibleActions = environment.supportsSeated
@@ -443,7 +482,9 @@ async function selectFootwearScene(shopId: string, productTitle: string): Promis
 
   // Luz sempre compatível com o ambiente já escolhido (indoor/outdoor) —
   // nunca "luz de janela" pra uma cena de rua, por exemplo.
-  const compatibleLights = FOOTWEAR_LIGHTS.filter((l) => l.setting.includes(environment.setting));
+  const compatibleLights = FOOTWEAR_LIGHTS.filter(
+    (l) => l.setting.includes(environment.setting) && Boolean(l.evening) === Boolean(environment.evening),
+  );
   const light = compatibleLights[Math.floor(Math.random() * compatibleLights.length)];
 
   return { action, environment, framing, light, season };
@@ -454,9 +495,13 @@ async function selectFootwearScene(shopId: string, productTitle: string): Promis
 // diferença real está em QUAL interação foi escolhida antes de chegar
 // aqui, não na forma da cena em si (ver getRepertoireForInteraction em
 // categoryDispatch.server.ts pro despacho por categoria + interação).
+export interface SelectSceneOptions {
+  excludeEnvironmentIds?: string[];
+}
+
 export interface CategoryRepertoire {
   id: VisualCategory;
-  selectScene(shopId: string, productTitle: string): Promise<SceneDecision>;
+  selectScene(shopId: string, productTitle: string, options?: SelectSceneOptions): Promise<SceneDecision>;
   // Bloco de regras de composição ESPECÍFICAS da categoria, inserido no
   // prompt de geração junto das regras universais (humor, luz, tom de
   // marca) que valem pra qualquer produto — ver buildWornOrHandheldPrompt

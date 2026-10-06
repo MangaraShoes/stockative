@@ -2,6 +2,7 @@ import type { VisualCategory, ProductInteraction } from "./productClassification
 import { footwearRepertoire, type CategoryRepertoire } from "./repertoire.server";
 import { apparelRepertoire } from "./apparelRepertoire.server";
 import { genericWornRepertoire } from "./genericWornRepertoire.server";
+import { bagsAccessoriesRepertoire, jewelryRepertoire } from "./accessoriesRepertoire.server";
 import { genericAppliedRepertoire } from "./genericAppliedRepertoire.server";
 import { genericStandaloneRepertoire } from "./standaloneRepertoire.server";
 
@@ -16,6 +17,15 @@ import { genericStandaloneRepertoire } from "./standaloneRepertoire.server";
 const WORN_REPERTOIRES: Partial<Record<VisualCategory, CategoryRepertoire>> = {
   footwear: footwearRepertoire,
   apparel: apparelRepertoire,
+  bags_accessories: bagsAccessoriesRepertoire,
+  jewelry: jewelryRepertoire,
+};
+
+// Bolsa e joia também são "segurados" (bolsa na mão, anel na mão) — o
+// repertório de acessórios cobre os dois casos (06/10/2026).
+const HELD_REPERTOIRES: Partial<Record<VisualCategory, CategoryRepertoire>> = {
+  bags_accessories: bagsAccessoriesRepertoire,
+  jewelry: jewelryRepertoire,
 };
 
 export function getRepertoireForInteraction(
@@ -25,5 +35,6 @@ export function getRepertoireForInteraction(
   if (interaction === "standalone") return genericStandaloneRepertoire;
   if (interaction === "applied") return genericAppliedRepertoire;
   if (interaction === "worn") return WORN_REPERTOIRES[category] ?? genericWornRepertoire;
-  return genericWornRepertoire; // held, ou worn sem repertório dedicado
+  if (interaction === "held") return HELD_REPERTOIRES[category] ?? genericWornRepertoire;
+  return genericWornRepertoire;
 }

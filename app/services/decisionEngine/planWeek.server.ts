@@ -21,7 +21,12 @@ import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
 import { maxPrimaryCaptionChars, buildFinalCaption, parseStoredHashtags, stripFrameworkLabels } from "./captionFormat";
 import { parseStoredTikTokSettings, TIKTOK_TITLE_MAX_LENGTH, type TikTokPostSettings } from "../tiktok/postSettings";
-import { MAX_CAPTION_REGENERATIONS_PER_POST, type CommercialObjective, type ContentLanguageCode } from "./constants";
+import {
+  COMMERCIAL_OBJECTIVES,
+  MAX_CAPTION_REGENERATIONS_PER_POST,
+  type CommercialObjective,
+  type ContentLanguageCode,
+} from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
 import { nextWeeklyOccurrenceInTimezone } from "../timezone";
 import { currentSeasonInTimezone, seasonScoreBoost } from "./seasonality.server";
@@ -55,6 +60,7 @@ export interface WeeklyPlanSlot {
   productId: string;
   productTitle: string;
   objective: string;
+  objectiveSource: string | null; // merchant | ai | campaign (null em posts antigos)
   pillarName: string | null; // qual pilar (Fase 1) orientou este post, se algum
   promotionName: string | null; // qual promoção real gerou este post, se alguma (ver Promotion)
   needsManualImage: boolean; // ainda sem nenhuma imagem — não pode ser publicado assim (ver publishDueContentItems)
@@ -514,6 +520,7 @@ export async function planOneSlot(
       promotionId: promotion?.id ?? null,
       platform: brief.channel,
       commercialObjective: objective,
+      objectiveSource: promotion ? "campaign" : forcedObjective ? "merchant" : "ai",
       decisionBrief: brief,
       captionText,
       hashtags: copy.hashtags.join(", "),
@@ -583,6 +590,7 @@ export async function planOneSlot(
     productId: product.id,
     productTitle: product.title,
     objective,
+    objectiveSource: promotion ? "campaign" : forcedObjective ? "merchant" : "ai",
     pillarName: pillar?.name ?? null,
     promotionName: promotion?.name ?? null,
     needsManualImage,
@@ -687,6 +695,9 @@ export async function planWeeklyContent(
         where: {
           shopId,
           weekBatchId: { not: null },
+          // Post de campanha nunca é descartado pelo plano normal (ver
+          // updateMany abaixo).
+          promotionId: null,
           status: { notIn: ["published", "publishing", "partial", "cancelled"] },
           productId: { not: null },
         },
@@ -694,13 +705,24 @@ export async function planWeeklyContent(
       })
     ).map((item) => item.productId as string);
 
+    // Nunca cancela post de campanha (Patricia, 06/10/2026): antes, uma
+    // campanha agendada para o futuro (ex.: Black Friday) era apagada sem
+    // aviso pelo cron 7 dias depois, porque getActivePromotion só protege
+    // uma promoção que JÁ começou.
     await prisma.contentItem.updateMany({
       where: {
         shopId,
         weekBatchId: { not: null },
+        promotionId: null,
         status: { notIn: ["published", "publishing", "partial", "cancelled"] },
       },
       data: { status: "cancelled" },
+    });
+
+    // Slots que cairiam dentro de uma campanha agendada ficam de fora — a
+    // campanha manda nesses dias (ver planPromotionalWeek).
+    const upcomingPromotions = await prisma.promotion.findMany({
+      where: { shopId, endsAt: { gt: new Date() } },
     });
 
     const weekBatchId = crypto.randomUUID();
@@ -732,6 +754,10 @@ export async function planWeeklyContent(
         slotSchedule.minute,
         timeZone,
       );
+      if (upcomingPromotions.some((promotion) => isWithinPromotion(scheduledAt, promotion))) {
+        usedProductIds.delete(candidate.product.id);
+        continue;
+      }
       const slot = await planOneSlot(
         shopId,
         candidate.product.id,
@@ -760,6 +786,142 @@ export async function planWeeklyContent(
 }
 
 const WEEKLY_PLAN_INTERVAL_DAYS = 7;
+// Quantos dias antes do início uma campanha agendada vira posts de verdade
+// (cron diário — 2 dias garante que nunca perde a janela).
+const PROMOTION_LEAD_DAYS = 2;
+
+export function isWithinPromotion(date: Date, promotion: Pick<Promotion, "startsAt" | "endsAt">): boolean {
+  return date >= promotion.startsAt && date <= promotion.endsAt;
+}
+
+export function parseNextWeekObjectives(raw: unknown): CommercialObjective[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((value): value is CommercialObjective =>
+    (COMMERCIAL_OBJECTIVES as readonly string[]).includes(value),
+  );
+}
+
+export function promotionNeedsPostsNow(promotion: Pick<Promotion, "startsAt">): boolean {
+  return promotion.startsAt.getTime() <= Date.now() + PROMOTION_LEAD_DAYS * 24 * 60 * 60 * 1000;
+}
+
+export interface NextWeekPreviewSlot {
+  weekday: number;
+  hour: number;
+  minute: number;
+  format: "post" | "reel";
+  productTitle: string | null;
+  objective: CommercialObjective | null;
+  campaignName: string | null; // slot coberto por uma campanha agendada
+}
+
+export interface NextWeekPreview {
+  buildsAround: string; // ISO — quando o cron monta a próxima semana
+  objectives: CommercialObjective[];
+  confirmedAt: string | null;
+  slots: NextWeekPreviewSlot[];
+  upcomingPromotions: { id: string; name: string; discountPct: number; startsAt: string; endsAt: string; planned: boolean }[];
+}
+
+// Prévia da próxima semana SEM nenhuma chamada de IA nem imagem (Patricia,
+// 06/10/2026: "sem gerar os criativos ou textos apenas com definição do
+// plan") — mesmo ranking, cadência e horários que planWeeklyContent vai
+// usar, então mostra o que sairia se a semana fosse montada agora. A
+// escolha final acontece na hora de montar, com o estoque daquele momento.
+export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPreview> {
+  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+  const timeZone = shop.ianaTimezone ?? "UTC";
+  const objectives = parseNextWeekObjectives(shop.nextWeekObjectives);
+
+  const buildsAround = new Date(
+    Math.max(
+      Date.now(),
+      (shop.lastWeeklyPlanGeneratedAt?.getTime() ?? Date.now()) +
+        WEEKLY_PLAN_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
+    ),
+  );
+
+  const promotions = await prisma.promotion.findMany({
+    where: { shopId, endsAt: { gt: new Date() } },
+    include: { _count: { select: { contentItems: true } } },
+    orderBy: { startsAt: "asc" },
+  });
+
+  // Produtos da semana atual saem da prévia: os publicados ficam
+  // penalizados por reuso e os não publicados são descartados ao montar.
+  const latestBatch = await prisma.contentItem.findFirst({
+    where: { shopId, weekBatchId: { not: null }, promotionId: null },
+    orderBy: { createdAt: "desc" },
+    select: { weekBatchId: true },
+  });
+  const currentBatchProducts = latestBatch?.weekBatchId
+    ? await prisma.contentItem.findMany({
+        where: { shopId, weekBatchId: latestBatch.weekBatchId, productId: { not: null } },
+        select: { productId: true },
+      })
+    : [];
+  const usedProductIds = new Set(currentBatchProducts.map((item) => item.productId as string));
+
+  const weeklySlotPlan = getWeeklySlotPlan(shop);
+  const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek);
+
+  const slots: NextWeekPreviewSlot[] = [];
+  for (let index = 0; index < weeklySlotPlan.postsPerWeek; index++) {
+    const slotSchedule = schedule[index % schedule.length];
+    const scheduledAt = nextWeeklyOccurrenceInTimezone(
+      slotSchedule.weekday,
+      slotSchedule.hour,
+      slotSchedule.minute,
+      timeZone,
+      buildsAround,
+    );
+    const format = weeklySlotPlan.reelSlotIndices.includes(index) ? "reel" : "post";
+    const campaign = promotions.find((promotion) => isWithinPromotion(scheduledAt, promotion));
+    if (campaign) {
+      slots.push({ ...slotSchedule, format, productTitle: null, objective: null, campaignName: campaign.name });
+      continue;
+    }
+
+    const forcedObjective = objectives.length > 0 ? objectives[index % objectives.length] : undefined;
+    const ranked = await rankProductsForWeek(shopId, forcedObjective, timeZone);
+    const candidate = ranked.find((entry) => !usedProductIds.has(entry.product.id));
+    if (!candidate) break;
+    usedProductIds.add(candidate.product.id);
+
+    const product = candidate.product;
+    slots.push({
+      ...slotSchedule,
+      format,
+      productTitle: product.title,
+      objective:
+        forcedObjective ??
+        inferObjective({
+          inventoryQuantity: product.inventoryQuantity,
+          salesVelocity: product.commerceSignal?.salesVelocity ?? null,
+          daysSinceCreated: product.shopifyCreatedAt
+            ? Math.floor((Date.now() - product.shopifyCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
+            : null,
+          price: product.price,
+        }),
+      campaignName: null,
+    });
+  }
+
+  return {
+    buildsAround: buildsAround.toISOString(),
+    objectives,
+    confirmedAt: shop.nextWeekPlanConfirmedAt ? shop.nextWeekPlanConfirmedAt.toISOString() : null,
+    slots,
+    upcomingPromotions: promotions.map((promotion) => ({
+      id: promotion.id,
+      name: promotion.name,
+      discountPct: promotion.discountPct,
+      startsAt: promotion.startsAt.toISOString(),
+      endsAt: promotion.endsAt.toISOString(),
+      planned: promotion._count.contentItems > 0,
+    })),
+  };
+}
 
 export interface GenerateDueWeeklyPlansOutcome {
   shopId: string;
@@ -817,9 +979,55 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
   // 13/09/2026, revisão de código; mesmo padrão já usado em
   // collectPerformanceSignals).
   const outcomes: GenerateDueWeeklyPlansOutcome[] = [];
+
+  // Campanhas agendadas só viram posts (IA + imagem) perto de começar —
+  // criar a campanha no app só guarda a definição (Patricia, 06/10/2026).
+  for (const shop of candidateShops) {
+    const duePromotions = await prisma.promotion.findMany({
+      where: {
+        shopId: shop.id,
+        startsAt: { lte: new Date(Date.now() + PROMOTION_LEAD_DAYS * 24 * 60 * 60 * 1000) },
+        endsAt: { gt: new Date() },
+        contentItems: { none: {} },
+      },
+      orderBy: { startsAt: "asc" },
+    });
+    for (const promotion of duePromotions) {
+      try {
+        const slots = await planPromotionalWeek(shop.id, promotion);
+        outcomes.push({ shopId: shop.id, slotCount: slots.length });
+        await notifyWeeklyPlanReady(shop.id, slots.length);
+      } catch (error) {
+        console.error(`Failed to build promotion ${promotion.id} for shop ${shop.id}:`, error);
+        outcomes.push({
+          shopId: shop.id,
+          slotCount: 0,
+          error: error instanceof Error ? error.message : "unknown error",
+        });
+      }
+    }
+  }
+
   for (const shop of dueShops) {
+    // Durante uma campanha o plano normal fica parado de propósito — pular
+    // em vez de registrar erro todo dia.
+    if (await getActivePromotion(shop.id)) continue;
     try {
-      const slots = await planWeeklyContent(shop.id);
+      // Plano definido no fim da tela da semana anterior ("Next week's
+      // plan") — vazio = a IA decide por produto.
+      const shopRow = await prisma.shop.findUniqueOrThrow({
+        where: { id: shop.id },
+        select: { nextWeekObjectives: true },
+      });
+      const nextWeekObjectives = parseNextWeekObjectives(shopRow.nextWeekObjectives);
+      const slots = await planWeeklyContent(
+        shop.id,
+        nextWeekObjectives.length > 0 ? nextWeekObjectives : undefined,
+      );
+      await prisma.shop.update({
+        where: { id: shop.id },
+        data: { nextWeekPlanConfirmedAt: null },
+      });
       outcomes.push({ shopId: shop.id, slotCount: slots.length });
       await notifyWeeklyPlanReady(shop.id, slots.length);
     } catch (error) {
@@ -858,8 +1066,17 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
   });
   if (!latest?.weekBatchId) return [];
 
+  // Mais os posts ainda pendentes de OUTRO lote (Patricia, 06/10/2026) —
+  // quando uma campanha vira o lote mais recente, os posts normais fora do
+  // período dela continuam agendados e precisam continuar visíveis aqui.
   const items = await prisma.contentItem.findMany({
-    where: { shopId, weekBatchId: latest.weekBatchId },
+    where: {
+      shopId,
+      OR: [
+        { weekBatchId: latest.weekBatchId },
+        { weekBatchId: { not: null }, status: { in: ["draft", "approved"] } },
+      ],
+    },
     include: {
       product: true,
       contentPillar: true,
@@ -890,6 +1107,7 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     productId: item.productId ?? "",
     productTitle: item.product?.title ?? "(product removed)",
     objective: item.commercialObjective,
+    objectiveSource: item.objectiveSource,
     pillarName: item.contentPillar?.name ?? null,
     promotionName: item.promotion?.name ?? null,
     needsManualImage: item.images.length === 0,
@@ -1441,10 +1659,16 @@ export async function planPromotionalWeek(
   shopId: string,
   promotion: Promotion,
 ): Promise<WeeklyPlanSlot[]> {
+  // Só substitui os posts normais agendados DENTRO do período da campanha
+  // (Patricia, 06/10/2026: "start a seasonal campaign também muda tudo
+  // depois do plano já ter sido implantado") — antes cancelava a semana
+  // inteira, mesmo com a campanha começando semanas depois.
   await prisma.contentItem.updateMany({
     where: {
       shopId,
       weekBatchId: { not: null },
+      promotionId: null,
+      scheduledAt: { gte: promotion.startsAt, lte: promotion.endsAt },
       status: { notIn: ["published", "publishing", "partial", "cancelled"] },
     },
     data: { status: "cancelled" },

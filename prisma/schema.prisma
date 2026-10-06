@@ -122,6 +122,17 @@ model Shop {
   // a loja pra sempre se o processo cair no meio.
   weeklyPlanGeneratingAt DateTime?
 
+  // Plano da PRÓXIMA semana, definido no fim da tela do plano atual
+  // (Patricia, 06/10/2026: "o next week weekly plan sempre aparece no final
+  // da current week, mas sem gerar os criativos ou textos apenas com
+  // definição do plan"). Lista de objetivos escolhidos (vazia/null = a IA
+  // decide por produto), usada pelo cron (generateDueWeeklyPlans) ao montar
+  // a próxima semana. Fica salva como pré-preenchimento das semanas
+  // seguintes; nextWeekPlanConfirmedAt marca se a lojista confirmou para a
+  // semana que vem (volta a null a cada semana gerada).
+  nextWeekObjectives      Json?
+  nextWeekPlanConfirmedAt DateTime?
+
   // Idioma(s) de publicação (Patricia, 10/09/2026: "a cliente escolhe o
   // idioma... até 2 idiomas, aparece o primeiro e na sequência o segundo,
   // em todos os posts") — contentLanguagePrimary sempre presente (default
@@ -389,6 +400,11 @@ model ContentItem {
   platform            String // instagram | facebook
   format              String        @default("post") // post | reel — reel monta um MP4 a partir das imagens já geradas e aprovadas (ver buildReel.server.ts), nunca gera vídeo novo por IA
   commercialObjective String // awareness | engagement | traffic | conversion | inventory
+  // Quem escolheu o objetivo (Patricia, 06/10/2026: "eu não sei qual
+  // objetivo foi usado neste plano"): "merchant" (marcado no plano),
+  // "ai" (inferido por produto) ou "campaign" (promoção). Null em posts
+  // anteriores a este campo.
+  objectiveSource     String?
   decisionBrief       Json? // saída estruturada do Estágio 1 (arquétipo, ângulo, framework, etc.)
   captionText         String?
   hashtags            String?

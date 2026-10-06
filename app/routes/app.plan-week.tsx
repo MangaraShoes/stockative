@@ -17,6 +17,8 @@ import {
   getActivePromotion,
   planPromotionalWeek,
   createPromotion,
+  previewNextWeekPlan,
+  promotionNeedsPostsNow,
   type WeeklyPlanSlot,
 } from "../services/decisionEngine/planWeek.server";
 import {
@@ -146,6 +148,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // must restore it.") — nunca mais só memória do navegador.
   const slots = shop ? await getCurrentWeekBatch(shop.id) : [];
 
+  // Plano da próxima semana (só definição, sem IA) — aparece no fim da tela
+  // quando a semana atual já existe. Não recalcula enquanto uma geração
+  // está em andamento (o loader é revalidado a cada 4s nesse período).
+  const nextWeek =
+    shop && slots.length > 0 && !shop.weeklyPlanGeneratingAt
+      ? await previewNextWeekPlan(shop.id)
+      : null;
+
   // Conta do TikTok consultada ao vivo sempre que há Reel ainda editável —
   // as diretrizes do Direct Post exigem mostrar a conta de destino e as
   // opções atuais dela (ver TikTokPostPanel). Sem Reel pendente, nem chama.
@@ -199,6 +209,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     requireApproval: shop?.requireApproval ?? false,
     onboardingStatus,
     slots,
+    nextWeek,
     tiktokCreator,
   };
 };
@@ -408,14 +419,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // tela só tinha o formulário de campanha promocional ANTES dos pilares
   // existirem, então não havia como criar uma campanha nova depois do
   // onboarding inicial. Agora fica aqui, sempre acessível.
+  // Definição da próxima semana (Patricia, 06/10/2026) — só salva os
+  // objetivos, nenhuma IA roda aqui. O cron usa isso ao montar a semana.
+  if (intent === "next-week-plan") {
+    const objectives = formData
+      .getAll("objective")
+      .map(String)
+      .filter((value): value is CommercialObjective =>
+        (COMMERCIAL_OBJECTIVES as readonly string[]).includes(value),
+      );
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { nextWeekObjectives: objectives, nextWeekPlanConfirmedAt: new Date() },
+    });
+    return { intent: "next-week-plan" as const, error: null as string | null };
+  }
+
   if (intent === "promotion") {
-    const existingPromotion = await getActivePromotion(shop.id);
-    if (existingPromotion) {
-      return {
-        intent: "promotion" as const,
-        error: `The ${existingPromotion.name} promotion is already running until ${existingPromotion.endsAt.toLocaleDateString()} — end it before starting a new one.`,
-      };
-    }
 
     const socialAccountForPromotion = await prisma.socialAccount.findUnique({
       where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
@@ -446,6 +466,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }
 
+    const overlapping = await prisma.promotion.findFirst({
+      where: { shopId: shop.id, startsAt: { lte: endsAt }, endsAt: { gte: startsAt } },
+    });
+    if (overlapping) {
+      return {
+        intent: "promotion" as const,
+        error: `These dates overlap the ${overlapping.name} campaign (${overlapping.startsAt.toLocaleDateString()}–${overlapping.endsAt.toLocaleDateString()}).`,
+      };
+    }
+
     try {
       const promotion = await createPromotion({
         shopId: shop.id,
@@ -456,7 +486,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         startsAt,
         endsAt,
       });
-      await planPromotionalWeek(shop.id, promotion);
+      // Só gera os posts (IA + imagem) quando a campanha está perto de
+      // começar; antes disso fica só a definição e o cron monta na hora
+      // certa (ver generateDueWeeklyPlans). Nunca derruba a semana atual:
+      // só posts dentro do período da campanha são substituídos.
+      if (promotionNeedsPostsNow(promotion)) {
+        await planPromotionalWeek(shop.id, promotion);
+      }
     } catch (error) {
       console.error("Failed to build promotional campaign:", error);
       return {
@@ -524,6 +560,15 @@ function slotTime(slot: WeeklyPlanSlot, timeZone: string): string {
 // semana, e isso já causou confusão real ao reagendar (ver
 // nextWeeklyOccurrenceInTimezone, que pode escolher esta semana ou a
 // seguinte dependendo do dia/hora escolhidos).
+function formatDay(iso: string, timeZone: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+  });
+}
+
 function formatScheduledAt(iso: string, timeZone: string): string {
   return new Date(iso).toLocaleString(undefined, {
     timeZone,
@@ -606,6 +651,7 @@ export default function PlanWeek() {
     requireApproval,
     onboardingStatus,
     slots,
+    nextWeek,
     remainingImageCredits,
     regenerationReasonSuggestions,
     captionRegenerationReasonSuggestions,
@@ -685,6 +731,34 @@ export default function PlanWeek() {
         ? current.filter((o) => o !== objective)
         : [...current, objective],
     );
+  // Objetivos da PRÓXIMA semana, pré-preenchidos com o que está salvo
+  // (Patricia, 06/10/2026) — só viram plano ao confirmar.
+  const nextWeekFetcher = useFetcher<typeof action>();
+  const savedNextWeekObjectives: string[] = nextWeek?.objectives ?? [];
+  const [nextWeekObjectives, setNextWeekObjectives] = useState<string[]>(savedNextWeekObjectives);
+  // Recarrega o pré-preenchimento quando o valor salvo muda (ex.: a prévia
+  // só existe depois que a semana atual termina de gerar).
+  const savedNextWeekKey = [...savedNextWeekObjectives].sort().join(",");
+  const [syncedNextWeekKey, setSyncedNextWeekKey] = useState(savedNextWeekKey);
+  if (savedNextWeekKey !== syncedNextWeekKey) {
+    setSyncedNextWeekKey(savedNextWeekKey);
+    setNextWeekObjectives(savedNextWeekObjectives);
+  }
+  const toggleNextWeekObjective = (objective: string) =>
+    setNextWeekObjectives((current) =>
+      current.includes(objective)
+        ? current.filter((o) => o !== objective)
+        : [...current, objective],
+    );
+  const nextWeekDirty =
+    [...nextWeekObjectives].sort().join(",") !== [...savedNextWeekObjectives].sort().join(",");
+  const isSavingNextWeek = nextWeekFetcher.state !== "idle";
+  const confirmNextWeek = () => {
+    const formData = new FormData();
+    formData.set("intent", "next-week-plan");
+    nextWeekObjectives.forEach((objective) => formData.append("objective", objective));
+    nextWeekFetcher.submit(formData, { method: "POST" });
+  };
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
   // "Trocar a modelo" / "trocar a situação" só nesta regeneração (Patricia,
   // 05/10/2026) — ver RegenerationOverrides em modelProfile.ts.
@@ -913,6 +987,33 @@ export default function PlanWeek() {
       ? generateFetcher.data.error
       : null;
 
+  // Resumo do objetivo da semana atual (Patricia, 06/10/2026: "eu não sei
+  // qual objetivo foi usado neste plano").
+  const liveSlots = slots.filter((slot) => slot.status !== "cancelled");
+  const thisWeekFocus =
+    liveSlots.length > 0
+      ? (() => {
+          const labels = Array.from(
+            new Set(
+              liveSlots.map(
+                (slot) => OBJECTIVE_LABELS[slot.objective as CommercialObjective] ?? slot.objective,
+              ),
+            ),
+          );
+          const sources = new Set(liveSlots.map((slot) => slot.objectiveSource));
+          const only = sources.size === 1 ? [...sources][0] : null;
+          const chosenBy =
+            only === "merchant"
+              ? "chosen by you"
+              : only === "ai"
+                ? "picked by Stockative from each product's stock and sales"
+                : only === "campaign"
+                  ? `set by the ${activePromotionName ?? "campaign"} campaign`
+                  : null;
+          return { labels, chosenBy };
+        })()
+      : null;
+
   const promotionFailure =
     promotionFetcher.data?.intent === "promotion" && promotionFetcher.data.error
       ? promotionFetcher.data.error
@@ -937,154 +1038,15 @@ export default function PlanWeek() {
         </s-banner>
       )}
 
-      <s-section heading="Seasonal or promotional campaign">
-        {activePromotionName ? (
+      {activePromotionName && (
+        <s-section heading="Seasonal or promotional campaign">
           <s-paragraph>
-            <strong>{activePromotionName}</strong> is running now — every
-            post above belongs to it. It&apos;ll end on its own and hand
-            control back to the regular weekly plan.
+            <strong>{activePromotionName}</strong> is running now — its posts
+            are below. It&apos;ll end on its own and hand control back to the
+            regular weekly plan.
           </s-paragraph>
-        ) : !showPromotionForm ? (
-          <>
-            <s-paragraph>
-              Start a campaign like Black Friday or Christmas — it replaces
-              this week&apos;s regular content with posts about it, and
-              nothing new publishes once it ends.
-            </s-paragraph>
-            <s-button
-              onClick={() => setShowPromotionForm(true)}
-              {...(!canGenerate ? { disabled: true } : {})}
-            >
-              Start a seasonal campaign
-            </s-button>
-          </>
-        ) : (
-          <promotionFetcher.Form
-            method="post"
-            onSubmit={() => markPendingAction("build this promotional campaign")}
-          >
-            <input type="hidden" name="intent" value="promotion" />
-            <s-stack direction="block" gap="base">
-              <s-stack direction="inline" gap="base">
-                <select
-                  name="occasionPreset"
-                  value={occasionPreset}
-                  onChange={(e) => setOccasionPreset(e.target.value)}
-                  style={{ padding: 8 }}
-                >
-                  {OCCASION_PRESETS.map((preset) => (
-                    <option key={preset} value={preset}>
-                      {preset}
-                    </option>
-                  ))}
-                </select>
-                {occasionPreset === "Other" && (
-                  <input
-                    type="text"
-                    name="customOccasionName"
-                    placeholder="Campaign name"
-                    style={{ padding: 8, flex: 1 }}
-                  />
-                )}
-              </s-stack>
-
-              <s-stack direction="inline" gap="base" alignItems="center">
-                <input
-                  type="number"
-                  name="discountPct"
-                  min="1"
-                  max="90"
-                  placeholder="Discount"
-                  style={{ width: 100, padding: 8 }}
-                />
-                <s-text>% off</s-text>
-              </s-stack>
-
-              <s-stack direction="inline" gap="base">
-                <select
-                  name="scopeType"
-                  value={promotionScopeType}
-                  onChange={(e) =>
-                    setPromotionScopeType(e.target.value as "store" | "collection")
-                  }
-                  style={{ padding: 8 }}
-                >
-                  <option value="store">Whole store</option>
-                  <option value="collection">One collection</option>
-                </select>
-                {promotionScopeType === "collection" && (
-                  <select name="scopeValue" style={{ padding: 8 }}>
-                    {productCollections.length === 0 ? (
-                      <option value="">No collections found</option>
-                    ) : (
-                      productCollections.map((collection) => (
-                        <option key={collection} value={collection}>
-                          {collection}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                )}
-              </s-stack>
-
-              <s-stack direction="inline" gap="base" alignItems="center">
-                <label>
-                  Starts <input type="date" name="startsAt" style={{ padding: 8 }} />
-                </label>
-                <label>
-                  Ends <input type="date" name="endsAt" style={{ padding: 8 }} />
-                </label>
-              </s-stack>
-
-              <s-stack direction="inline" gap="base">
-                <button
-                  type="submit"
-                  disabled={isSubmittingPromotion}
-                  style={{
-                    display: "inline-block",
-                    alignSelf: "flex-start",
-                    padding: "8px 16px",
-                    border: "1px solid #000",
-                    borderRadius: 8,
-                    background: "#000",
-                    color: "#fff",
-                    fontWeight: 500,
-                    opacity: isSubmittingPromotion ? 0.5 : 1,
-                    cursor: isSubmittingPromotion ? "default" : "pointer",
-                  }}
-                >
-                  {isSubmittingPromotion ? "Building…" : "Build my promotional campaign"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowPromotionForm(false)}
-                  disabled={isSubmittingPromotion}
-                  style={{
-                    display: "inline-block",
-                    alignSelf: "flex-start",
-                    padding: "8px 16px",
-                    border: "1px solid #a8abae",
-                    borderRadius: 8,
-                    background: "transparent",
-                    fontWeight: 500,
-                  }}
-                >
-                  Cancel
-                </button>
-              </s-stack>
-
-              {isSubmittingPromotion && (
-                <GeneratingProgressBar label="Building this campaign's posts…" />
-              )}
-              {promotionFailure && (
-                <s-paragraph>
-                  <strong>{promotionFailure}</strong>
-                </s-paragraph>
-              )}
-            </s-stack>
-          </promotionFetcher.Form>
-        )}
-      </s-section>
+        </s-section>
+      )}
 
       <s-section heading="This week's content, picked for you">
         <s-paragraph>
@@ -1122,7 +1084,14 @@ export default function PlanWeek() {
           </s-paragraph>
         )}
 
-        {canGenerate && (
+        {slots.length > 0 && thisWeekFocus && (
+          <s-paragraph>
+            <strong>This week&apos;s focus:</strong> {thisWeekFocus.labels.join(" · ")}
+            {thisWeekFocus.chosenBy && <s-text color="subdued"> — {thisWeekFocus.chosenBy}</s-text>}
+          </s-paragraph>
+        )}
+
+        {canGenerate && slots.length === 0 && (
           <div style={{ marginBottom: 8 }}>
             <s-paragraph>
               Campaign objective(s) for this week
@@ -1935,6 +1904,248 @@ export default function PlanWeek() {
           </s-stack>
         )}
       </s-section>
+
+      {nextWeek && (
+        <s-section heading="Next week's plan">
+          <s-paragraph>
+            Stockative builds next week on{" "}
+            <strong>{formatDay(nextWeek.buildsAround, shopTimezone)}</strong>.
+            Here you only decide the plan — captions, images and Reels are
+            created when the week is built, so changing this costs nothing.
+          </s-paragraph>
+
+          {nextWeek.confirmedAt ? (
+            <s-paragraph>
+              <s-badge tone="success">Confirmed</s-badge>
+            </s-paragraph>
+          ) : (
+            <s-banner tone="info">
+              <s-paragraph>
+                Pre-filled with Stockative&apos;s suggestion — review it and
+                confirm. If you don&apos;t, next week is built exactly as shown.
+              </s-paragraph>
+            </s-banner>
+          )}
+
+          <s-stack direction="inline" gap="base">
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="nextWeekMode"
+                checked={!showPromotionForm}
+                onChange={() => setShowPromotionForm(false)}
+              />
+              Regular week
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="nextWeekMode"
+                checked={showPromotionForm}
+                onChange={() => setShowPromotionForm(true)}
+              />
+              Seasonal or promotional campaign
+            </label>
+          </s-stack>
+
+          {nextWeek.upcomingPromotions.length > 0 && (
+            <s-paragraph>
+              Scheduled campaigns:{" "}
+              {nextWeek.upcomingPromotions
+                .map(
+                  (promotion) =>
+                    `${promotion.name} (${promotion.discountPct}% off, ${formatDay(promotion.startsAt, shopTimezone)} – ${formatDay(promotion.endsAt, shopTimezone)}${promotion.planned ? ", posts ready" : ""})`,
+                )
+                .join(" · ")}
+            </s-paragraph>
+          )}
+
+          {!showPromotionForm ? (
+            <s-stack direction="block" gap="base">
+              <s-paragraph>
+                Objective(s) for next week
+                <s-text color="subdued"> (leave all unticked to let Stockative pick per product)</s-text>
+              </s-paragraph>
+              <s-stack direction="inline" gap="base">
+                {COMMERCIAL_OBJECTIVES.map((objective) => (
+                  <label key={objective} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={nextWeekObjectives.includes(objective)}
+                      onChange={() => toggleNextWeekObjective(objective)}
+                    />
+                    {OBJECTIVE_LABELS[objective]}
+                  </label>
+                ))}
+              </s-stack>
+
+              <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
+                <s-stack direction="block" gap="small-200">
+                  {nextWeek.slots.map((slot, index) => (
+                    <s-text key={index}>
+                      <strong>
+                        {WEEKDAY_OPTIONS.find((option) => option.value === slot.weekday)?.label}{" "}
+                        {String(slot.hour).padStart(2, "0")}:{String(slot.minute).padStart(2, "0")}
+                      </strong>
+                      {" · "}
+                      {slot.format === "reel" ? "🎬 Reel" : "Post"}
+                      {" · "}
+                      {slot.campaignName
+                        ? `covered by the ${slot.campaignName} campaign`
+                        : `${slot.productTitle} — ${slot.objective ? OBJECTIVE_LABELS[slot.objective] : ""}`}
+                    </s-text>
+                  ))}
+                </s-stack>
+              </s-box>
+              <s-text color="subdued">
+                {nextWeekDirty
+                  ? "Confirm to update the suggested products for these objectives."
+                  : "Suggested products — the final pick uses your stock on the day the week is built, and you can still swap any of them afterwards."}
+              </s-text>
+
+              <s-button
+                variant="primary"
+                onClick={confirmNextWeek}
+                {...(isSavingNextWeek ? { loading: true } : {})}
+              >
+                Confirm next week&apos;s plan
+              </s-button>
+            </s-stack>
+          ) : (
+            <s-stack direction="block" gap="base">
+              <s-paragraph>
+                A campaign only replaces the regular posts that fall inside its
+                dates — the rest of your plan stays as it is. Its posts are
+                created 2 days before it starts.
+              </s-paragraph>
+          <promotionFetcher.Form
+            method="post"
+            onSubmit={() => markPendingAction("schedule this promotional campaign")}
+          >
+            <input type="hidden" name="intent" value="promotion" />
+            <s-stack direction="block" gap="base">
+              <s-stack direction="inline" gap="base">
+                <select
+                  name="occasionPreset"
+                  value={occasionPreset}
+                  onChange={(e) => setOccasionPreset(e.target.value)}
+                  style={{ padding: 8 }}
+                >
+                  {OCCASION_PRESETS.map((preset) => (
+                    <option key={preset} value={preset}>
+                      {preset}
+                    </option>
+                  ))}
+                </select>
+                {occasionPreset === "Other" && (
+                  <input
+                    type="text"
+                    name="customOccasionName"
+                    placeholder="Campaign name"
+                    style={{ padding: 8, flex: 1 }}
+                  />
+                )}
+              </s-stack>
+
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <input
+                  type="number"
+                  name="discountPct"
+                  min="1"
+                  max="90"
+                  placeholder="Discount"
+                  style={{ width: 100, padding: 8 }}
+                />
+                <s-text>% off</s-text>
+              </s-stack>
+
+              <s-stack direction="inline" gap="base">
+                <select
+                  name="scopeType"
+                  value={promotionScopeType}
+                  onChange={(e) =>
+                    setPromotionScopeType(e.target.value as "store" | "collection")
+                  }
+                  style={{ padding: 8 }}
+                >
+                  <option value="store">Whole store</option>
+                  <option value="collection">One collection</option>
+                </select>
+                {promotionScopeType === "collection" && (
+                  <select name="scopeValue" style={{ padding: 8 }}>
+                    {productCollections.length === 0 ? (
+                      <option value="">No collections found</option>
+                    ) : (
+                      productCollections.map((collection) => (
+                        <option key={collection} value={collection}>
+                          {collection}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                )}
+              </s-stack>
+
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <label>
+                  Starts <input type="date" name="startsAt" style={{ padding: 8 }} />
+                </label>
+                <label>
+                  Ends <input type="date" name="endsAt" style={{ padding: 8 }} />
+                </label>
+              </s-stack>
+
+              <s-stack direction="inline" gap="base">
+                <button
+                  type="submit"
+                  disabled={isSubmittingPromotion}
+                  style={{
+                    display: "inline-block",
+                    alignSelf: "flex-start",
+                    padding: "8px 16px",
+                    border: "1px solid #000",
+                    borderRadius: 8,
+                    background: "#000",
+                    color: "#fff",
+                    fontWeight: 500,
+                    opacity: isSubmittingPromotion ? 0.5 : 1,
+                    cursor: isSubmittingPromotion ? "default" : "pointer",
+                  }}
+                >
+                  {isSubmittingPromotion ? "Saving…" : "Schedule this campaign"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPromotionForm(false)}
+                  disabled={isSubmittingPromotion}
+                  style={{
+                    display: "inline-block",
+                    alignSelf: "flex-start",
+                    padding: "8px 16px",
+                    border: "1px solid #a8abae",
+                    borderRadius: 8,
+                    background: "transparent",
+                    fontWeight: 500,
+                  }}
+                >
+                  Cancel
+                </button>
+              </s-stack>
+
+              {isSubmittingPromotion && (
+                <GeneratingProgressBar label="Saving this campaign…" />
+              )}
+              {promotionFailure && (
+                <s-paragraph>
+                  <strong>{promotionFailure}</strong>
+                </s-paragraph>
+              )}
+            </s-stack>
+          </promotionFetcher.Form>
+            </s-stack>
+          )}
+        </s-section>
+      )}
 
       {zoomedImageUrl && (
         <div

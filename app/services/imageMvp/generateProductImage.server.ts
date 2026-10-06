@@ -1,5 +1,6 @@
 import prisma from "../../db.server";
 import { getProviderForTask } from "../ai/taskConfig.server";
+import type { FidelityCheckResult } from "../ai/types.server";
 import { applyLogoOverlay } from "./logoOverlay.server";
 import type { ObservedScene } from "../ai/types.server";
 import { isInconclusiveObservation, type SceneDecision, type CategoryRepertoire } from "./repertoire.server";
@@ -239,6 +240,29 @@ The product must remain the clear focus of the composition, fully visible (not c
 `;
 }
 
+function isColorOnlyFailure(result: FidelityCheckResult): boolean {
+  return !result.passed && result.failedAxes?.length === 1 && result.failedAxes[0] === "color";
+}
+
+// Até 2 votos extras sobre a mesma imagem: passa com 2 aprovações, reprova
+// com 2 reprovações (o primeiro voto já conta como uma). Um voto extra que
+// reprove outro eixo (forma, material, detalhes) reprova na hora.
+async function judgeColorByMajority(
+  firstVote: FidelityCheckResult,
+  vote: () => Promise<FidelityCheckResult>,
+): Promise<FidelityCheckResult> {
+  let passes = firstVote.passed ? 1 : 0;
+  let fails = firstVote.passed ? 0 : 1;
+  let last = firstVote;
+  while (passes < 2 && fails < 2) {
+    last = await vote();
+    if (!last.passed && !isColorOnlyFailure(last)) return last;
+    if (last.passed) passes++;
+    else fails++;
+  }
+  return passes >= 2 ? { passed: true, issues: [], failedAxes: [] } : last;
+}
+
 function buildColorCorrectionPrompt(productTitle: string): string {
   return `Edit the FIRST image. Change ONLY the color of the product ("${productTitle}") so it exactly matches the product in the SECOND image (the real product photo): the same hue, undertone, saturation and lightness, with the scene's light falling on it naturally. Keep everything else in the first image exactly as it is — the person, pose, outfit, background, framing, composition, lighting, and the product's shape, material, finish and every detail. Do not add, remove or move anything. ${COLOR_NAME_WARNING}`;
 }
@@ -397,20 +421,31 @@ export async function generateProductImage(
     // correções manuais da Mangará: corrigir o detalhe, não refazer a
     // imagem. A versão corrigida passa pelo check de fidelidade de novo —
     // a regra de cor continua sem exceção.
-    if (!fidelity.passed && fidelity.failedAxes?.length === 1 && fidelity.failedAxes[0] === "color") {
-      const recolored = await imageProvider.editImage(buildColorCorrectionPrompt(params.productTitle), [
-        generated.imageDataUrl,
-        params.referenceImageUrl,
-      ]);
-      const recoloredFidelity = await fidelityProvider.checkImageFidelity(
-        params.referenceImageUrl,
-        recolored.imageDataUrl,
-        params.productTitle,
-        fidelityConstraints,
-      );
-      if (recoloredFidelity.passed) {
-        generated = recolored;
-        fidelity = recoloredFidelity;
+    // 06/10/2026: o julgamento de cor oscila entre rodadas — a mesma
+    // imagem reprova e depois passa, e a lojista viu a cor certa onde o
+    // check viu errada (3 tentativas perdidas seguidas assim na Senna).
+    // Reprovação SÓ de cor pede maioria (2 de 3) antes de valer; se a
+    // maioria ainda reprovar, corrige a cor e julga a versão corrigida pela
+    // mesma maioria. Qualquer outro eixo reprovado continua valendo de cara.
+    const judge = (imageDataUrl: string) =>
+      fidelityProvider.checkImageFidelity(params.referenceImageUrl, imageDataUrl, params.productTitle, fidelityConstraints);
+    if (isColorOnlyFailure(fidelity)) {
+      const majority = await judgeColorByMajority(fidelity, () => judge(generated.imageDataUrl));
+      if (majority.passed) {
+        fidelity = majority;
+      } else if (isColorOnlyFailure(majority)) {
+        const recolored = await imageProvider.editImage(buildColorCorrectionPrompt(params.productTitle), [
+          generated.imageDataUrl,
+          params.referenceImageUrl,
+        ]);
+        const firstRecoloredVote = await judge(recolored.imageDataUrl);
+        const recoloredFidelity = isColorOnlyFailure(firstRecoloredVote)
+          ? await judgeColorByMajority(firstRecoloredVote, () => judge(recolored.imageDataUrl))
+          : firstRecoloredVote;
+        if (recoloredFidelity.passed) {
+          generated = recolored;
+          fidelity = recoloredFidelity;
+        }
       }
     }
     // Só vale checar composição se o produto em si já bateu — não faz
@@ -451,6 +486,9 @@ export async function generateProductImage(
         taskType: "image",
         model: generated.model,
         passedFidelityCheck: fidelity.passed,
+        // Motivo da reprovação gravado (06/10/2026: 3 tentativas reprovadas
+        // na Senna sem registro do porquê, impossível de diagnosticar).
+        fidelityIssues: fidelity.passed ? undefined : (fidelity.issues as unknown as object),
         passedCompositionCheck: fidelity.passed ? composition.passed : null,
         // 1 crédito = 1 imagem válida ENTREGUE ao merchant, nunca 1 chamada
         // de API — tentativa rejeitada por qualquer guardrail não é cobrada.
@@ -534,8 +572,8 @@ export async function generateProductImage(
     status: "fallback",
     reason:
       keptCandidates.length > 0
-        ? "None of the AI images passed every quality check. Pick one of the options below, use your Shopify photos, upload your own image, or cancel the post."
-        : "The AI couldn't generate an image faithful to your product after three attempts. Use your Shopify photos, upload your own image, or cancel the post.",
+        ? "None of the AI images passed every quality check. Choose one of the options below or upload your own image."
+        : "The AI couldn't generate an image faithful to your product after three attempts. Choose one of the options below or upload your own image.",
     attempts: MAX_ATTEMPTS,
     candidateCount: keptCandidates.length,
   };

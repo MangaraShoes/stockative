@@ -559,6 +559,8 @@ model GenerationLog {
   // fidelidade, não a garante; isto é o que foi de fato pedido/checado,
   // pra auditoria futura.
   fidelityConstraints Json?
+  // Motivos da reprovação no check de fidelidade (null quando passou).
+  fidelityIssues      Json?
 
   // Solicitado: o que o repertório escolheu ANTES de montar o prompt.
   requestedAction      String?

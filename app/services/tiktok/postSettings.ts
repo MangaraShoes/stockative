@@ -46,6 +46,12 @@ export interface TikTokCreatorInfo {
   duetDisabled: boolean;
   stitchDisabled: boolean;
   maxVideoPostDurationSec: number;
+  // Enquanto o app não passar pela auditoria do Direct Post, o TikTok só
+  // aceita post "Only me" numa conta privada (ver queryTikTokCreatorInfo).
+  // unauditedOnlyMe = as opções já foram cortadas pra SELF_ONLY;
+  // accountIsPublic = a conta ainda é pública, então até o "Only me" falha.
+  unauditedOnlyMe: boolean;
+  accountIsPublic: boolean;
 }
 
 export interface TikTokPostSettings {

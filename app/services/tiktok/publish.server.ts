@@ -32,17 +32,30 @@ interface CreatorInfoResponse {
 // estão desligados na conta, e a duração máxima de vídeo. Também é o que
 // diz se a conta bateu o limite diário de posts — nesse caso a própria
 // chamada falha com spam_risk_* e o post não é enviado.
+//
+// Achado ao vivo, 06/10/2026: app não auditado só publica com a conta
+// privada E o post em SELF_ONLY. FOLLOWER_OF_CREATOR numa conta já privada
+// também volta 403 unaudited_client_can_only_post_to_private_accounts.
+// Enquanto TIKTOK_DIRECT_POST_AUDITED não for "true", as opções ficam só
+// em SELF_ONLY. Como a tela e a validação do servidor (ao salvar e na hora
+// de publicar) leem daqui, nenhuma das duas aceita outra opção.
+// PUBLIC_TO_EVERYONE só aparece pra conta pública, por isso serve pra
+// avisar a lojista que a conta precisa ficar privada.
 export async function queryTikTokCreatorInfo(target: TikTokTarget): Promise<TikTokCreatorInfo> {
   const data = await tiktokApiRequest<CreatorInfoResponse>(TIKTOK_CREATOR_INFO_URL, target.accessToken, {
     method: "POST",
   });
+  const options = (data.privacy_level_options ?? []).filter((level): level is TikTokPrivacyLevel =>
+    (TIKTOK_PRIVACY_LEVELS as readonly string[]).includes(level),
+  );
+  const unauditedOnlyMe = process.env.TIKTOK_DIRECT_POST_AUDITED !== "true";
   return {
     nickname: data.creator_nickname ?? data.creator_username ?? "",
     username: data.creator_username ?? "",
     avatarUrl: data.creator_avatar_url ?? null,
-    privacyLevelOptions: (data.privacy_level_options ?? []).filter((level): level is TikTokPrivacyLevel =>
-      (TIKTOK_PRIVACY_LEVELS as readonly string[]).includes(level),
-    ),
+    privacyLevelOptions: unauditedOnlyMe ? options.filter((level) => level === "SELF_ONLY") : options,
+    unauditedOnlyMe,
+    accountIsPublic: options.includes("PUBLIC_TO_EVERYONE"),
     commentDisabled: Boolean(data.comment_disabled),
     duetDisabled: Boolean(data.duet_disabled),
     stitchDisabled: Boolean(data.stitch_disabled),

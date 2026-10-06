@@ -206,6 +206,23 @@ export function TikTokPostPanel(props: {
         </select>
       </label>
 
+      {creator.unauditedOnlyMe && (
+        <s-paragraph>
+          For now TikTok only accepts &quot;Only me&quot; posts from Stockative, on a private
+          account, while our app is under TikTok review. Once it&apos;s approved you&apos;ll be
+          able to choose who can see each video. You can change a posted video&apos;s visibility
+          in the TikTok app anytime.
+        </s-paragraph>
+      )}
+      {creator.unauditedOnlyMe && creator.accountIsPublic && (
+        <s-paragraph>
+          <strong>
+            Your TikTok account is public, so TikTok will reject this post. Switch it to a private
+            account in TikTok (Settings and privacy → Privacy) before the scheduled time.
+          </strong>
+        </s-paragraph>
+      )}
+
       <div>
         <span style={{ fontWeight: 500 }}>Allow users to</span>
         <s-stack direction="inline" gap="base">

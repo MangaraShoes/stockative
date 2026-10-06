@@ -813,6 +813,7 @@ export interface NextWeekPreviewSlot {
   productTitle: string | null;
   objective: CommercialObjective | null;
   campaignName: string | null; // slot coberto por uma campanha agendada
+  scheduledAt: string; // ISO — só pra ordenar na ordem do calendário
 }
 
 export interface NextWeekPreview {
@@ -878,7 +879,14 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
     const format = weeklySlotPlan.reelSlotIndices.includes(index) ? "reel" : "post";
     const campaign = promotions.find((promotion) => isWithinPromotion(scheduledAt, promotion));
     if (campaign) {
-      slots.push({ ...slotSchedule, format, productTitle: null, objective: null, campaignName: campaign.name });
+      slots.push({
+        ...slotSchedule,
+        format,
+        productTitle: null,
+        objective: null,
+        campaignName: campaign.name,
+        scheduledAt: scheduledAt.toISOString(),
+      });
       continue;
     }
 
@@ -904,8 +912,10 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
           price: product.price,
         }),
       campaignName: null,
+      scheduledAt: scheduledAt.toISOString(),
     });
   }
+  slots.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
 
   return {
     buildsAround: buildsAround.toISOString(),

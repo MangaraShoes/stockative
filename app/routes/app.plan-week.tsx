@@ -261,7 +261,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Só compra se ainda estiver sem crédito — um clique duplo ou uma
       // aba antiga nunca cobra duas vezes por uma regeneração.
       if (formData.get("acceptExtraCharge") === "1" && (await getRemainingCredits(shop, "image")) <= 0) {
-        await purchaseExtraCredits(shop.id, "image", 1);
+        try {
+          await purchaseExtraCredits(shop, "image", 1);
+        } catch (error) {
+          console.error("Failed to charge extra image credit:", error);
+          return {
+            intent: "regenerate-image" as const,
+            contentItemId,
+            result: {
+              status: "error" as const,
+              reason: "We couldn't add the extra image charge to your Shopify bill, so nothing was charged or generated. Please try again in a moment.",
+            },
+          };
+        }
       }
       const occasion = formData.get("occasion");
       result = await regenerateWeeklyPlanSlotImage({

@@ -25,6 +25,7 @@ import {
 } from "../services/imageMvp/modelProfile";
 import { CONTENT_LANGUAGES, getAppLanguage } from "../services/decisionEngine/constants";
 import { getWeeklySlotPlan } from "../services/decisionEngine/planTiers.server";
+import { isBillingEnabled, planSelectionUrl } from "../services/billing/subscription.server";
 import {
   DEFAULT_WEEKLY_SCHEDULE,
   normalizeCustomSchedule,
@@ -38,17 +39,17 @@ import {
 const PLAN_OPTIONS = [
   {
     value: "basic",
-    label: "Basic — €24.90/month",
+    label: "Basic — $24.90/month",
     description: "3 posts/week (~12/month) — 2 image posts + 1 reel weekly.",
   },
   {
     value: "grow",
-    label: "Grow — €37.90/month",
+    label: "Grow — $37.90/month",
     description: "5 posts/week — 3 image posts + 2 reels weekly.",
   },
   {
     value: "plus",
-    label: "Plus — €49.90/month",
+    label: "Plus — $49.90/month",
     description: "7 posts/week — 4 image posts + 3 reels weekly.",
   },
 ] as const;
@@ -79,6 +80,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     plan: shop?.plan ?? "basic",
+    // Com a cobrança ligada, o plano é escolhido e pago na tela de planos da
+    // própria Shopify (Shopify App Pricing) — aqui só mostra e leva pra lá.
+    billingEnabled: isBillingEnabled(),
+    planSelectionUrl: planSelectionUrl(session.shop),
     // "store" = segue o idioma da loja (appLanguage null).
     appLanguageChoice: shop?.appLanguage ?? "store",
     storeLanguage: getAppLanguage({ storeLanguage: shop?.storeLanguage }),
@@ -112,6 +117,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // a cota que o app usa pra decidir e gerar conteúdo, do mesmo jeito que o
   // piloto já testa hoje direto no banco.
   if (intent === "save-plan") {
+    if (isBillingEnabled()) return fail("Change your plan on Shopify's plan page.");
     const plan = String(formData.get("plan") ?? "basic");
     if (!PLAN_OPTIONS.some((option) => option.value === plan)) return fail("Unknown plan.");
     await prisma.shop.update({ where: { id: shop.id }, data: { plan } });
@@ -743,7 +749,23 @@ export default function Settings() {
           week, and how many of them are reels. This never blocks automatic
           posting — it only changes the pace.
         </s-paragraph>
-        <s-stack direction="block" gap="base">
+{data.billingEnabled ? (
+          <s-stack direction="block" gap="base">
+            <s-paragraph>
+              Current plan:{" "}
+              <strong>{PLAN_OPTIONS.find((option) => option.value === data.plan)?.label ?? data.plan}</strong>{" "}
+              — {PLAN_OPTIONS.find((option) => option.value === data.plan)?.description}
+            </s-paragraph>
+            <s-paragraph>
+              Plans are billed on your Shopify invoice. Upgrades and downgrades are prorated by Shopify.
+            </s-paragraph>
+            <s-button href={data.planSelectionUrl} target="_top" variant="primary">
+              Change plan
+            </s-button>
+          </s-stack>
+        ) : (
+          <>
+                <s-stack direction="block" gap="base">
           {PLAN_OPTIONS.map((option) => (
             <label key={option.value} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
               <input
@@ -767,6 +789,8 @@ export default function Settings() {
           onClick={() => submit(planFetcher, { intent: "save-plan", plan: selectedPlan })}
         />
         <FetcherResult fetcher={planFetcher} />
+          </>
+        )}
       </s-section>
     </s-page>
   );

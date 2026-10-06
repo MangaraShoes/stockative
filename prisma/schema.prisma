@@ -55,6 +55,10 @@ model Shop {
   // lido em lugar nenhum do código até 24/09 — reaproveitado em vez de
   // criar um novo.
   plan          String    @default("basic")
+  // GID da loja (gid://shopify/Shop/123), exigido pela Partner API e pela
+  // App Events API da cobrança (billing/*.server.ts). Preenchido no loader
+  // raiz de /app (06/10/2026).
+  shopGid       String?
   installedAt   DateTime  @default(now())
   uninstalledAt DateTime?
 

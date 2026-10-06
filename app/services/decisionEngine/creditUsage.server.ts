@@ -4,6 +4,8 @@
 // volume MENSAL em vez de semanal — 1 crédito = 1 imagem/vídeo ENTREGUE
 // (ver GenerationLog.countsAsCredit), então geração e regeneração consomem
 // do mesmo pool.
+import { isBillingEnabled } from "../billing/subscription.server";
+import { reportExtraUsage } from "../billing/appEvents.server";
 import prisma from "../../db.server";
 import { EXTRA_CREDIT_PRICING } from "./extrasPricing";
 
@@ -78,12 +80,40 @@ export async function getRemainingCredits(shop: ShopPlanFields & { id: string },
 }
 
 // Lojista aceitou a cobrança de crédito extra ao clicar Regenerate sem
-// crédito sobrando (Patricia, 30/09/2026). Só registra a compra — não
-// existe cobrança real ainda (Fase 7, Shopify Billing).
-export async function purchaseExtraCredits(shopId: string, taskType: "image" | "video", credits: number): Promise<void> {
+// crédito sobrando (Patricia, 30/09/2026). Com a cobrança ligada
+// (BILLING_ENABLED), primeiro registra o uso na Shopify — a fatura mensal da
+// lojista ganha o valor do medidor extra_image/extra_video — e só então libera
+// o crédito aqui. Se o registro na Shopify falhar, o crédito NÃO é liberado
+// (lança), pra nunca gerar sem cobrar.
+export async function purchaseExtraCredits(
+  shop: { id: string; shopGid: string | null },
+  taskType: "image" | "video",
+  credits: number,
+): Promise<void> {
   const priceCents =
     taskType === "image" ? EXTRA_CREDIT_PRICING.pricePerImageCents : EXTRA_CREDIT_PRICING.pricePerVideoCents;
-  await prisma.imageCreditPurchase.create({
-    data: { shopId, taskType, creditsPurchased: credits, pricePaid: (credits * priceCents) / 100 },
+  const purchase = await prisma.imageCreditPurchase.create({
+    data: { shopId: shop.id, taskType, creditsPurchased: 0, pricePaid: 0 },
+  });
+
+  try {
+    if (isBillingEnabled()) {
+      if (!shop.shopGid) throw new Error("Shop GID unknown — open the app once so it can be recorded.");
+      await reportExtraUsage({
+        shopGid: shop.shopGid,
+        meter: taskType === "image" ? "extra_image" : "extra_video",
+        quantity: credits,
+        // id da compra: um retry da mesma compra nunca cobra duas vezes.
+        idempotencyKey: `extra_${purchase.id}`,
+      });
+    }
+  } catch (error) {
+    await prisma.imageCreditPurchase.delete({ where: { id: purchase.id } });
+    throw error;
+  }
+
+  await prisma.imageCreditPurchase.update({
+    where: { id: purchase.id },
+    data: { creditsPurchased: credits, pricePaid: (credits * priceCents) / 100 },
   });
 }

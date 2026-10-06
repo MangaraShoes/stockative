@@ -7,6 +7,7 @@ import { authenticate } from "../shopify.server";
 import { ensureShopContentLanguage, ensureShopEmail, ensureShopTimezone, getOrCreateShop } from "../services/syncProducts.server";
 import { getOnboardingStatus } from "../services/onboardingStatus.server";
 import prisma from "../db.server";
+import { fetchActiveSubscription, isBillingEnabled, planSelectionUrl } from "../services/billing/subscription.server";
 
 // As mesmas fases do checklist da Home, na mesma ordem — usado aqui pra
 // TRAVAR a navegação, não só sinalizar progresso (Patricia, 12/09/2026: "eu
@@ -30,7 +31,7 @@ const SETUP_STEPS = [
 ] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session, admin } = await authenticate.admin(request);
+  const { session, admin, redirect: adminRedirect } = await authenticate.admin(request);
 
   // Busca o fuso horário real da loja uma vez (cacheado depois) — usado
   // pro agendamento do plano semanal sair no horário local dela, não no do
@@ -39,6 +40,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   await ensureShopTimezone(admin, shop);
   await ensureShopContentLanguage(admin, shop);
   await ensureShopEmail(admin, shop);
+
+  // Cobrança (Shopify App Pricing, 06/10/2026 — ver billing/subscription.server.ts).
+  // Sem assinatura ativa (nem teste grátis), vai pra tela de planos da própria
+  // Shopify, fora do iframe. Com assinatura, sincroniza o plano escolhido no
+  // painel com Shop.plan, que define cadência e cota.
+  let shopGid = shop.shopGid;
+  if (!shopGid) {
+    const response = await admin.graphql(`{ shop { id } }`);
+    const json = (await response.json()) as { data?: { shop?: { id?: string } } };
+    shopGid = json.data?.shop?.id ?? null;
+    if (shopGid) await prisma.shop.update({ where: { id: shop.id }, data: { shopGid } });
+  }
+  let billing: { trialEndsAt: string | null } | null = null;
+  if (isBillingEnabled() && shopGid) {
+    const subscription = await fetchActiveSubscription(shopGid);
+    if (!subscription) {
+      throw adminRedirect(planSelectionUrl(session.shop), { target: "_top" });
+    }
+    if (subscription.plan !== shop.plan) {
+      await prisma.shop.update({ where: { id: shop.id }, data: { plan: subscription.plan } });
+    }
+    billing = { trialEndsAt: subscription.trialEndsAt };
+  }
 
   const status = await getOnboardingStatus(shop.id);
   const firstIncomplete = SETUP_STEPS.findIndex((step) => !step.keys.every((k) => status[k]));
@@ -76,6 +100,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     publishingPaused: Boolean(shop.publishingPausedAt),
     pendingApprovalCount,
+    trialEndsAt: billing?.trialEndsAt ?? null,
     apiKey: process.env.SHOPIFY_API_KEY || "",
     unlockedPaths,
     hasContentPillars: status.hasContentPillars,
@@ -95,7 +120,7 @@ const NAV_ITEMS = [
 ];
 
 export default function App() {
-  const { apiKey, unlockedPaths, hasContentPillars, publishingPaused, pendingApprovalCount } =
+  const { apiKey, unlockedPaths, hasContentPillars, publishingPaused, pendingApprovalCount, trialEndsAt } =
     useLoaderData<typeof loader>();
   const isUnlocked = (href: string) =>
     href === "/app" || unlockedPaths === null || unlockedPaths.includes(href);
@@ -124,8 +149,14 @@ export default function App() {
         </s-banner>
       ) : pendingApprovalCount > 0 ? (
         <s-banner tone="critical" heading={`${pendingApprovalCount} post${pendingApprovalCount === 1 ? "" : "s"} waiting for your approval`}>
-          They won't publish until you approve them in the{" "}
+          They won&apos;t publish until you approve them in the{" "}
           <s-link href="/app/plan-week">Weekly plan</s-link>.
+        </s-banner>
+      ) : trialEndsAt && new Date(trialEndsAt) > new Date() ? (
+        <s-banner tone="info" heading="Free trial">
+          Your 7-day free trial ends on {new Date(trialEndsAt).toLocaleDateString()}. Your plan is billed
+          on your Shopify invoice after that. Change or cancel it anytime in{" "}
+          <s-link href="/app/settings">Settings</s-link>.
         </s-banner>
       ) : null}
       <Outlet />

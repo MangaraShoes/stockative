@@ -32,6 +32,7 @@ import { nextWeeklyOccurrenceInTimezone } from "../timezone";
 import { currentSeasonInTimezone, seasonScoreBoost } from "./seasonality.server";
 import { getRemainingCredits } from "./creditUsage.server";
 import { getWeeklySlotPlan } from "./planTiers.server";
+import { fetchActiveSubscription, isBillingEnabled } from "../billing/subscription.server";
 
 // Usado só por planPromotionalWeek (campanhas tipo Black Friday) — o plano
 // semanal REGULAR (planWeeklyContent) passou a usar getWeeklySlotPlan(shop)
@@ -959,7 +960,7 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
       publishingPausedAt: null,
       socialAccounts: { some: { platform: "instagram", igBusinessAccountId: { not: null } } },
     },
-    select: { id: true, lastWeeklyPlanGeneratedAt: true },
+    select: { id: true, lastWeeklyPlanGeneratedAt: true, shopGid: true },
   });
 
   // Achado ao vivo, 24/09/2026: o timer de 7 dias sozinho deixa a lojista
@@ -971,6 +972,19 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
   // passado — nunca deixa a tela do Weekly Plan vazia à toa.
   const dueShops: { id: string }[] = [];
   for (const shop of candidateShops) {
+    // Cobrança ligada: nunca gera (custo real de IA) pra loja sem assinatura
+    // ativa nem teste grátis — ex.: o teste acabou e ela não escolheu plano.
+    // Posts já gerados continuam publicando normalmente. Falha na Partner
+    // API pula a loja só neste ciclo, nunca a trata como sem assinatura.
+    if (isBillingEnabled()) {
+      if (!shop.shopGid) continue;
+      try {
+        if (!(await fetchActiveSubscription(shop.shopGid))) continue;
+      } catch (error) {
+        console.error(`Billing check failed for shop ${shop.id}, skipping this cycle:`, error);
+        continue;
+      }
+    }
     const timerDue = !shop.lastWeeklyPlanGeneratedAt || shop.lastWeeklyPlanGeneratedAt <= cutoff;
     if (timerDue) {
       dueShops.push(shop);

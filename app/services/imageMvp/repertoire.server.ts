@@ -290,7 +290,7 @@ interface FootwearFraming extends RepertoireOption {
 // (a cena "pede" um corpo inteiro, e o corte no meio lê como corpo
 // incompleto, não como foto bem enquadrada).
 const TRUNCATION_SAFETY =
-  "this is a photographic crop of a complete, whole person — her body continues naturally beyond the frame exactly as in a real photograph, never an anatomically incomplete or truncated figure";
+  "this is a photographic crop of a complete, whole person — the body continues naturally beyond the frame exactly as in a real photograph, never an anatomically incomplete or truncated figure";
 
 // "close_crop_thigh_down" e "walking_motion_crop" removidos daqui de
 // propósito (Patricia, 29/09/2026: "isso precisa ser uma regra sem
@@ -319,7 +319,7 @@ export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
     id: "low_angle_shoes_foreground",
     compatibleWith: "any",
     promptText:
-      "shot with the camera low, near floor level and close to her feet, so the shoes are large and unmistakable in the foreground — taking up a real share of the frame — while her whole body, torso and face recede naturally behind them in the same vertical frame",
+      "shot with the camera low, near floor level and close to the model's feet, so the shoes are large and unmistakable in the foreground — taking up a real share of the frame — while the whole body, torso and face recede naturally behind them in the same vertical frame",
   },
   // Variação extra (Patricia, 05/10/2026: "ele precisa variar as imagens
   // mas sempre pensando em destacar o produto"): corte nos ombros/queixo —
@@ -335,7 +335,7 @@ export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
     id: "seated_wide_environment",
     compatibleWith: "seated",
     promptText:
-      "a slightly wider seated shot that also shows the surrounding environment, with the camera low and her legs angled toward the lens so the shoes stay large and unmistakable in the foreground",
+      "a slightly wider seated shot that also shows the surrounding environment, with the camera low and the model's legs angled toward the lens so the shoes stay large and unmistakable in the foreground",
   },
 ];
 

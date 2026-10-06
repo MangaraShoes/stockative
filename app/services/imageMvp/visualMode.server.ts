@@ -18,7 +18,7 @@ export type VisualMode = (typeof VISUAL_MODES)[number];
 // da CATEGORIA (ver CategoryRepertoire.promptRules), nunca no lugar dele.
 export const VISUAL_MODE_GUIDANCE: Record<VisualMode, string> = {
   product_hero: `- Visual mode: PRODUCT HERO. Keep the composition clean and product-forward — minimal distraction, nothing in the scene competing with the product for attention. This is about clear, confident introduction of the product, not a lived-in moment.`,
-  lifestyle: `- Visual mode: LIFESTYLE. The product appears in a real, believable everyday moment — the kind of situation the customer could picture herself in. Candid energy, not an obviously posed campaign shot.`,
+  lifestyle: `- Visual mode: LIFESTYLE. The product appears in a real, believable everyday moment — the kind of situation the customer could picture themselves in. Candid energy, not an obviously posed campaign shot.`,
   editorial: `- Visual mode: EDITORIAL. An aspirational, elevated campaign photograph — deliberate styling, a considered scene, the quality bar of a real fashion/lifestyle campaign rather than a candid moment.`,
   styled_still_life: `- Visual mode: STYLED STILL LIFE. A considered, editorial product photograph with no person in frame — see the category rules below for what "considered" means here.`,
 };

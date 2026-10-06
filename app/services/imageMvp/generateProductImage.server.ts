@@ -110,14 +110,19 @@ const MAX_ATTEMPTS = 3;
 // `visualModeGuidance` é a camada ORTOGONAL de abordagem criativa (Product
 // Hero / Lifestyle / Editorial), escolhida pelo objetivo comercial, não
 // pela categoria do produto.
+// 06/10/2026: tirada a frase "this brand is Belgian precision paired with
+// Brazilian warmth" — era a identidade da Mangará fixa no código e entrava
+// nas imagens de qualquer loja; o tom de cada marca já vem de brandTone.
+// Roupas descritas sem gênero (vestido/saia só pra mulher), já que o perfil
+// de foto pode pedir homem, casal, família.
 function seasonStylingGuidance(season: BuildPromptParams["sceneDecision"]["season"]): string {
   if (season === "summer") {
-    return "\n- This is a SUMMER product: the outfit must read as light and airy — a flowing dress, a linen piece, or a breezy skirt, never heavy trousers, a long coat, or anything that reads cold or wintery. The mood is warm, joyful and light: genuine, easy happiness in the eyes and an open, relaxed way of holding herself — this brand is Belgian precision paired with Brazilian warmth, and summer is where that warmth leads. Never somber, cold, or composed to the point of feeling serious.";
+    return "\n- This is a SUMMER product: the outfit must read as light and airy — breezy, flowing fabrics like linen, cotton or silk, never heavy layers, a long coat, or anything that reads cold or wintery. The mood is warm, joyful and light: genuine, easy happiness in the eyes and an open, relaxed posture. Never somber, cold, or composed to the point of feeling serious.";
   }
   if (season === "winter") {
     // Sem casaco pesado em cena de interior (Patricia, 05/10/2026: "não
     // precisa deste casaco pesado de frio para um look interno").
-    return "\n- This is a WINTER product: the outfit can lean into richer layers suited to the setting. Indoors that means NO outerwear: a fine knit, a silk piece, a tailored jacket or a cardigan over a dress, a cinched waist, fabrics with real drape and texture. A structured coat worn open belongs only in an outdoor scene. The mood stays composed and elegant, warm and inviting rather than cold or clinical.";
+    return "\n- This is a WINTER product: the outfit can lean into richer layers suited to the setting. Indoors that means NO outerwear: a fine knit, a silk piece, a tailored jacket or a cardigan, fabrics with real drape and texture. A structured coat worn open belongs only in an outdoor scene. The mood stays composed and elegant, warm and inviting rather than cold or clinical.";
   }
   return "";
 }
@@ -231,16 +236,16 @@ The model is ${action.promptText}, in ${environment.promptText}, ${framing.promp
 
 Styling and composition (this is what separates a real editorial from a generic stock photo — follow all of it):
 - Above everything else, the scene must feel calm, tranquil, comfortable, content and elegant — the kind of moment someone would genuinely want to be in. Never rushed, chaotic, staged-looking, or trying too hard. This is the baseline mood for every scene, whatever the season's specific energy on top of it.
-- It should read as a real, everyday situation the customer could picture herself in — not an obviously posed photoshoot stance. If the model is holding or touching something (a cup, a railing, a door, furniture), that hand-object interaction must look anatomically real: a natural, relaxed grip, a plausible number of fingers, the object solidly and believably held, never floating or warped.
+- It should read as a real, everyday situation the customer could picture themselves in — not an obviously posed photoshoot stance. If the model is holding or touching something (a cup, a railing, a door, furniture), that hand-object interaction must look anatomically real: a natural, relaxed grip, a plausible number of fingers, the object solidly and believably held, never floating or warped.
 - The light described above should fall directly ON the product itself, not just on the background.
 ${params.colorStory ? describeColorStory(params.colorStory) : "- Palette (unless the merchant's direction above asks otherwise): sober, muted tones that clearly differ from the product's own color — never a saturated or loud color that competes with the product."}
-- Include a real, visible touch of nature somewhere in frame — a plant, greenery, ivy, a tree, flowers — even in an architectural or urban setting. Never let the whole frame read as flat stone/concrete/beige with no living element at all.
+- Include one real, living touch of nature in frame — a single plant, a branch, or a few flowers — even in an architectural or urban setting. It counts as one of the scene's few elements (see the photo standard's "simple scene"), never as extra clutter on top of them.
 - Strong contrast between the product and the surface/background immediately behind it, so its silhouette is unmistakable — never a dark product against a dark background or a light product lost against a light one.
 - The model's outfit reads as one deliberate, elevated styling idea — an interesting layer, a structured shoulder, a cinched waist, a fabric with real drape or texture — never generic basics (plain blazer-and-jeans, plain t-shirt).${seasonStylingGuidance(season)}
 - Any accessories (bags, jewelry, belts, sunglasses) must be plain, neutral, and generic — no visible logos, no distinctive hardware, shape, or design detail that would make it recognizable as a specific real-world brand or a different, unrelated product. Elegant but anonymous — this brand's product is the only thing in frame allowed to look like a real product.
 - The model has a confident, composed presence: spine straight, shoulders open and back, chin level — not hunched or leaning forward. A genuine, subtle warmth in the expression, not vacant and not overly serious.
 ${params.categoryPromptRules}
-- Whatever the framing calls for, the model is a complete, whole person — the frame edge is simply where the camera lens ends, not where her body ends. Never render her as an anatomically incomplete or oddly truncated figure; her body must read as continuing naturally beyond the crop, exactly like a real photograph of a real person.
+- Whatever the framing calls for, the model is a complete, whole person — the frame edge is simply where the camera lens ends, not where their body ends. Never render anyone as an anatomically incomplete or oddly truncated figure; every body must read as continuing naturally beyond the crop, exactly like a real photograph of a real person.
 - Never a spread-leg pose. Seated: knees together or legs naturally crossed at the knee, both feet settled. Standing or walking: a narrow, discreet stance — never a wide base or open legs.
 - Feet and legs must be physically plausible in EVERY pose, not just seated ones. If seated, both feet are either flat/grounded or one leg is simply crossed over the other at the knee with both feet settled — never one foot lifted or hanging unsupported in mid-air. If standing, walking, or arriving, the weight-bearing foot is clearly and believably planted on the ground with real weight distribution — never hovering, floating at an impossible angle, or disconnected from the ground. A foot floating unsupported reads as broken anatomy in any pose, not just a seated one.
 - Roughly an 85mm-equivalent portrait lens, camera height and distance as the framing above describes (about hip height when it says nothing) — avoid wide-angle distortion that inflates the product or the pose.

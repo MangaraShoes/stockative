@@ -688,6 +688,11 @@ export default function PlanWeek() {
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
   // "Trocar a modelo" / "trocar a situação" só nesta regeneração (Patricia,
   // 05/10/2026) — ver RegenerationOverrides em modelProfile.ts.
+  // Clique em regenerar sem dizer o que mudar: mostra o que falta em vez de
+  // deixar o botão cinza sem explicação (Patricia, 06/10/2026: "se ele fizer
+  // o que eu fiz, somente clicar, vai achar que não funciona"). Chave
+  // "image:<id>" ou "caption:<id>".
+  const [missingReasonFor, setMissingReasonFor] = useState<string | null>(null);
   const [imageChanges, setImageChanges] = useState<Record<string, { newModel: boolean; occasion: string }>>({});
   const [captionFeedback, setCaptionFeedback] = useState<Record<string, string>>({});
   // Post em que a lojista clicou "Regenerate" sem crédito — o aviso de cota
@@ -1274,14 +1279,29 @@ export default function PlanWeek() {
                             }
                             placeholder="Required: what should change in the caption? (e.g. shorter, less salesy, mention the leather)"
                             rows={2}
-                            style={{ width: "100%", padding: 8, marginBottom: 4 }}
+                            style={{
+                              width: "100%",
+                              padding: 8,
+                              marginBottom: 4,
+                              ...(captionFeedbackMissing && missingReasonFor === `caption:${slot.contentItemId}`
+                                ? { border: "2px solid #d72c0d" }
+                                : {}),
+                            }}
                           />
+                          {captionFeedbackMissing && missingReasonFor === `caption:${slot.contentItemId}` && (
+                            <p style={{ fontSize: 13, color: "#d72c0d", marginTop: 0, marginBottom: 8 }}>
+                              Tell us what to change first: tap one of the suggestions above or write it in the box.
+                            </p>
+                          )}
                           <s-stack direction="inline" gap="small" alignItems="center">
                             <s-button
                               variant="secondary"
-                              onClick={() => regenerateCaption(slot.contentItemId)}
+                              onClick={() =>
+                                captionFeedbackMissing
+                                  ? setMissingReasonFor(`caption:${slot.contentItemId}`)
+                                  : regenerateCaption(slot.contentItemId)
+                              }
                               {...(isRegeneratingCaption ? { loading: true } : {})}
-                              {...(captionFeedbackMissing ? { disabled: true } : {})}
                             >
                               Regenerate caption only
                             </s-button>
@@ -1475,8 +1495,21 @@ export default function PlanWeek() {
                                 : "Optional: tell us what to show (e.g. walking outdoors, show more of the shoe)"
                             }
                             rows={2}
-                            style={{ width: "100%", padding: 8, marginBottom: 4 }}
+                            style={{
+                              width: "100%",
+                              padding: 8,
+                              marginBottom: 4,
+                              ...(feedbackMissing && missingReasonFor === `image:${slot.contentItemId}`
+                                ? { border: "2px solid #d72c0d" }
+                                : {}),
+                            }}
                           />
+                          {feedbackMissing && missingReasonFor === `image:${slot.contentItemId}` && (
+                            <p style={{ fontSize: 13, color: "#d72c0d", marginTop: 0, marginBottom: 8 }}>
+                              Tell us what to change first: tick &quot;A different model&quot;, choose a
+                              situation, tap one of the suggestions above, or write it in the box.
+                            </p>
+                          )}
                           {isRegeneration && !outOfCredits && (
                             <p style={{ fontSize: 12, color: "#6d7175", marginTop: 0, marginBottom: 8 }}>
                               {remainingImageCredits} image regeneration{remainingImageCredits === 1 ? "" : "s"} left this month
@@ -1485,11 +1518,13 @@ export default function PlanWeek() {
                           <button
                             type="button"
                             onClick={() =>
-                              outOfCredits
-                                ? setOutOfCreditsClickedFor(slot.contentItemId)
-                                : regenerateImage(slot.contentItemId)
+                              feedbackMissing
+                                ? setMissingReasonFor(`image:${slot.contentItemId}`)
+                                : outOfCredits
+                                  ? setOutOfCreditsClickedFor(slot.contentItemId)
+                                  : regenerateImage(slot.contentItemId)
                             }
-                            disabled={isRegeneratingImage || feedbackMissing}
+                            disabled={isRegeneratingImage}
                             style={{
                               display: "inline-block",
                               padding: "8px 16px",
@@ -1498,8 +1533,8 @@ export default function PlanWeek() {
                               background: "#c9cccf",
                               color: "#202223",
                               fontWeight: 500,
-                              opacity: isRegeneratingImage || feedbackMissing ? 0.5 : 1,
-                              cursor: isRegeneratingImage || feedbackMissing ? "default" : "pointer",
+                              opacity: isRegeneratingImage ? 0.5 : 1,
+                              cursor: isRegeneratingImage ? "default" : "pointer",
                             }}
                           >
                             {isRegeneratingImage

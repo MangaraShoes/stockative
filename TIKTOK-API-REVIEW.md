@@ -125,5 +125,7 @@ Gravar a parte do celular com a gravação de tela do iPhone e juntar os dois tr
 
 ### Depois da aprovação
 
+- No Railway, definir `TIKTOK_DIRECT_POST_AUDITED=true`. Sem isso, o painel do Weekly Plan continua oferecendo só "Only me" (commit 31ea618).
+
 - As credenciais de Production são diferentes das do Sandbox (as do Sandbox começam com `sbaw`). Trocar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` no Railway pelas de Production.
 - Reconectar a conta da Mangará (e a de qualquer outra lojista conectada no Sandbox), porque os tokens do Sandbox não valem com as credenciais de Production.

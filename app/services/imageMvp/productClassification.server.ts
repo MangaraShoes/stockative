@@ -125,3 +125,53 @@ export async function getOrClassifyProductVisuals(
 
   return classification;
 }
+
+// Família de cor do produto, pra escolher a história de cor da roupa (ver
+// colorStories.server.ts). Lida da FOTO, nunca do título: o nome costuma
+// trazer um nome comercial de cor ("Senna Olive" é um cáqui acinzentado).
+// Famílias largas de propósito: a decisão que importa é "neutro ou cor" e
+// "com que cores a roupa contrasta", não o tom exato.
+export const PRODUCT_COLOR_FAMILIES = [
+  "black",
+  "brown",
+  "tan_camel",
+  "beige_cream",
+  "white",
+  "grey",
+  "metallic",
+  "khaki_olive",
+  "green",
+  "blue",
+  "red_burgundy",
+  "pink",
+  "orange_coral",
+  "yellow",
+  "purple",
+  "multicolor",
+] as const;
+export type ProductColorFamily = (typeof PRODUCT_COLOR_FAMILIES)[number];
+
+const colorSchema = z.object({ colorFamily: z.enum(PRODUCT_COLOR_FAMILIES) });
+
+export async function getOrClassifyProductColor(
+  productId: string,
+  referenceImageUrl: string,
+): Promise<ProductColorFamily> {
+  const product = await prisma.productCache.findUniqueOrThrow({
+    where: { id: productId },
+    select: { imagingColorFamily: true, shopId: true },
+  });
+  if ((PRODUCT_COLOR_FAMILIES as readonly string[]).includes(product.imagingColorFamily ?? "")) {
+    return product.imagingColorFamily as ProductColorFamily;
+  }
+
+  const { colorFamily } = await generateStructuredForTask(
+    "product_color_classification",
+    colorSchema,
+    `Look at the product in this photo and pick the ONE color family that best describes its main color (the color covering most of the product's visible surface, ignoring small hardware, soles or stitching). Use what you SEE, not any color word in a product name. Khaki, taupe and greyed olive (muted, between green, grey and brown) are "khaki_olive"; only a clearly green product is "green"; cognac and caramel are "tan_camel"; chocolate and dark brown are "brown"; ivory, nude and sand are "beige_cream"; burgundy and wine are "red_burgundy"; gold, silver and bronze finishes are "metallic"; animal prints, patterns and products with two strong colors are "multicolor".`,
+    { imageUrls: [referenceImageUrl], shopId: product.shopId },
+  );
+
+  await prisma.productCache.update({ where: { id: productId }, data: { imagingColorFamily: colorFamily } });
+  return colorFamily;
+}

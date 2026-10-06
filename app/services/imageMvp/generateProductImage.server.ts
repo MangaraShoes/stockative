@@ -3,8 +3,9 @@ import { getProviderForTask } from "../ai/taskConfig.server";
 import type { FidelityCheckResult } from "../ai/types.server";
 import { applyLogoOverlay } from "./logoOverlay.server";
 import type { ObservedScene } from "../ai/types.server";
-import { isInconclusiveObservation, type SceneDecision, type CategoryRepertoire } from "./repertoire.server";
-import { getOrClassifyProductVisuals } from "./productClassification.server";
+import { inferRealCurrentSeason, isInconclusiveObservation, type SceneDecision, type CategoryRepertoire } from "./repertoire.server";
+import { getOrClassifyProductColor, getOrClassifyProductVisuals } from "./productClassification.server";
+import { describeColorStory, pickColorStory, type ColorStory } from "./colorStories.server";
 import { getRepertoireForInteraction } from "./categoryDispatch.server";
 import { selectVisualStrategy, VISUAL_MODE_GUIDANCE } from "./visualMode.server";
 import { MAX_IMAGE_CANDIDATES } from "./imageCandidates.server";
@@ -59,6 +60,9 @@ interface BuildPromptParams extends GenerateProductImageParams {
   // Nota interna de retentativa (cena estrutural errada ou motivo da
   // rejeição anterior pelos guardrails) — nunca vem da lojista.
   retryNote?: string;
+  // História de cor da roupa (ver colorStories.server.ts) — só no caminho
+  // com modelo.
+  colorStory?: ColorStory;
   sceneDecision: SceneDecision;
   categoryPromptRules: string;
   visualModeGuidance: string;
@@ -111,7 +115,9 @@ function seasonStylingGuidance(season: BuildPromptParams["sceneDecision"]["seaso
     return "\n- This is a SUMMER product: the outfit must read as light and airy — a flowing dress, a linen piece, or a breezy skirt, never heavy trousers, a long coat, or anything that reads cold or wintery. The mood is warm, joyful and light: genuine, easy happiness in the eyes and an open, relaxed way of holding herself — this brand is Belgian precision paired with Brazilian warmth, and summer is where that warmth leads. Never somber, cold, or composed to the point of feeling serious.";
   }
   if (season === "winter") {
-    return "\n- This is a WINTER product: the outfit can lean into richer layers — a structured coat worn open, a cinched waist, a heavier fabric with real drape and texture. The mood stays composed and elegant, warm and inviting rather than cold or clinical.";
+    // Sem casaco pesado em cena de interior (Patricia, 05/10/2026: "não
+    // precisa deste casaco pesado de frio para um look interno").
+    return "\n- This is a WINTER product: the outfit can lean into richer layers suited to the setting. Indoors that means NO outerwear: a fine knit, a silk piece, a tailored jacket or a cardigan over a dress, a cinched waist, fabrics with real drape and texture. A structured coat worn open belongs only in an outdoor scene. The mood stays composed and elegant, warm and inviting rather than cold or clinical.";
   }
   return "";
 }
@@ -160,7 +166,7 @@ ${description}
 // teste com a Senna, 2 de 2 passaram na fidelidade de primeira, com piso
 // claro e produto em destaque, sem copiar modelo/pose/ambiente.
 const STYLE_REFERENCE_BLOCK = `
-IMAGES: the FIRST image is the real product (match it exactly). The SECOND image is this brand's own best photo — use it ONLY as a style reference: match its quality of light (soft, warm, directional light falling on the product), its light and calm palette, the contrast between the product and the floor/background, its quiet elegance, and how large and clear the product reads in the frame. Where the merchant's direction or the occasion above asks for something different, follow them. Do NOT copy its person, face, pose, outfit, furniture or room — create a new, different scene following everything above.
+IMAGES: the FIRST image is the real product (match it exactly). The SECOND image is this brand's own best photo — use it ONLY as a style reference: match its quality of light (soft, warm, directional light falling on the product), the light and calm palette of its SETTING (walls, floor — never its outfit colors), the contrast between the product and the floor/background, its quiet elegance, and how large and clear the product reads in the frame. Where the merchant's direction or the occasion above asks for something different, follow them. Do NOT copy its person, face, pose, outfit, furniture or room — create a new, different scene following everything above.
 `;
 
 // Foto lifestyle do próprio produto; senão, a mais recente da loja.
@@ -190,7 +196,7 @@ const PHOTO_STANDARD_BLOCK = `
 PHOTO STANDARD — every image must meet all five:
 1. Light: soft, warm, directional light (like a lamp or window to one side) falling directly on the product; the rest of the scene can be softer and dimmer.
 2. Contrast: the product clearly separates from whatever is right behind and under it — a light wall/floor/surface for a mid-tone or dark product, a darker one only for a light product.
-3. Palette: calm, close tones around the product (cream, taupe, sand, caramel, soft brown, stone); nothing saturated or busy competing with it.
+3. Palette: the setting around the product (walls, floor, furniture) in calm, close, light tones; the clothing follows its own color story when one is given; nothing saturated or busy competing with the product.
 4. Prominence: the product is large, sharp and the first thing the eye lands on.
 5. Simple scene: few elements, uncluttered, quietly elegant — one or two pieces of furniture or props at most, never a busy room or crowded background.
 `;
@@ -227,7 +233,7 @@ Styling and composition (this is what separates a real editorial from a generic 
 - Above everything else, the scene must feel calm, tranquil, comfortable, content and elegant — the kind of moment someone would genuinely want to be in. Never rushed, chaotic, staged-looking, or trying too hard. This is the baseline mood for every scene, whatever the season's specific energy on top of it.
 - It should read as a real, everyday situation the customer could picture herself in — not an obviously posed photoshoot stance. If the model is holding or touching something (a cup, a railing, a door, furniture), that hand-object interaction must look anatomically real: a natural, relaxed grip, a plausible number of fingers, the object solidly and believably held, never floating or warped.
 - The light described above should fall directly ON the product itself, not just on the background.
-- Default palette (unless the merchant's direction above asks otherwise): sober and neutral (cream, camel, black, off-white, stone, chocolate) with at most one muted accent color if it helps (dusty pink, olive, khaki, dusty blue) — never a saturated or loud color that competes with the product.
+${params.colorStory ? describeColorStory(params.colorStory) : "- Palette (unless the merchant's direction above asks otherwise): sober, muted tones that clearly differ from the product's own color — never a saturated or loud color that competes with the product."}
 - Include a real, visible touch of nature somewhere in frame — a plant, greenery, ivy, a tree, flowers — even in an architectural or urban setting. Never let the whole frame read as flat stone/concrete/beige with no living element at all.
 - Strong contrast between the product and the surface/background immediately behind it, so its silhouette is unmistakable — never a dark product against a dark background or a light product lost against a light one.
 - The model's outfit reads as one deliberate, elevated styling idea — an interesting layer, a structured shoulder, a cinched waist, a fabric with real drape or texture — never generic basics (plain blazer-and-jeans, plain t-shirt).${seasonStylingGuidance(season)}
@@ -423,6 +429,15 @@ export async function generateProductImage(
   // Só no caminho com modelo — still-life tem outra linguagem visual.
   const styleReferenceUrl = hasModel ? await findStyleReferenceUrl(params.shopId, params.productId) : null;
   const modelProfile = parseModelProfile(shop?.modelProfile);
+  // Uma história de cor por geração, como a modelo — as retentativas da
+  // mesma imagem mantêm a mesma paleta.
+  const colorStory = hasModel
+    ? await pickColorStory(
+        params.shopId,
+        await getOrClassifyProductColor(params.productId, params.referenceImageUrl),
+        sceneDecision.season ?? inferRealCurrentSeason(shop?.ianaTimezone ?? null),
+      )
+    : undefined;
   // Uma modelo por geração — as retentativas da mesma imagem mantêm o
   // mesmo retrato ("vary" sorteia só aqui).
   const modelDescription = hasModel
@@ -442,6 +457,7 @@ export async function generateProductImage(
       merchantDirection,
       modelDescription,
       retryNote,
+      colorStory,
       brandTone: shop?.brandTone,
       brandAvoid: shop?.brandAvoid,
       sceneDecision,
@@ -556,6 +572,7 @@ export async function generateProductImage(
         requestedEnvironment: sceneDecision.environment.id,
         requestedFraming: sceneDecision.framing.id,
         requestedLight: sceneDecision.light.id,
+        requestedPalette: colorStory?.id ?? null,
         observedAction: composition.observed?.action ?? null,
         observedEnvironment: composition.observed?.environment ?? null,
         observedFraming: composition.observed?.framing ?? null,

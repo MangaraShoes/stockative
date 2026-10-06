@@ -13,6 +13,7 @@ export type AITaskType =
   | "image_composition_check"
   | "image_quality_assessment"
   | "product_visual_classification"
+  | "product_color_classification"
   | "video";
 
 export interface GenerateTextResult {

@@ -92,7 +92,7 @@ function isSouthernHemisphere(ianaTimezone: string): boolean {
 // "winter" (interior aconchegante, luz de janela) — combina melhor com o
 // que os dois grupos de ambiente já representam do que introduzir 2
 // estações novas sem repertório visual próprio ainda.
-function inferRealCurrentSeason(ianaTimezone: string | null): ProductSeason {
+export function inferRealCurrentSeason(ianaTimezone: string | null): ProductSeason {
   const month = new Date().getUTCMonth(); // 0 = janeiro
   const isNorthernWarm = month >= 2 && month <= 7; // março a agosto: primavera/verão no hemisfério norte
   const isNorthern = !ianaTimezone || !isSouthernHemisphere(ianaTimezone);

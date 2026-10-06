@@ -317,6 +317,10 @@ model ProductCache {
   // uma classificação fixa por produto. Lista separada por vírgula.
   imagingInteractions String? // worn,held,applied,standalone — ver ProductInteraction
   imagingCategory     String? // footwear | apparel | jewelry | home_decor | etc. — ver VisualCategory
+  // Família de cor do produto, lida da foto (não do nome, que costuma trazer
+  // um nome comercial de cor) — escolhe as histórias de cor da roupa, ver
+  // colorStories.server.ts.
+  imagingColorFamily  String? // black | brown | green | ... — ver PRODUCT_COLOR_FAMILIES
 
   commerceSignal CommerceSignal?
   contentItems   ContentItem[]
@@ -567,6 +571,9 @@ model GenerationLog {
   requestedEnvironment String?
   requestedFraming     String?
   requestedLight       String?
+  // História de cor pedida pra roupa/cena (ver colorStories.server.ts) —
+  // é o histórico que faz a rotação não repetir paleta.
+  requestedPalette     String?
 
   // Observado: o que a checagem de composição classificou DEPOIS de olhar
   // a imagem de verdade — "unknown"/"not_applicable" são respostas válidas,

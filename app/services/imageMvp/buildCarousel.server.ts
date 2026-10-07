@@ -28,6 +28,13 @@ interface BuildCarouselParams {
   // Nano Banana, mesmo mecanismo já usado nas correções manuais de imagem.
   correctionNote?: string;
   regenerationOverrides?: RegenerationOverrides;
+  // false quando a loja não tem crédito de imagem sobrando e a ação não é
+  // geração do plano (ex.: troca de produto) — só reaproveita uma editorial
+  // existente; sem nenhuma, cai no fallback (painel de escolha: foto da
+  // Shopify ou upload) em vez de gerar fora da cota (auditoria de
+  // segurança, 07/10/2026, M4). Default true: a geração do plano sempre
+  // roda (CLAUDE.md: a cota só limita regeneração).
+  allowNewGeneration?: boolean;
 }
 
 interface CarouselImage {
@@ -110,6 +117,12 @@ export async function buildCarousel(
   const heroWasReused = Boolean(heroAssetId);
 
   if (!heroAssetId) {
+    if (params.allowNewGeneration === false) {
+      return {
+        status: "fallback",
+        reason: "You've used all your AI images for this month. Pick a Shopify photo or upload one.",
+      };
+    }
     if (!product?.imageUrl) {
       return {
         status: "fallback",

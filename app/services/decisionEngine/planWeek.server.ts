@@ -464,6 +464,9 @@ export async function planOneSlot(
   // continua decidindo ângulo/mensagem normalmente — só o formato final (e
   // o hint de estilo que vai pro Estágio 1) é forçado.
   forceReel?: boolean,
+  // Ver BuildCarouselParams.allowNewGeneration — só a troca de produto
+  // passa false (quando a loja está sem crédito de imagem).
+  allowNewImageGeneration = true,
 ): Promise<WeeklyPlanSlot> {
   const product = await prisma.productCache.findUniqueOrThrow({
     where: { id: productId },
@@ -556,6 +559,7 @@ export async function planOneSlot(
     objective,
     creativeAngle: brief.creativeAngle,
     format: brief.format,
+    allowNewGeneration: allowNewImageGeneration,
   });
   const needsManualImage = result.status !== "success";
   // A foto lifestyle da Shopify é sempre opção no painel de escolha (ver
@@ -1346,6 +1350,13 @@ export async function swapWeeklyPlanSlotProduct(params: {
   // no objetivo do lote inteiro); um post comum continua reinferindo o
   // objetivo pro produto novo, já que um produto diferente pode ter um sinal
   // comercial bem diferente do antigo.
+  // Trocar de produto pode gerar uma editorial nova (quando o produto novo
+  // não tem nenhuma reaproveitável) — sem crédito de imagem, só reaproveita
+  // ou cai no painel de escolha, nunca gera fora da cota (auditoria de
+  // segurança, 07/10/2026, M4: trocas repetidas geravam imagem ilimitada).
+  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: params.shopId } });
+  const hasImageCredit = (await getRemainingCredits(shop, "image")) > 0;
+
   const newSlot = await planOneSlot(
     params.shopId,
     newProduct.id,
@@ -1359,7 +1370,23 @@ export async function swapWeeklyPlanSlotProduct(params: {
     // estática, e a garantia de "1 Reel por semana" deixava de valer assim
     // que a lojista trocasse o produto desse post específico.
     oldItem.format === "reel",
+    hasImageCredit,
   );
+
+  // O post novo herda o uso de regeneração do antigo: sem isso, trocar o
+  // produto zerava o limite por post, e trocar → gerar → trocar → gerar
+  // virava geração ilimitada (a primeira imagem de um post vazio não
+  // consome cota — auditoria de segurança, 07/10/2026, M4).
+  if (oldItem.imageRegenerationCount > 0) {
+    await prisma.contentItem.update({
+      where: { id: newSlot.contentItemId },
+      data: { imageRegenerationCount: oldItem.imageRegenerationCount },
+    });
+    newSlot.imageRegenerationsLeft = Math.max(
+      0,
+      MAX_IMAGE_REGENERATIONS_PER_POST - oldItem.imageRegenerationCount,
+    );
+  }
 
   await prisma.contentItemImage.deleteMany({ where: { contentItemId: oldItem.id } });
   await prisma.trackedLink.deleteMany({ where: { contentItemId: oldItem.id } });
@@ -1457,13 +1484,27 @@ export async function regenerateWeeklyPlanSlotImage(params: {
   // são substituídas pelas desta rodada.
   const previousImageIds = item.images.map((image) => image.id);
   const previousHeroAssetId = item.images.find((image) => image.position === 1)?.creativeAssetId ?? null;
-  await discardPendingImageCandidates(item.id);
   // Conta a tentativa antes de chamar a IA — sucesso ou falha, ela já foi
-  // usada (o custo de até 3 gerações acontece de qualquer jeito).
-  await prisma.contentItem.update({
-    where: { id: item.id },
+  // usada (o custo de até 3 gerações acontece de qualquer jeito). Reserva
+  // atômica: o limite por post vai no WHERE, então dois cliques simultâneos
+  // não passam os dois pela checagem lá de cima (auditoria de segurança,
+  // 07/10/2026, M4).
+  const claimed = await prisma.contentItem.updateMany({
+    where: {
+      id: item.id,
+      shopId: params.shopId,
+      status: { in: ["draft", "approved"] },
+      imageRegenerationCount: { lt: MAX_IMAGE_REGENERATIONS_PER_POST },
+    },
     data: { imageRegenerationCount: { increment: 1 } },
   });
+  if (claimed.count !== 1) {
+    return {
+      status: "error",
+      reason: "You've already used this post's image regeneration. Choose one of the options below.",
+    };
+  }
+  await discardPendingImageCandidates(item.id);
 
   const result = await buildCarousel({
     shopId: params.shopId,

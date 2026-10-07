@@ -314,12 +314,23 @@ const TRUNCATION_SAFETY =
 // exceção de 29/09) mas põe a câmera baixa e perto do calçado, que fica
 // grande em primeiro plano. O plano aberto sentado também ganhou a mesma
 // exigência de câmera baixa + pés voltados pra lente.
+//
+// 07/10/2026 (Patricia, sapato e perna desproporcionalmente grandes numa
+// cena sentada): "câmera baixa, perto dos pés, pernas voltadas pra lente"
+// é a receita exata de distorção de grande-angular — o pé mais perto da
+// lente sai enorme. Destaque agora vem de ENQUADRAMENTO e distância (lente
+// longa, câmera à altura do joelho, pernas de lado), nunca de aproximar a
+// lente dos pés. A checagem de composição ganhou veto próprio de
+// proporção (ver checkImageComposition).
+const TRUE_SCALE =
+  "shot from a few meters away with a long portrait lens (85–105mm equivalent), so the shoes and legs keep true real-world proportion to the rest of the body — never enlarged by being close to the lens";
+
 export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
   {
     id: "low_angle_shoes_foreground",
     compatibleWith: "any",
     promptText:
-      "shot with the camera low, near floor level and close to the model's feet, so the shoes are large and unmistakable in the foreground — taking up a real share of the frame — while the whole body, torso and face recede naturally behind them in the same vertical frame",
+      `a full-body vertical frame with the camera at about knee height, ${TRUE_SCALE}; the model fills most of the frame height so the shoes, seen in side profile, read clearly in the lower part of the frame`,
   },
   // Variação extra (Patricia, 05/10/2026: "ele precisa variar as imagens
   // mas sempre pensando em destacar o produto"): corte nos ombros/queixo —
@@ -329,13 +340,13 @@ export const FOOTWEAR_FRAMINGS: FootwearFraming[] = [
   {
     id: "shoulders_down_to_floor",
     compatibleWith: "any",
-    promptText: `framed from the shoulders down to the floor — face out of frame, torso, legs and shoes all visible — so the shoes read large and clear in the lower part of the frame (${TRUNCATION_SAFETY})`,
+    promptText: `framed from the shoulders down to the floor — face out of frame, torso, legs and shoes all visible — so the shoes read large and clear in the lower part of the frame, ${TRUE_SCALE} (${TRUNCATION_SAFETY})`,
   },
   {
     id: "seated_wide_environment",
     compatibleWith: "seated",
     promptText:
-      "a slightly wider seated shot that also shows the surrounding environment, with the camera low and the model's legs angled toward the lens so the shoes stay large and unmistakable in the foreground",
+      `a slightly wider seated shot that also shows the surrounding environment, camera at about knee height, ${TRUE_SCALE}; the legs are angled to the side (never toward the lens) so the shoes show their side profile, clear and well lit`,
   },
 ];
 

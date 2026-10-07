@@ -202,7 +202,7 @@ PHOTO STANDARD — every image must meet all five:
 1. Light: soft, warm, directional light (like a lamp or window to one side) falling directly on the product; the rest of the scene can be softer and dimmer.
 2. Contrast: the product clearly separates from whatever is right behind and under it — a light wall/floor/surface for a mid-tone or dark product, a darker one only for a light product.
 3. Palette: the setting around the product (walls, floor, furniture) in calm, close, light tones; the clothing follows its own color story when one is given; nothing saturated or busy competing with the product.
-4. Prominence: the product is large, sharp and the first thing the eye lands on.
+4. Prominence: the product is sharp, well lit and the first thing the eye lands on — achieved by framing and light, NEVER by enlarging it: the product and every body part stay in true real-world proportion to each other (e.g. a shoe is about as long as the model's forearm; legs, feet and hands keep natural human proportions). No wide-angle or close-to-lens distortion.
 5. Simple scene: few elements, uncluttered, quietly elegant — one or two pieces of furniture or props at most, never a busy room or crowded background.
 `;
 

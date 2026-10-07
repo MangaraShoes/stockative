@@ -103,7 +103,7 @@ export const MODEL_BODY_TYPES: ModelOption[] = [
 ];
 
 export const MODEL_HEIGHTS: ModelOption[] = [
-  { value: "tall", label: "Tall, long legs", prompt: "tall, with long legs and elongated proportions" },
+  { value: "tall", label: "Tall, long legs", prompt: "tall, with long legs — still in natural, realistic human proportions" },
   { value: "natural", label: "Natural proportions", prompt: "natural, everyday proportions" },
 ];
 

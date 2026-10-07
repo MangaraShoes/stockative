@@ -28,7 +28,7 @@ import {
   type ContentLanguageCode,
 } from "./constants";
 import { getTopOnlineHours } from "../meta/audienceInsights.server";
-import { nextWeeklyOccurrenceInTimezone } from "../timezone";
+import { nextWeeklyOccurrenceInTimezone, weekdayInTimezone } from "../timezone";
 import { currentSeasonInTimezone, seasonScoreBoost } from "./seasonality.server";
 import { getRemainingCredits } from "./creditUsage.server";
 import { getWeeklySlotPlan } from "./planTiers.server";
@@ -152,15 +152,36 @@ export function normalizeCustomSchedule(raw: unknown, count: number): WeeklySche
 //
 // Horário personalizado em Settings (postingScheduleMode "custom") vence
 // tudo isso — a lojista escolheu dia e hora de cada post.
+//
+// Dias espalhados a partir da montagem (Patricia, 07/10/2026: "sim,
+// espalhar os dias a partir da data de montagem") — com a semana montada
+// logo depois do último post, os dias fixos da pesquisa (terça/quarta/
+// quinta) deixavam buracos de até 4 dias sem post (ex.: montada na quarta,
+// próximo post só na terça seguinte). Agora, no modo automático, os N
+// posts ficam distribuídos por igual nos 7 dias seguintes à montagem; a
+// hora continua vindo da audiência real (ou da pesquisa, sem dado).
+export function spreadWeekdaysFrom(buildWeekday: number, count: number): number[] {
+  return Array.from(
+    { length: count },
+    (_, index) => (buildWeekday + 1 + Math.floor((index * 7) / count)) % 7,
+  );
+}
+
 async function resolveWeeklySchedule(
-  shop: { id: string; postingScheduleMode: string; customPostingSchedule: unknown },
+  shop: { id: string; postingScheduleMode: string; customPostingSchedule: unknown; ianaTimezone: string | null },
   count: number,
+  // Momento em que a semana é montada — os dias automáticos partem dele.
+  buildAt: Date,
 ): Promise<WeeklyScheduleSlot[]> {
   if (shop.postingScheduleMode === "custom") {
     return normalizeCustomSchedule(shop.customPostingSchedule, count);
   }
 
-  const defaults = DEFAULT_WEEKLY_SCHEDULE.slice(0, count);
+  const weekdays = spreadWeekdaysFrom(weekdayInTimezone(buildAt, shop.ianaTimezone ?? "UTC"), count);
+  const defaults = DEFAULT_WEEKLY_SCHEDULE.slice(0, count).map((slot, index) => ({
+    ...slot,
+    weekday: weekdays[index],
+  }));
   const socialAccount = await prisma.socialAccount.findUnique({
     where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
   });
@@ -734,7 +755,7 @@ export async function planWeeklyContent(
 
     const weeklySlotPlan = getWeeklySlotPlan(shop);
     const pillarsForSlots = await allocatePillarsForWeek(shopId, weeklySlotPlan.postsPerWeek);
-    const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek);
+    const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek, new Date());
 
     const usedProductIds = new Set<string>(cancelledProductIds);
     // A escolha automática nunca "rouba" um produto escolhido à mão pra outro slot.
@@ -955,7 +976,7 @@ export async function previewNextWeekPlan(
   const usedProductIds = new Set(currentBatchProducts.map((item) => item.productId as string));
 
   const weeklySlotPlan = getWeeklySlotPlan(shop);
-  const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek);
+  const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek, buildsAround);
 
   const eligibleProducts = await prisma.productCache.findMany({
     where: { shopId, status: "active", inventoryQuantity: { gt: 0 } },

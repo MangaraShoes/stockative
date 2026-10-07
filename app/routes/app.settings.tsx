@@ -468,9 +468,9 @@ export default function Settings() {
           <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <input type="radio" checked={scheduleMode === "auto"} onChange={() => setScheduleMode("auto")} style={{ marginTop: 4 }} />
             <span>
-              <strong>Automatic (recommended)</strong> — the best-performing
-              days for fashion, at the hours your Instagram audience is most
-              online.
+              <strong>Automatic (recommended)</strong> — posts spread evenly
+              across the week, starting the day after each week is built, at
+              the hours your Instagram audience is most online.
             </span>
           </label>
           <label style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>

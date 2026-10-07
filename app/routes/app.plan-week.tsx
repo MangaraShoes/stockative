@@ -622,6 +622,17 @@ function formatScheduledAt(iso: string, timeZone: string): string {
 // vai ser salva de fato. Existe pra nunca mais repetir a confusão real de
 // 23/09/2026 ("não entendi por que pulou pra semana seguinte") — agora a
 // data aparece no próprio dropdown, antes de clicar.
+// Data real de um post da próxima semana: primeira ocorrência do dia/hora
+// depois do momento em que a semana é montada (mesma regra do cron).
+function nextWeekSlotDate(
+  value: { weekday: number; time: string },
+  buildsAround: string,
+  timeZone: string,
+): Date {
+  const [hour, minute] = value.time.split(":").map(Number);
+  return nextWeeklyOccurrenceInTimezone(value.weekday, hour, minute, timeZone, new Date(buildsAround));
+}
+
 function resolvedDateLabel(weekday: number, time: string, timeZone: string): string {
   const [hour, minute] = time.split(":").map(Number);
   const resolved = nextWeeklyOccurrenceInTimezone(weekday, hour, minute, timeZone, new Date(), "soon");
@@ -1984,7 +1995,8 @@ export default function PlanWeek() {
             {nextWeek.buildsAfterLastPost ? (
               <>
                 Stockative builds next week right after this week&apos;s last
-                post goes out (<strong>{formatScheduledAt(nextWeek.buildsAround, shopTimezone)}</strong>).
+                post goes out — around{" "}
+                <strong>{formatScheduledAt(nextWeek.buildsAround, shopTimezone)}</strong>.
               </>
             ) : (
               <>
@@ -2064,7 +2076,15 @@ export default function PlanWeek() {
 
               <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
                 <s-stack direction="block" gap="base">
-                  {nextWeek.slots.map((slot) => {
+                  {/* Sempre em ordem cronológica, inclusive enquanto a
+                      lojista muda o dia/horário (Patricia, 07/10/2026). */}
+                  {[...nextWeek.slots]
+                    .sort(
+                      (a, b) =>
+                        nextWeekSlotDate(nextWeekSlotValue(a), nextWeek.buildsAround, shopTimezone).getTime() -
+                        nextWeekSlotDate(nextWeekSlotValue(b), nextWeek.buildsAround, shopTimezone).getTime(),
+                    )
+                    .map((slot) => {
                     if (slot.campaignName) {
                       return (
                         <s-text key={slot.index}>
@@ -2083,7 +2103,15 @@ export default function PlanWeek() {
                       ? TIME_OPTIONS
                       : [...TIME_OPTIONS, value.time].sort();
                     return (
-                      <s-stack key={slot.index} direction="inline" gap="small" alignItems="end">
+                      <div
+                        key={slot.index}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "70px 200px 100px minmax(0, 1fr) 140px",
+                          gap: 8,
+                          alignItems: "center",
+                        }}
+                      >
                         <s-text>
                           <strong>{slot.format === "reel" ? "🎬 Reel" : "Post"}</strong>
                         </s-text>
@@ -2097,7 +2125,13 @@ export default function PlanWeek() {
                         >
                           {WEEKDAY_OPTIONS.map((option) => (
                             <s-option key={option.value} value={String(option.value)}>
-                              {option.label}
+                              {option.label} (
+                              {nextWeekSlotDate(
+                                { ...value, weekday: option.value },
+                                nextWeek.buildsAround,
+                                shopTimezone,
+                              ).toLocaleDateString(undefined, { timeZone: shopTimezone, day: "numeric", month: "short" })}
+                              )
                             </s-option>
                           ))}
                         </s-select>
@@ -2128,10 +2162,10 @@ export default function PlanWeek() {
                             </s-option>
                           ))}
                         </s-select>
-                        {slot.objective && (
-                          <s-text color="subdued">{OBJECTIVE_LABELS[slot.objective]}</s-text>
-                        )}
-                      </s-stack>
+                        <s-text color="subdued">
+                          {slot.objective ? OBJECTIVE_LABELS[slot.objective] : ""}
+                        </s-text>
+                      </div>
                     );
                   })}
                 </s-stack>

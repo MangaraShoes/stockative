@@ -919,7 +919,13 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
   const overrides = parseNextWeekSlotOverrides(shop.nextWeekSlotOverrides);
 
   const lastPostAt = await getCurrentBatchLastPostAt(shopId);
-  const buildsAround = new Date(Math.max(Date.now(), lastPostAt?.getTime() ?? Date.now()));
+  // Mesmo instante em que generateDueWeeklyPlans monta (último post + folga)
+  // — partir do horário exato do último post jogava um slot no mesmo dia
+  // dele, ainda na semana atual (achado ao vivo, 07/10/2026: "Thursday"
+  // aparecia antes de "Tuesday").
+  const buildsAround = new Date(
+    Math.max(Date.now(), lastPostAt ? lastPostAt.getTime() + LAST_POST_GRACE_MS : Date.now()),
+  );
 
   const promotions = await prisma.promotion.findMany({
     where: { shopId, endsAt: { gt: new Date() } },

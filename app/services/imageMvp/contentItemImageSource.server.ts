@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import prisma from "../../db.server";
+import { safeFetch } from "../safeFetch.server";
 
 // Resolve os bytes reais (JPEG) de um ContentItemImage, seja a origem uma
 // data URI (imagem gerada por IA, em creativeAsset.imageUrl) ou uma URL do
@@ -21,11 +22,16 @@ export async function getContentItemImageJpegBuffer(contentItemImageId: string):
     const base64 = image.creativeAsset.imageUrl.split(",")[1];
     sourceBuffer = Buffer.from(base64, "base64");
   } else if (image.productImage) {
-    const response = await fetch(image.productImage.url);
+    // URL vem do Shopify (CDN), mas passa pelo safeFetch mesmo assim:
+    // limite de tamanho/tempo e nunca rede interna (auditoria, 07/10/2026).
+    const response = await safeFetch(image.productImage.url, {
+      timeoutMs: 20_000,
+      maxBytes: 25 * 1024 * 1024,
+    });
     if (!response.ok) {
       throw new Error(`Source image unavailable (${response.status})`);
     }
-    sourceBuffer = Buffer.from(await response.arrayBuffer());
+    sourceBuffer = response.body;
   } else {
     throw new Error("Image has no source");
   }

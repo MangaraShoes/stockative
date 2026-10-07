@@ -1,5 +1,6 @@
 import prisma from "../db.server";
 import { graphApiRequest } from "./meta/graphApi.server";
+import { safeFetch } from "./safeFetch.server";
 import { fetchOwnAccountPosts, fetchBusinessDiscovery } from "./meta/businessDiscovery.server";
 import type { OwnPost, CompetitorSnapshot } from "./meta/businessDiscovery.server";
 
@@ -52,9 +53,9 @@ const ABOUT_PATH_FALLBACKS = ["/pages/about-us", "/pages/about", "/pages/our-sto
 // comuns de tema Shopify.
 async function findAboutPageUrl(baseUrl: string): Promise<string | null> {
   try {
-    const response = await fetch(baseUrl, { headers: FETCH_HEADERS });
+    const response = await safeFetch(baseUrl, { headers: FETCH_HEADERS });
     if (response.ok) {
-      const html = await response.text();
+      const html = response.body.toString("utf8");
       const match = html.match(/href="(\/pages\/[^"?#]*(?:about|story|mission)[^"?#]*)"/i);
       if (match) return new URL(match[1], baseUrl).toString();
     }
@@ -65,7 +66,7 @@ async function findAboutPageUrl(baseUrl: string): Promise<string | null> {
   for (const path of ABOUT_PATH_FALLBACKS) {
     try {
       const url = new URL(path, baseUrl).toString();
-      const response = await fetch(url, { headers: FETCH_HEADERS });
+      const response = await safeFetch(url, { headers: FETCH_HEADERS });
       if (response.ok) return url;
     } catch {
       continue;
@@ -80,9 +81,9 @@ async function fetchAboutPageText(baseUrl: string): Promise<string | null> {
   if (!aboutUrl) return null;
 
   try {
-    const response = await fetch(aboutUrl, { headers: FETCH_HEADERS });
+    const response = await safeFetch(aboutUrl, { headers: FETCH_HEADERS });
     if (!response.ok) return null;
-    const html = await response.text();
+    const html = response.body.toString("utf8");
     const text = htmlToText(html);
     return text.length > 0 ? text.slice(0, 2500) : null;
   } catch {

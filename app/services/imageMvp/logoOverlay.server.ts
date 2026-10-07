@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { isSupportedRasterImage } from "./imageFormat.server";
 
 function dataUrlToBuffer(dataUrl: string): Buffer {
   const base64 = dataUrl.split(",")[1] ?? dataUrl;
@@ -113,8 +114,16 @@ async function removeSolidBackground(
 // perguntar nada — é o caso comum (logo exportado com fundo branco). Só
 // rejeita, pedindo um PNG transparente, quando não dá pra saber com
 // segurança qual é o fundo (foto, gradiente, textura).
+export class LogoUnsupportedFormatError extends Error {
+  constructor() {
+    super("Please upload your logo as a PNG, JPG or WebP file.");
+    this.name = "LogoUnsupportedFormatError";
+  }
+}
+
 export async function prepareLogo(logoDataUrl: string): Promise<string> {
   const buffer = dataUrlToBuffer(logoDataUrl);
+  if (!isSupportedRasterImage(buffer)) throw new LogoUnsupportedFormatError();
 
   if (await hasRealTransparency(buffer)) {
     return bufferToPngDataUrl(await sharp(buffer).png().toBuffer());

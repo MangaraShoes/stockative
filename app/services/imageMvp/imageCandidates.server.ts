@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { z } from "zod";
 import prisma from "../../db.server";
 import { generateStructuredForTask } from "../ai/index.server";
+import { isSupportedRasterImage } from "./imageFormat.server";
 
 // Escolha manual quando a IA não chega numa imagem aprovada (Patricia,
 // 05/10/2026: "após as tentativas, guardamos as imagens geradas como opção,
@@ -217,9 +218,14 @@ export async function applyUploadedImageToPost(params: {
   const match = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i.exec(params.imageDataUrl);
   if (!match) return { status: "error", reason: "That file isn't an image. Upload a JPG or PNG." };
 
+  const uploaded = Buffer.from(match[1], "base64");
+  if (!isSupportedRasterImage(uploaded)) {
+    return { status: "error", reason: "That file isn't a JPG, PNG or WebP image." };
+  }
+
   let jpeg: Buffer;
   try {
-    jpeg = await sharp(Buffer.from(match[1], "base64"))
+    jpeg = await sharp(uploaded)
       .rotate()
       .resize({ width: MAX_UPLOAD_EDGE, height: MAX_UPLOAD_EDGE, fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 90 })

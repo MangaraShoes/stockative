@@ -10,7 +10,11 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { draftBrandVoice } from "../services/decisionEngine/draftBrandVoice.server";
 import { fetchBrandSources } from "../services/brandSources.server";
-import { prepareLogo, LogoNotTransparentError } from "../services/imageMvp/logoOverlay.server";
+import {
+  prepareLogo,
+  LogoNotTransparentError,
+  LogoUnsupportedFormatError,
+} from "../services/imageMvp/logoOverlay.server";
 import { CONTENT_LANGUAGES, IMAGE_STYLE_PREFERENCES } from "../services/decisionEngine/constants";
 import { getRemainingCredits } from "../services/decisionEngine/creditUsage.server";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
@@ -172,7 +176,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       return { intent: "upload-logo" as const, logoUrl: preparedLogo, error: null };
     } catch (error) {
-      if (error instanceof LogoNotTransparentError) {
+      if (error instanceof LogoNotTransparentError || error instanceof LogoUnsupportedFormatError) {
         return { intent: "upload-logo" as const, logoUrl: null, error: error.message };
       }
       throw error;
@@ -661,7 +665,7 @@ export default function StoreVoice() {
             )}
             <input
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg,image/webp"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) uploadLogo(file);

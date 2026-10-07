@@ -38,7 +38,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router": "7.18.2",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "vite-tsconfig-paths": "^6.0.4",
     "zod": "^4.5.4"
   },

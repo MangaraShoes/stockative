@@ -912,11 +912,17 @@ export interface NextWeekPreview {
 // plan") — mesmo ranking, cadência e horários que planWeeklyContent vai
 // usar, então mostra o que sairia se a semana fosse montada agora. A
 // escolha final acontece na hora de montar, com o estoque daquele momento.
-export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPreview> {
+export async function previewNextWeekPlan(
+  shopId: string,
+  // Rascunho ainda não confirmado (objetivos/ajustes que a lojista está
+  // mexendo na tela) — a prévia acompanha ao vivo sem salvar nada
+  // (Patricia, 07/10/2026: trocou o objetivo e a linha não atualizou).
+  draft?: { objectives: CommercialObjective[]; overrides: NextWeekSlotOverride[] },
+): Promise<NextWeekPreview> {
   const shop = await prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
   const timeZone = shop.ianaTimezone ?? "UTC";
-  const objectives = parseNextWeekObjectives(shop.nextWeekObjectives);
-  const overrides = parseNextWeekSlotOverrides(shop.nextWeekSlotOverrides);
+  const objectives = draft?.objectives ?? parseNextWeekObjectives(shop.nextWeekObjectives);
+  const overrides = draft?.overrides ?? parseNextWeekSlotOverrides(shop.nextWeekSlotOverrides);
 
   const lastPostAt = await getCurrentBatchLastPostAt(shopId);
   // Mesmo instante em que generateDueWeeklyPlans monta (último post + folga)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs, ShouldRevalidateFunction } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import { publishContentItemToInstagram } from "../services/meta/publishContentItem.server";
@@ -117,6 +117,11 @@ const OCCASION_PRESETS = [
   "End of Season Sale",
   "Other",
 ] as const;
+
+// A prévia ao vivo da próxima semana só lê — não recarrega a tela inteira
+// (que inclui consultas ao TikTok) a cada checkbox.
+export const shouldRevalidate: ShouldRevalidateFunction = ({ formData, defaultShouldRevalidate }) =>
+  formData?.get("intent") === "next-week-preview" ? false : defaultShouldRevalidate;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -434,7 +439,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // onboarding inicial. Agora fica aqui, sempre acessível.
   // Definição da próxima semana (Patricia, 06/10/2026) — só salva os
   // objetivos, nenhuma IA roda aqui. O cron usa isso ao montar a semana.
-  if (intent === "next-week-plan") {
+  if (intent === "next-week-plan" || intent === "next-week-preview") {
     const objectives = formData
       .getAll("objective")
       .map(String)
@@ -459,6 +464,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         };
       }),
     );
+    if (intent === "next-week-preview") {
+      return {
+        intent: "next-week-preview" as const,
+        preview: await previewNextWeekPlan(shop.id, { objectives, overrides: slotOverrides }),
+      };
+    }
     await prisma.shop.update({
       where: { id: shop.id },
       data: {
@@ -790,12 +801,6 @@ export default function PlanWeek() {
     setSyncedNextWeekKey(savedNextWeekKey);
     setNextWeekObjectives(savedNextWeekObjectives);
   }
-  const toggleNextWeekObjective = (objective: string) =>
-    setNextWeekObjectives((current) =>
-      current.includes(objective)
-        ? current.filter((o) => o !== objective)
-        : [...current, objective],
-    );
   // Dia/horário/produto de cada post da próxima semana, pré-preenchidos
   // com o que já foi salvo (Patricia, 07/10/2026).
   type NextWeekSlotEdit = { weekday: number; time: string; productId: string | null };
@@ -822,27 +827,56 @@ export default function PlanWeek() {
       time: `${String(slot.hour).padStart(2, "0")}:${String(slot.minute).padStart(2, "0")}`,
       productId: slot.productId,
     };
-  const editNextWeekSlot = (
-    slot: NonNullable<typeof nextWeek>["slots"][number],
-    change: Partial<NextWeekSlotEdit>,
-  ) =>
-    setSlotEdits((current) => ({ ...current, [slot.index]: { ...nextWeekSlotValue(slot), ...change } }));
-  const nextWeekDirty =
-    [...nextWeekObjectives].sort().join(",") !== [...savedNextWeekObjectives].sort().join(",") ||
-    JSON.stringify(slotEdits) !== savedSlotEditsKey;
-  const isSavingNextWeek = nextWeekFetcher.state !== "idle";
-  const confirmNextWeek = () => {
+  const nextWeekFormData = (
+    intent: "next-week-plan" | "next-week-preview",
+    objectives: string[],
+    edits: Record<number, NextWeekSlotEdit>,
+  ) => {
     const formData = new FormData();
-    formData.set("intent", "next-week-plan");
-    nextWeekObjectives.forEach((objective) => formData.append("objective", objective));
-    Object.entries(slotEdits).forEach(([index, edit]) => {
+    formData.set("intent", intent);
+    objectives.forEach((objective) => formData.append("objective", objective));
+    Object.entries(edits).forEach(([index, edit]) => {
       formData.append("slotIndex", index);
       formData.append("slotWeekday", String(edit.weekday));
       formData.append("slotTime", edit.time);
       formData.append("slotProductId", edit.productId ?? "");
     });
-    nextWeekFetcher.submit(formData, { method: "POST" });
+    return formData;
   };
+  // Prévia ao vivo (sem IA, sem salvar) a cada mudança — produto e
+  // objetivo de cada linha acompanham o que está marcado na tela.
+  const nextWeekPreviewFetcher = useFetcher<typeof action>();
+  const refreshNextWeekPreview = (objectives: string[], edits: Record<number, NextWeekSlotEdit>) =>
+    nextWeekPreviewFetcher.submit(nextWeekFormData("next-week-preview", objectives, edits), {
+      method: "POST",
+    });
+  const toggleNextWeekObjective = (objective: string) => {
+    const objectives = nextWeekObjectives.includes(objective)
+      ? nextWeekObjectives.filter((o) => o !== objective)
+      : [...nextWeekObjectives, objective];
+    setNextWeekObjectives(objectives);
+    refreshNextWeekPreview(objectives, slotEdits);
+  };
+  const editNextWeekSlot = (
+    slot: NonNullable<typeof nextWeek>["slots"][number],
+    change: Partial<NextWeekSlotEdit>,
+  ) => {
+    const edits = { ...slotEdits, [slot.index]: { ...nextWeekSlotValue(slot), ...change } };
+    setSlotEdits(edits);
+    refreshNextWeekPreview(nextWeekObjectives, edits);
+  };
+  const nextWeekDirty =
+    [...nextWeekObjectives].sort().join(",") !== [...savedNextWeekObjectives].sort().join(",") ||
+    JSON.stringify(slotEdits) !== savedSlotEditsKey;
+  const draftPreview =
+    nextWeekPreviewFetcher.data?.intent === "next-week-preview" ? nextWeekPreviewFetcher.data.preview : null;
+  // Sem mudança pendente vale o que o servidor salvou.
+  const nextWeekSlots = (nextWeekDirty && draftPreview ? draftPreview : nextWeek)?.slots ?? [];
+  const isSavingNextWeek = nextWeekFetcher.state !== "idle";
+  const confirmNextWeek = () =>
+    nextWeekFetcher.submit(nextWeekFormData("next-week-plan", nextWeekObjectives, slotEdits), {
+      method: "POST",
+    });
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
   // "Trocar a modelo" / "trocar a situação" só nesta regeneração (Patricia,
   // 05/10/2026) — ver RegenerationOverrides em modelProfile.ts.
@@ -2022,6 +2056,7 @@ export default function PlanWeek() {
             </s-banner>
           )}
 
+          <s-box paddingBlockEnd="base">
           <s-stack direction="inline" gap="base">
             <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <input
@@ -2042,6 +2077,7 @@ export default function PlanWeek() {
               Seasonal or promotional campaign
             </label>
           </s-stack>
+          </s-box>
 
           {nextWeek.upcomingPromotions.length > 0 && (
             <s-paragraph>
@@ -2078,7 +2114,7 @@ export default function PlanWeek() {
                 <s-stack direction="block" gap="base">
                   {/* Sempre em ordem cronológica, inclusive enquanto a
                       lojista muda o dia/horário (Patricia, 07/10/2026). */}
-                  {[...nextWeek.slots]
+                  {[...nextWeekSlots]
                     .sort(
                       (a, b) =>
                         nextWeekSlotDate(nextWeekSlotValue(a), nextWeek.buildsAround, shopTimezone).getTime() -

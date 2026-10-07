@@ -1,3 +1,4 @@
+import { ensurePlannedReel } from "../services/video/generateReelForContentItem.server";
 import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs, ShouldRevalidateFunction } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
@@ -291,7 +292,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           occasion: occasion ? String(occasion) : undefined,
         },
       });
-      if (result.status === "success") await resetApprovalAfterEdit(shop.id, contentItemId);
+      if (result.status === "success") {
+        await resetApprovalAfterEdit(shop.id, contentItemId);
+        // Reel remontado com a imagem nova (antes ficava com a antiga).
+        await ensurePlannedReel(contentItemId, shop.id);
+      }
     } catch (error) {
       console.error("Failed to regenerate image:", error);
       result = {
@@ -328,7 +333,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } else {
         result = await dismissImageCandidates({ shopId: shop.id, contentItemId });
       }
-      if (result.status === "success" && choice !== "keep") await resetApprovalAfterEdit(shop.id, contentItemId);
+      if (result.status === "success" && choice !== "keep") {
+        await resetApprovalAfterEdit(shop.id, contentItemId);
+        // Slot reservado como Reel vira Reel assim que ganha imagem.
+        await ensurePlannedReel(contentItemId, shop.id);
+      }
     } catch (error) {
       console.error("Failed to apply image choice:", error);
       result = { status: "error" as const, reason: "Something went wrong saving your choice. Please try again." };

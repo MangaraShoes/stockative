@@ -18,6 +18,7 @@ import {
 } from "../tiktok/publish.server";
 import { parseStoredTikTokSettings, validateTikTokPostSettings } from "../tiktok/postSettings";
 import { mp4DurationSecondsFromDataUrl } from "../video/mp4Duration.server";
+import { ensurePlannedReel } from "../video/generateReelForContentItem.server";
 import { getValidTikTokAccessToken } from "../tiktok/oauth.server";
 import { uploadShort } from "../youtube/publish.server";
 import { getValidYouTubeAccessToken } from "../youtube/oauth.server";
@@ -97,6 +98,10 @@ export async function publishContentItemToInstagram(
   contentItemId: string,
   shopId: string,
 ): Promise<PublishResult> {
+  // Slot reservado como Reel que ficou sem vídeo (imagem resolvida tarde
+  // demais, ex.: escolhida depois do horário) — monta agora, antes de sair.
+  await ensurePlannedReel(contentItemId, shopId, { onlyIfMissing: true });
+
   // Trava contra publicação duplicada: só segue se conseguir marcar como
   // "publishing" a partir de um estado que não seja já published/publishing
   // — um clique duplo ou um retry concorrente encontra count=0 e para aqui,

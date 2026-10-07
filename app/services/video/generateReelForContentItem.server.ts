@@ -12,7 +12,13 @@ const MAX_IMAGES_IN_REEL = 3;
 // fidelidade — ver generateProductImage.server.ts). Idempotente por
 // natureza: cada chamada remonta do zero e sobrescreve videoUrl, então um
 // retry ou "gerar de novo" nunca deixa lixo pra trás.
-export async function generateReelForContentItem(contentItemId: string, shopId: string): Promise<void> {
+export async function generateReelForContentItem(
+  contentItemId: string,
+  shopId: string,
+  // Remontar o MESMO Reel depois de trocar a imagem não é um Reel novo —
+  // não pode comer a cota mensal de vídeo (ver ensurePlannedReel).
+  { countsAsCredit = true }: { countsAsCredit?: boolean } = {},
+): Promise<void> {
   const contentItem = await prisma.contentItem.findFirstOrThrow({
     where: { id: contentItemId, shopId },
     include: { images: { orderBy: { position: "asc" } } },
@@ -45,7 +51,30 @@ export async function generateReelForContentItem(contentItemId: string, shopId: 
       shopId,
       taskType: "video",
       model: "ffmpeg",
-      countsAsCredit: true,
+      countsAsCredit,
     },
   });
+}
+
+// Monta (ou remonta) o Reel de um slot reservado como Reel sempre que as
+// imagens dele mudam — e, antes de publicar, garante que nunca sai como
+// imagem comum só porque a imagem do slot falhou na hora de montar a
+// semana (achado 07/10/2026). Nunca derruba quem chamou: sem imagem ainda,
+// ou falha do ffmpeg, o post continua como está.
+export async function ensurePlannedReel(
+  contentItemId: string,
+  shopId: string,
+  { onlyIfMissing = false }: { onlyIfMissing?: boolean } = {},
+): Promise<void> {
+  const item = await prisma.contentItem.findFirst({
+    where: { id: contentItemId, shopId },
+    select: { plannedAsReel: true, videoUrl: true, videoGeneratedAt: true },
+  });
+  if (!item?.plannedAsReel) return;
+  if (onlyIfMissing && item.videoUrl) return;
+  try {
+    await generateReelForContentItem(contentItemId, shopId, { countsAsCredit: !item.videoGeneratedAt });
+  } catch (error) {
+    console.error(`Failed to build planned Reel for content item ${contentItemId}:`, error);
+  }
 }

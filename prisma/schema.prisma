@@ -484,6 +484,12 @@ model ContentItem {
   // sem isso, um retry remontava e resubia o vídeo do zero a cada tentativa.
   videoUrl             String?
   videoGeneratedAt      DateTime?
+  // Slot reservado como Reel no plano semanal (Patricia, 07/10/2026: "3
+  // posts e nenhum reel") — antes, se a imagem do slot falhasse na geração,
+  // o Reel nunca era montado e o post saía como imagem comum. Com isso o
+  // Reel é montado assim que o post ganha imagem (escolha manual,
+  // regeneração ou, no mais tardar, antes de publicar) — ver ensurePlannedReel.
+  plannedAsReel         Boolean   @default(false)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 

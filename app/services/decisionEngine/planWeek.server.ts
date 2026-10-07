@@ -532,6 +532,7 @@ export async function planOneSlot(
       status: "draft",
       scheduledAt,
       weekBatchId,
+      plannedAsReel: Boolean(forceReel || pillar?.idealFormat === "reel"),
     },
   });
 

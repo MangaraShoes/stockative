@@ -3,9 +3,9 @@ import prisma from "../db.server";
 import {
   exchangeCodeForToken,
   getPinterestAccount,
-  verifyState,
 } from "../services/pinterest/oauth.server";
 import { oauthPopupCloseResponse } from "../services/oauthPopupClose.server";
+import { completeOAuthTransaction } from "../services/oauthTransaction.server";
 
 // Callback público — o Pinterest redireciona pra cá depois do merchant
 // autorizar. Troca o código por token (+ refresh token), busca o username
@@ -28,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  const shopDomain = verifyState(state);
+  const shopDomain = await completeOAuthTransaction(request, "pinterest", state);
   if (!shopDomain) {
     return oauthPopupCloseResponse(
       `${appUrl}/app/social?error=${encodeURIComponent("Invalid or expired connection request — try again.")}`,

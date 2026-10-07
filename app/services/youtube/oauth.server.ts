@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SocialAccount } from "@prisma/client";
 import prisma from "../../db.server";
 import {
@@ -8,8 +7,6 @@ import {
   YOUTUBE_TOKEN_URL,
   youtubeApiRequest,
 } from "./api.server";
-
-const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutos, mesmo padrão do Meta/Pinterest/TikTok
 
 function getClientId() {
   const id = process.env.YOUTUBE_CLIENT_ID;
@@ -33,42 +30,12 @@ export function getRedirectUri() {
   return `${appUrl}/auth/youtube/callback`;
 }
 
-// Mesmo esquema de state assinado já usado no Meta/Pinterest/TikTok — cada
-// integração assina com o próprio secret, pra não misturar os fluxos.
-export function signState(shopDomain: string): string {
-  const payload = `${shopDomain}:${Date.now()}`;
-  const signature = createHmac("sha256", getClientSecret()).update(payload).digest("hex");
-  return Buffer.from(`${payload}:${signature}`).toString("base64url");
-}
-
-export function verifyState(state: string): string | null {
-  try {
-    const decoded = Buffer.from(state, "base64url").toString("utf8");
-    const [shopDomain, timestamp, signature] = decoded.split(":");
-    if (!shopDomain || !timestamp || !signature) return null;
-
-    const expectedSignature = createHmac("sha256", getClientSecret())
-      .update(`${shopDomain}:${timestamp}`)
-      .digest("hex");
-
-    const signatureBuffer = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expectedSignature);
-    if (signatureBuffer.length !== expectedBuffer.length) return null;
-    if (!timingSafeEqual(signatureBuffer, expectedBuffer)) return null;
-
-    if (Date.now() - Number(timestamp) > STATE_MAX_AGE_MS) return null;
-
-    return shopDomain;
-  } catch {
-    return null;
-  }
-}
-
 // access_type=offline + prompt=consent são obrigatórios aqui, não
 // opcionais: sem os dois, uma loja que reconecta (ou já autorizou antes)
 // não recebe refresh_token nenhum de volta, silenciosamente — o Google só
 // devolve o access_token de curta duração nesse caso.
-export function buildAuthorizeUrl(shopDomain: string): string {
+// `state` vem de beginOAuthTransaction (oauthTransaction.server.ts).
+export function buildAuthorizeUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: getClientId(),
     redirect_uri: getRedirectUri(),
@@ -76,7 +43,7 @@ export function buildAuthorizeUrl(shopDomain: string): string {
     scope: YOUTUBE_SCOPES,
     access_type: "offline",
     prompt: "consent",
-    state: signState(shopDomain),
+    state,
   });
   return `${YOUTUBE_AUTH_BASE}?${params}`;
 }

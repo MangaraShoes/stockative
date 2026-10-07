@@ -698,3 +698,27 @@ model CompetitorPost {
 
   @@index([competitorAccountId])
 }
+
+// Transação de OAuth das redes sociais (Meta/Pinterest/TikTok/YouTube),
+// auditoria de segurança de 07/10/2026 (H1). Substitui o `state` antigo
+// (shopDomain + timestamp assinado com HMAC), que era reutilizável por 10
+// minutos e não provava QUEM concluía a conexão: um merchant mal-intencionado
+// podia mandar o link da própria loja pra outra pessoa autorizar.
+// Ciclo: o app embutido gera o ticket (id) → /auth/<provider>/start mostra
+// a loja de destino e, no POST, consome o ticket, grava o hash do nonce do
+// cookie do navegador e gera o `state` → o callback só aceita o `state` uma
+// vez e com o mesmo cookie. Ver oauthTransaction.server.ts.
+model OAuthTransaction {
+  id               String    @id
+  shopDomain       String
+  provider         String // meta | pinterest | tiktok | youtube
+  expiresAt        DateTime
+  startedAt        DateTime?
+  state            String?   @unique
+  browserNonceHash String?
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([shopDomain, provider])
+  @@index([expiresAt])
+}

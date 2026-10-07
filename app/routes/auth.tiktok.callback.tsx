@@ -1,7 +1,8 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { exchangeCodeForToken, getTikTokAccount, verifyState } from "../services/tiktok/oauth.server";
+import { exchangeCodeForToken, getTikTokAccount } from "../services/tiktok/oauth.server";
 import { oauthPopupCloseResponse } from "../services/oauthPopupClose.server";
+import { completeOAuthTransaction } from "../services/oauthTransaction.server";
 
 // Callback público — o TikTok redireciona pra cá depois do merchant
 // autorizar. Troca o código por token (+ refresh token), busca o username
@@ -24,7 +25,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  const shopDomain = verifyState(state);
+  const shopDomain = await completeOAuthTransaction(request, "tiktok", state);
   if (!shopDomain) {
     return oauthPopupCloseResponse(
       `${appUrl}/app/social?error=${encodeURIComponent("Invalid or expired connection request — try again.")}`,

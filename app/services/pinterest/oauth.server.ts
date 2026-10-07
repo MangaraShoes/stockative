@@ -1,12 +1,9 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   PINTEREST_OAUTH_DIALOG_BASE,
   PINTEREST_SCOPES,
   PINTEREST_TOKEN_URL,
   pinterestApiRequest,
 } from "./api.server";
-
-const STATE_MAX_AGE_MS = 10 * 60 * 1000; // 10 minutos
 
 function getAppId() {
   const appId = process.env.PINTEREST_APP_ID;
@@ -30,43 +27,12 @@ export function getRedirectUri() {
   return `${appUrl}/auth/pinterest/callback`;
 }
 
-// Mesmo esquema de state assinado usado no Meta (HMAC do shopDomain +
-// timestamp), só que assinado com o secret do Pinterest — cada integração
-// assina com o próprio secret pra não misturar os dois fluxos.
-export function signState(shopDomain: string): string {
-  const payload = `${shopDomain}:${Date.now()}`;
-  const signature = createHmac("sha256", getAppSecret()).update(payload).digest("hex");
-  return Buffer.from(`${payload}:${signature}`).toString("base64url");
-}
-
-export function verifyState(state: string): string | null {
-  try {
-    const decoded = Buffer.from(state, "base64url").toString("utf8");
-    const [shopDomain, timestamp, signature] = decoded.split(":");
-    if (!shopDomain || !timestamp || !signature) return null;
-
-    const expectedSignature = createHmac("sha256", getAppSecret())
-      .update(`${shopDomain}:${timestamp}`)
-      .digest("hex");
-
-    const signatureBuffer = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expectedSignature);
-    if (signatureBuffer.length !== expectedBuffer.length) return null;
-    if (!timingSafeEqual(signatureBuffer, expectedBuffer)) return null;
-
-    if (Date.now() - Number(timestamp) > STATE_MAX_AGE_MS) return null;
-
-    return shopDomain;
-  } catch {
-    return null;
-  }
-}
-
-export function buildAuthorizeUrl(shopDomain: string): string {
+// `state` vem de beginOAuthTransaction (oauthTransaction.server.ts).
+export function buildAuthorizeUrl(state: string): string {
   const params = new URLSearchParams({
     client_id: getAppId(),
     redirect_uri: getRedirectUri(),
-    state: signState(shopDomain),
+    state,
     scope: PINTEREST_SCOPES,
     response_type: "code",
   });

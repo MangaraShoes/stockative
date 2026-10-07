@@ -3,20 +3,11 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { buildAuthorizeUrl, isMetaConfigured } from "../services/meta/oauth.server";
-import {
-  buildAuthorizeUrl as buildPinterestAuthorizeUrl,
-  isPinterestConfigured,
-} from "../services/pinterest/oauth.server";
-import {
-  buildAuthorizeUrl as buildTikTokAuthorizeUrl,
-  getValidTikTokAccessToken,
-  isTikTokConfigured,
-} from "../services/tiktok/oauth.server";
-import {
-  buildAuthorizeUrl as buildYouTubeAuthorizeUrl,
-  isYouTubeConfigured,
-} from "../services/youtube/oauth.server";
+import { isMetaConfigured } from "../services/meta/oauth.server";
+import { isPinterestConfigured } from "../services/pinterest/oauth.server";
+import { getValidTikTokAccessToken, isTikTokConfigured } from "../services/tiktok/oauth.server";
+import { isYouTubeConfigured } from "../services/youtube/oauth.server";
+import { getConnectUrl } from "../services/oauthTransaction.server";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 
@@ -81,22 +72,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     onboardingStatus,
     isMetaConfigured: isMetaConfigured(),
-    authorizeUrl: isMetaConfigured() ? buildAuthorizeUrl(session.shop) : null,
+    authorizeUrl: isMetaConfigured() ? await getConnectUrl(session.shop, "meta") : null,
     igBusinessAccountId: socialAccount?.igBusinessAccountId ?? null,
     fbPageId: socialAccount?.fbPageId ?? null,
     igUsername: socialAccount?.igUsername ?? null,
     fbPageName: socialAccount?.fbPageName ?? null,
     isPinterestConfigured: isPinterestConfigured(),
     pinterestAuthorizeUrl: isPinterestConfigured()
-      ? buildPinterestAuthorizeUrl(session.shop)
+      ? await getConnectUrl(session.shop, "pinterest")
       : null,
     pinterestUsername: pinterestAccount?.pinterestUsername ?? null,
     isTikTokConfigured: isTikTokConfigured(),
-    tiktokAuthorizeUrl: isTikTokConfigured() ? buildTikTokAuthorizeUrl(session.shop) : null,
+    tiktokAuthorizeUrl: isTikTokConfigured() ? await getConnectUrl(session.shop, "tiktok") : null,
     tiktokUsername: tiktokAccount?.tiktokUsername ?? null,
     tiktokNeedsReconnect,
     isYouTubeConfigured: isYouTubeConfigured(),
-    youtubeAuthorizeUrl: isYouTubeConfigured() ? buildYouTubeAuthorizeUrl(session.shop) : null,
+    youtubeAuthorizeUrl: isYouTubeConfigured() ? await getConnectUrl(session.shop, "youtube") : null,
     youtubeChannelTitle: youtubeAccount?.youtubeChannelTitle ?? null,
   };
 };

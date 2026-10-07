@@ -1,7 +1,8 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { exchangeCodeForToken, getYouTubeChannel, verifyState } from "../services/youtube/oauth.server";
+import { exchangeCodeForToken, getYouTubeChannel } from "../services/youtube/oauth.server";
 import { oauthPopupCloseResponse } from "../services/oauthPopupClose.server";
+import { completeOAuthTransaction } from "../services/oauthTransaction.server";
 
 // Callback público — o Google redireciona pra cá depois do merchant
 // autorizar. Troca o código por token (+ refresh token, se o Google
@@ -25,7 +26,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  const shopDomain = verifyState(state);
+  const shopDomain = await completeOAuthTransaction(request, "youtube", state);
   if (!shopDomain) {
     return oauthPopupCloseResponse(
       `${appUrl}/app/social?error=${encodeURIComponent("Invalid or expired connection request — try again.")}`,

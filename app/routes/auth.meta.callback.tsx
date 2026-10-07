@@ -4,9 +4,9 @@ import {
   exchangeCodeForToken,
   exchangeForLongLivedToken,
   getInstagramBusinessAccount,
-  verifyState,
 } from "../services/meta/oauth.server";
 import { oauthPopupCloseResponse } from "../services/oauthPopupClose.server";
+import { completeOAuthTransaction } from "../services/oauthTransaction.server";
 
 // Callback público (fora do iframe embutido) — a Meta redireciona pra cá
 // depois do merchant autorizar. Troca o código por token, descobre a Página
@@ -29,7 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  const shopDomain = verifyState(state);
+  const shopDomain = await completeOAuthTransaction(request, "meta", state);
   if (!shopDomain) {
     return oauthPopupCloseResponse(
       `${appUrl}/app/social?error=${encodeURIComponent("Invalid or expired connection request — try again.")}`,

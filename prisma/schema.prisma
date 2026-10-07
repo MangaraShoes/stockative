@@ -136,6 +136,13 @@ model Shop {
   // semana que vem (volta a null a cada semana gerada).
   nextWeekObjectives      Json?
   nextWeekPlanConfirmedAt DateTime?
+  // Ajustes por post da próxima semana feitos na mesma tela (Patricia,
+  // 07/10/2026: "neste momento precisa ter a opção de mudar o dia e o
+  // produto, este é o melhor momento visto que ainda não criamos o
+  // conteúdo") — lista de { index, weekday, hour, minute, productId }, um
+  // por slot do plano. Só vale para a semana que vem: volta a null quando
+  // a semana é montada (ver generateDueWeeklyPlans).
+  nextWeekSlotOverrides   Json?
 
   // Idioma(s) de publicação (Patricia, 10/09/2026: "a cliente escolhe o
   // idioma... até 2 idiomas, aparece o primeiro e na sequência o segundo,

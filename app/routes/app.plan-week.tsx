@@ -18,6 +18,7 @@ import {
   planPromotionalWeek,
   createPromotion,
   previewNextWeekPlan,
+  parseNextWeekSlotOverrides,
   promotionNeedsPostsNow,
   type WeeklyPlanSlot,
 } from "../services/decisionEngine/planWeek.server";
@@ -440,9 +441,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       .filter((value): value is CommercialObjective =>
         (COMMERCIAL_OBJECTIVES as readonly string[]).includes(value),
       );
+    // Dia/horário/produto por post (Patricia, 07/10/2026) — melhor momento
+    // pra mudar, porque o conteúdo ainda não foi criado.
+    const slotIndexes = formData.getAll("slotIndex").map(Number);
+    const slotWeekdays = formData.getAll("slotWeekday").map(Number);
+    const slotTimes = formData.getAll("slotTime").map(String);
+    const slotProductIds = formData.getAll("slotProductId").map(String);
+    const slotOverrides = parseNextWeekSlotOverrides(
+      slotIndexes.map((index, position) => {
+        const [hour, minute] = (slotTimes[position] ?? "").split(":").map(Number);
+        return {
+          index,
+          weekday: slotWeekdays[position],
+          hour,
+          minute,
+          productId: slotProductIds[position] || null,
+        };
+      }),
+    );
     await prisma.shop.update({
       where: { id: shop.id },
-      data: { nextWeekObjectives: objectives, nextWeekPlanConfirmedAt: new Date() },
+      data: {
+        nextWeekObjectives: objectives,
+        nextWeekSlotOverrides: slotOverrides,
+        nextWeekPlanConfirmedAt: new Date(),
+      },
     });
     return { intent: "next-week-plan" as const, error: null as string | null };
   }
@@ -762,13 +785,51 @@ export default function PlanWeek() {
         ? current.filter((o) => o !== objective)
         : [...current, objective],
     );
+  // Dia/horário/produto de cada post da próxima semana, pré-preenchidos
+  // com o que já foi salvo (Patricia, 07/10/2026).
+  type NextWeekSlotEdit = { weekday: number; time: string; productId: string | null };
+  const savedSlotEdits: Record<number, NextWeekSlotEdit> = Object.fromEntries(
+    (nextWeek?.overrides ?? []).map((override) => [
+      override.index,
+      {
+        weekday: override.weekday,
+        time: `${String(override.hour).padStart(2, "0")}:${String(override.minute).padStart(2, "0")}`,
+        productId: override.productId,
+      },
+    ]),
+  );
+  const savedSlotEditsKey = JSON.stringify(savedSlotEdits);
+  const [slotEdits, setSlotEdits] = useState<Record<number, NextWeekSlotEdit>>(savedSlotEdits);
+  const [syncedSlotEditsKey, setSyncedSlotEditsKey] = useState(savedSlotEditsKey);
+  if (savedSlotEditsKey !== syncedSlotEditsKey) {
+    setSyncedSlotEditsKey(savedSlotEditsKey);
+    setSlotEdits(savedSlotEdits);
+  }
+  const nextWeekSlotValue = (slot: NonNullable<typeof nextWeek>["slots"][number]): NextWeekSlotEdit =>
+    slotEdits[slot.index] ?? {
+      weekday: slot.weekday,
+      time: `${String(slot.hour).padStart(2, "0")}:${String(slot.minute).padStart(2, "0")}`,
+      productId: slot.productId,
+    };
+  const editNextWeekSlot = (
+    slot: NonNullable<typeof nextWeek>["slots"][number],
+    change: Partial<NextWeekSlotEdit>,
+  ) =>
+    setSlotEdits((current) => ({ ...current, [slot.index]: { ...nextWeekSlotValue(slot), ...change } }));
   const nextWeekDirty =
-    [...nextWeekObjectives].sort().join(",") !== [...savedNextWeekObjectives].sort().join(",");
+    [...nextWeekObjectives].sort().join(",") !== [...savedNextWeekObjectives].sort().join(",") ||
+    JSON.stringify(slotEdits) !== savedSlotEditsKey;
   const isSavingNextWeek = nextWeekFetcher.state !== "idle";
   const confirmNextWeek = () => {
     const formData = new FormData();
     formData.set("intent", "next-week-plan");
     nextWeekObjectives.forEach((objective) => formData.append("objective", objective));
+    Object.entries(slotEdits).forEach(([index, edit]) => {
+      formData.append("slotIndex", index);
+      formData.append("slotWeekday", String(edit.weekday));
+      formData.append("slotTime", edit.time);
+      formData.append("slotProductId", edit.productId ?? "");
+    });
     nextWeekFetcher.submit(formData, { method: "POST" });
   };
   const [imageFeedback, setImageFeedback] = useState<Record<string, string>>({});
@@ -1920,10 +1981,20 @@ export default function PlanWeek() {
       {nextWeek && (
         <s-section heading="Next week's plan">
           <s-paragraph>
-            Stockative builds next week on{" "}
-            <strong>{formatDay(nextWeek.buildsAround, shopTimezone)}</strong>.
-            Here you only decide the plan — captions, images and Reels are
-            created when the week is built, so changing this costs nothing.
+            {nextWeek.buildsAfterLastPost ? (
+              <>
+                Stockative builds next week right after this week&apos;s last
+                post goes out (<strong>{formatScheduledAt(nextWeek.buildsAround, shopTimezone)}</strong>).
+              </>
+            ) : (
+              <>
+                Stockative builds next week on{" "}
+                <strong>{formatDay(nextWeek.buildsAround, shopTimezone)}</strong>.
+              </>
+            )}{" "}
+            Here you only decide the plan — days, products and objectives.
+            Captions, images and Reels are created when the week is built, so
+            changing this costs nothing.
           </s-paragraph>
 
           {nextWeek.confirmedAt ? (
@@ -1992,27 +2063,83 @@ export default function PlanWeek() {
               </s-stack>
 
               <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
-                <s-stack direction="block" gap="small-200">
-                  {nextWeek.slots.map((slot, index) => (
-                    <s-text key={index}>
-                      <strong>
-                        {WEEKDAY_OPTIONS.find((option) => option.value === slot.weekday)?.label}{" "}
-                        {String(slot.hour).padStart(2, "0")}:{String(slot.minute).padStart(2, "0")}
-                      </strong>
-                      {" · "}
-                      {slot.format === "reel" ? "🎬 Reel" : "Post"}
-                      {" · "}
-                      {slot.campaignName
-                        ? `covered by the ${slot.campaignName} campaign`
-                        : `${slot.productTitle} — ${slot.objective ? OBJECTIVE_LABELS[slot.objective] : ""}`}
-                    </s-text>
-                  ))}
+                <s-stack direction="block" gap="base">
+                  {nextWeek.slots.map((slot) => {
+                    if (slot.campaignName) {
+                      return (
+                        <s-text key={slot.index}>
+                          <strong>
+                            {WEEKDAY_OPTIONS.find((option) => option.value === slot.weekday)?.label}{" "}
+                            {String(slot.hour).padStart(2, "0")}:{String(slot.minute).padStart(2, "0")}
+                          </strong>
+                          {" · "}
+                          {slot.format === "reel" ? "🎬 Reel" : "Post"}
+                          {" · "}covered by the {slot.campaignName} campaign
+                        </s-text>
+                      );
+                    }
+                    const value = nextWeekSlotValue(slot);
+                    const timeOptions = TIME_OPTIONS.includes(value.time)
+                      ? TIME_OPTIONS
+                      : [...TIME_OPTIONS, value.time].sort();
+                    return (
+                      <s-stack key={slot.index} direction="inline" gap="small" alignItems="end">
+                        <s-text>
+                          <strong>{slot.format === "reel" ? "🎬 Reel" : "Post"}</strong>
+                        </s-text>
+                        <s-select
+                          label="Day"
+                          labelAccessibilityVisibility="exclusive"
+                          value={String(value.weekday)}
+                          onChange={(event) =>
+                            editNextWeekSlot(slot, { weekday: Number(event.currentTarget.value) })
+                          }
+                        >
+                          {WEEKDAY_OPTIONS.map((option) => (
+                            <s-option key={option.value} value={String(option.value)}>
+                              {option.label}
+                            </s-option>
+                          ))}
+                        </s-select>
+                        <s-select
+                          label="Time"
+                          labelAccessibilityVisibility="exclusive"
+                          value={value.time}
+                          onChange={(event) => editNextWeekSlot(slot, { time: event.currentTarget.value })}
+                        >
+                          {timeOptions.map((time) => (
+                            <s-option key={time} value={time}>
+                              {time}
+                            </s-option>
+                          ))}
+                        </s-select>
+                        <s-select
+                          label="Product"
+                          labelAccessibilityVisibility="exclusive"
+                          value={value.productId ?? ""}
+                          onChange={(event) =>
+                            editNextWeekSlot(slot, { productId: event.currentTarget.value || null })
+                          }
+                        >
+                          <s-option value="">Let Stockative pick</s-option>
+                          {products.map((product) => (
+                            <s-option key={product.id} value={product.id}>
+                              {product.title}
+                            </s-option>
+                          ))}
+                        </s-select>
+                        {slot.objective && (
+                          <s-text color="subdued">{OBJECTIVE_LABELS[slot.objective]}</s-text>
+                        )}
+                      </s-stack>
+                    );
+                  })}
                 </s-stack>
               </s-box>
               <s-text color="subdued">
                 {nextWeekDirty
-                  ? "Confirm to update the suggested products for these objectives."
-                  : "Suggested products — the final pick uses your stock on the day the week is built, and you can still swap any of them afterwards."}
+                  ? "Confirm to save your changes and update the suggested products."
+                  : "Products you pick are kept; the rest are suggestions that use your stock on the day the week is built. You can still swap any of them afterwards."}
               </s-text>
 
               <s-button

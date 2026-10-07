@@ -9,7 +9,7 @@ import {
 } from "../imageMvp/imageCandidates.server";
 import { MAX_IMAGE_REGENERATIONS_PER_POST } from "./constants";
 import type { RegenerationOverrides } from "../imageMvp/modelProfile";
-import type { ContentPillar, Prisma, Promotion } from "@prisma/client";
+import { Prisma, type ContentPillar, type Promotion } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
 import { getArchetypePerformance, describeArchetypePerformance } from "./performanceLearning.server";
@@ -644,6 +644,10 @@ export async function planWeeklyContent(
   // "Drive sales" no mesmo lote. (A troca de objetivo por post saiu em
   // 30/09/2026 — Patricia: "já temos o Campaign objective(s) for this week".)
   forcedObjectives?: CommercialObjective[],
+  // Dia/horário/produto escolhidos por slot em "Next week's plan" (ver
+  // Shop.nextWeekSlotOverrides). Produto que saiu de estoque ou já foi
+  // usado neste lote volta pra escolha automática.
+  slotOverrides: NextWeekSlotOverride[] = [],
 ): Promise<WeeklyPlanSlot[]> {
   // Reivindica a trava de geração antes de mexer em qualquer ContentItem —
   // sem isso, duas chamadas concorrentes pra mesma loja (duplo clique, ou o
@@ -733,22 +737,41 @@ export async function planWeeklyContent(
     const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek);
 
     const usedProductIds = new Set<string>(cancelledProductIds);
+    // A escolha automática nunca "rouba" um produto escolhido à mão pra outro slot.
+    const reservedProductIds = new Set(
+      slotOverrides.flatMap((entry) => (entry.productId ? [entry.productId] : [])),
+    );
+    const pickedProductIds = new Set<string>();
     const slots: WeeklyPlanSlot[] = [];
     for (let index = 0; index < weeklySlotPlan.postsPerWeek; index++) {
       const objectiveForSlot = forcedObjectives?.length
         ? forcedObjectives[index % forcedObjectives.length]
         : undefined;
 
+      const override = slotOverrides.find((entry) => entry.index === index);
+      const chosenProduct = override?.productId && !pickedProductIds.has(override.productId)
+        ? await prisma.productCache.findFirst({
+            where: { id: override.productId, shopId, status: "active", inventoryQuantity: { gt: 0 } },
+            select: { id: true },
+          })
+        : null;
+
       // Reranqueia por slot (não uma vez só pra semana inteira) — cada
       // objetivo pode preferir um produto diferente, e sem isso o segundo
       // objetivo escolhido nunca influenciava produto nenhum.
-      const ranked = await rankProductsForWeek(shopId, objectiveForSlot, timeZone);
-      const candidate = ranked.find((entry) => !usedProductIds.has(entry.product.id));
+      const candidate = chosenProduct
+        ? { product: chosenProduct }
+        : (await rankProductsForWeek(shopId, objectiveForSlot, timeZone)).find(
+            (entry) => !usedProductIds.has(entry.product.id) && !reservedProductIds.has(entry.product.id),
+          );
       if (!candidate) break; // catálogo elegível menor que o plano dessa loja pede
 
       usedProductIds.add(candidate.product.id);
+      pickedProductIds.add(candidate.product.id);
 
-      const slotSchedule = schedule[index % schedule.length];
+      const slotSchedule = override
+        ? { weekday: override.weekday, hour: override.hour, minute: override.minute }
+        : schedule[index % schedule.length];
       const scheduledAt = nextWeeklyOccurrenceInTimezone(
         slotSchedule.weekday,
         slotSchedule.hour,
@@ -757,6 +780,7 @@ export async function planWeeklyContent(
       );
       if (upcomingPromotions.some((promotion) => isWithinPromotion(scheduledAt, promotion))) {
         usedProductIds.delete(candidate.product.id);
+        pickedProductIds.delete(candidate.product.id);
         continue;
       }
       const slot = await planOneSlot(
@@ -802,11 +826,66 @@ export function parseNextWeekObjectives(raw: unknown): CommercialObjective[] {
   );
 }
 
+// type (não interface) pra caber direto num campo Json do Prisma.
+export type NextWeekSlotOverride = {
+  index: number; // posição do slot no plano (mesma ordem de resolveWeeklySchedule)
+  weekday: number;
+  hour: number;
+  minute: number;
+  productId: string | null; // null = Stockative escolhe
+};
+
+export function parseNextWeekSlotOverrides(raw: unknown): NextWeekSlotOverride[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (entry): entry is NextWeekSlotOverride =>
+      typeof entry === "object" && entry !== null &&
+      Number.isInteger(entry.index) && entry.index >= 0 &&
+      Number.isInteger(entry.weekday) && entry.weekday >= 0 && entry.weekday <= 6 &&
+      Number.isInteger(entry.hour) && entry.hour >= 0 && entry.hour <= 23 &&
+      Number.isInteger(entry.minute) && entry.minute >= 0 && entry.minute <= 59 &&
+      (entry.productId === null || typeof entry.productId === "string"),
+  );
+}
+
+// A próxima semana é montada logo depois do ÚLTIMO post da semana atual
+// (Patricia, 07/10/2026: "should be not a data but when the last post was
+// publish") — não mais 7 dias depois da geração anterior, que podia cair
+// antes do fim da semana (e descartar posts ainda não publicados) ou dias
+// depois dele (deixando a loja sem nada agendado). Null = não há semana
+// atual com post nenhum.
+async function getCurrentBatchLastPostAt(shopId: string): Promise<Date | null> {
+  const latestBatch = await prisma.contentItem.findFirst({
+    where: { shopId, weekBatchId: { not: null }, promotionId: null },
+    orderBy: { createdAt: "desc" },
+    select: { weekBatchId: true },
+  });
+  if (!latestBatch?.weekBatchId) return null;
+  const lastPost = await prisma.contentItem.findFirst({
+    where: {
+      shopId,
+      weekBatchId: latestBatch.weekBatchId,
+      status: { not: "cancelled" },
+      scheduledAt: { not: null },
+    },
+    orderBy: { scheduledAt: "desc" },
+    select: { scheduledAt: true },
+  });
+  return lastPost?.scheduledAt ?? null;
+}
+
+// Depois do horário do último post, espera ele sair de fato (publicação
+// roda a cada 5 min); passada esta folga, monta mesmo assim — um post
+// sem aprovação ou que falhou não pode travar a semana seguinte.
+const LAST_POST_GRACE_MS = 60 * 60 * 1000;
+
 export function promotionNeedsPostsNow(promotion: Pick<Promotion, "startsAt">): boolean {
   return promotion.startsAt.getTime() <= Date.now() + PROMOTION_LEAD_DAYS * 24 * 60 * 60 * 1000;
 }
 
 export interface NextWeekPreviewSlot {
+  index: number;
+  productId: string | null;
   weekday: number;
   hour: number;
   minute: number;
@@ -819,7 +898,10 @@ export interface NextWeekPreviewSlot {
 
 export interface NextWeekPreview {
   buildsAround: string; // ISO — quando o cron monta a próxima semana
+  // true = buildsAround é o horário do último post da semana atual
+  buildsAfterLastPost: boolean;
   objectives: CommercialObjective[];
+  overrides: NextWeekSlotOverride[];
   confirmedAt: string | null;
   slots: NextWeekPreviewSlot[];
   upcomingPromotions: { id: string; name: string; discountPct: number; startsAt: string; endsAt: string; planned: boolean }[];
@@ -834,14 +916,10 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
   const shop = await prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
   const timeZone = shop.ianaTimezone ?? "UTC";
   const objectives = parseNextWeekObjectives(shop.nextWeekObjectives);
+  const overrides = parseNextWeekSlotOverrides(shop.nextWeekSlotOverrides);
 
-  const buildsAround = new Date(
-    Math.max(
-      Date.now(),
-      (shop.lastWeeklyPlanGeneratedAt?.getTime() ?? Date.now()) +
-        WEEKLY_PLAN_INTERVAL_DAYS * 24 * 60 * 60 * 1000,
-    ),
-  );
+  const lastPostAt = await getCurrentBatchLastPostAt(shopId);
+  const buildsAround = new Date(Math.max(Date.now(), lastPostAt?.getTime() ?? Date.now()));
 
   const promotions = await prisma.promotion.findMany({
     where: { shopId, endsAt: { gt: new Date() } },
@@ -867,9 +945,22 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
   const weeklySlotPlan = getWeeklySlotPlan(shop);
   const schedule = await resolveWeeklySchedule(shop, weeklySlotPlan.postsPerWeek);
 
+  const eligibleProducts = await prisma.productCache.findMany({
+    where: { shopId, status: "active", inventoryQuantity: { gt: 0 } },
+    include: { commerceSignal: true },
+  });
+
+  // Produto escolhido à mão pode repetir um da semana atual (a escolha é
+  // dela) — só não pode repetir outro slot da própria próxima semana.
+  const pickedProductIds = new Set<string>();
+  // A escolha automática nunca "rouba" um produto escolhido à mão pra outro slot.
+  const reservedProductIds = new Set(overrides.flatMap((entry) => (entry.productId ? [entry.productId] : [])));
   const slots: NextWeekPreviewSlot[] = [];
   for (let index = 0; index < weeklySlotPlan.postsPerWeek; index++) {
-    const slotSchedule = schedule[index % schedule.length];
+    const override = overrides.find((entry) => entry.index === index);
+    const slotSchedule = override
+      ? { weekday: override.weekday, hour: override.hour, minute: override.minute }
+      : schedule[index % schedule.length];
     const scheduledAt = nextWeeklyOccurrenceInTimezone(
       slotSchedule.weekday,
       slotSchedule.hour,
@@ -881,6 +972,8 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
     const campaign = promotions.find((promotion) => isWithinPromotion(scheduledAt, promotion));
     if (campaign) {
       slots.push({
+        index,
+        productId: null,
         ...slotSchedule,
         format,
         productTitle: null,
@@ -892,13 +985,21 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
     }
 
     const forcedObjective = objectives.length > 0 ? objectives[index % objectives.length] : undefined;
-    const ranked = await rankProductsForWeek(shopId, forcedObjective, timeZone);
-    const candidate = ranked.find((entry) => !usedProductIds.has(entry.product.id));
-    if (!candidate) break;
-    usedProductIds.add(candidate.product.id);
+    const chosen = eligibleProducts.find(
+      (entry) => entry.id === override?.productId && !pickedProductIds.has(entry.id),
+    );
+    const product =
+      chosen ??
+      (await rankProductsForWeek(shopId, forcedObjective, timeZone)).find(
+        (entry) => !usedProductIds.has(entry.product.id) && !reservedProductIds.has(entry.product.id),
+      )?.product;
+    if (!product) break;
+    usedProductIds.add(product.id);
+    pickedProductIds.add(product.id);
 
-    const product = candidate.product;
     slots.push({
+      index,
+      productId: product.id,
       ...slotSchedule,
       format,
       productTitle: product.title,
@@ -920,7 +1021,9 @@ export async function previewNextWeekPlan(shopId: string): Promise<NextWeekPrevi
 
   return {
     buildsAround: buildsAround.toISOString(),
+    buildsAfterLastPost: lastPostAt !== null,
     objectives,
+    overrides,
     confirmedAt: shop.nextWeekPlanConfirmedAt ? shop.nextWeekPlanConfirmedAt.toISOString() : null,
     slots,
     upcomingPromotions: promotions.map((promotion) => ({
@@ -985,8 +1088,16 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
         continue;
       }
     }
-    const timerDue = !shop.lastWeeklyPlanGeneratedAt || shop.lastWeeklyPlanGeneratedAt <= cutoff;
-    if (timerDue) {
+    // Semana atual com post: monta a próxima logo depois do último post
+    // dela (ver getCurrentBatchLastPostAt). Sem semana atual, vale o
+    // timer de sempre.
+    const lastPostAt = await getCurrentBatchLastPostAt(shop.id);
+    if (lastPostAt) {
+      if (Date.now() >= lastPostAt.getTime() + LAST_POST_GRACE_MS) {
+        dueShops.push(shop);
+        continue;
+      }
+    } else if (!shop.lastWeeklyPlanGeneratedAt || shop.lastWeeklyPlanGeneratedAt <= cutoff) {
       dueShops.push(shop);
       continue;
     }
@@ -1041,16 +1152,19 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
       // plan") — vazio = a IA decide por produto.
       const shopRow = await prisma.shop.findUniqueOrThrow({
         where: { id: shop.id },
-        select: { nextWeekObjectives: true },
+        select: { nextWeekObjectives: true, nextWeekSlotOverrides: true },
       });
       const nextWeekObjectives = parseNextWeekObjectives(shopRow.nextWeekObjectives);
       const slots = await planWeeklyContent(
         shop.id,
         nextWeekObjectives.length > 0 ? nextWeekObjectives : undefined,
+        parseNextWeekSlotOverrides(shopRow.nextWeekSlotOverrides),
       );
+      // Objetivos ficam como pré-preenchimento; dia/produto por slot valiam
+      // só para esta semana.
       await prisma.shop.update({
         where: { id: shop.id },
-        data: { nextWeekPlanConfirmedAt: null },
+        data: { nextWeekPlanConfirmedAt: null, nextWeekSlotOverrides: Prisma.DbNull },
       });
       outcomes.push({ shopId: shop.id, slotCount: slots.length });
       await notifyWeeklyPlanReady(shop.id, slots.length);

@@ -1,4 +1,4 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { ActionFunctionArgs } from "react-router";
 import { collectDuePerformanceSignals } from "../services/meta/collectPerformance.server";
 import { isCronRequestAuthorized } from "../services/cronAuth.server";
 
@@ -17,4 +17,3 @@ async function runIfAuthorized(request: Request) {
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => runIfAuthorized(request);
-export const loader = async ({ request }: LoaderFunctionArgs) => runIfAuthorized(request);

@@ -1,4 +1,4 @@
-import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { ActionFunctionArgs } from "react-router";
 import { generateDueWeeklyPlans } from "../services/decisionEngine/planWeek.server";
 import { isCronRequestAuthorized } from "../services/cronAuth.server";
 
@@ -20,4 +20,3 @@ async function runIfAuthorized(request: Request) {
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => runIfAuthorized(request);
-export const loader = async ({ request }: LoaderFunctionArgs) => runIfAuthorized(request);

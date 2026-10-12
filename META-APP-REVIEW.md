@@ -234,6 +234,7 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - [x] Data Deletion Instructions cobertas na Privacy Policy
 - [x] Tech Provider confirmado (irreversível) + Access Verification submetida em 23/09/2026, "In review", resposta em até 5 dias (prazo final pra completar: 22/11/2026)
 - [ ] Access Verification aprovada (30/09/2026: ainda "In review" no Alert Inbox, sem resposta)
+  - 12/10/2026: ainda "In review" (19 dias, Meta promete 5). Tela mostra prazo "12/11/2026" pra evitar restrição no app — conflita com o 22/11 anotado acima; tratar 12/11 como prazo real até confirmar.
 - [x] Descrições de uso ajustadas pra cobrir Business Discovery (concorrentes) e online_followers (30/09/2026)
 - [x] Texto de instruções pro revisor escrito (30/09/2026) — falta montar a loja/IG/Página de teste e preencher os `<...>`
 - [x] Loja de teste pronta pro revisor (30/09/2026): `stockative-dev` com app de produção, sem redes conectadas, login `review@stockative.com` testado com código via Mailinator

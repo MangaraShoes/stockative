@@ -80,8 +80,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 function isSameOriginRequest(request: Request): boolean {
   const appUrl = process.env.SHOPIFY_APP_URL;
   if (!appUrl) return false;
+  // Origin "null" não é prova de cross-site: com Referrer-Policy no-referrer
+  // o navegador manda "null" até no POST da própria página (achado ao vivo,
+  // 13/10/2026 — todo "Continue to TikTok" voltava 403). Nesse caso decide
+  // pelo Sec-Fetch-Site, que o navegador preenche e o site não controla.
   const origin = request.headers.get("origin");
-  if (origin) return origin === new URL(appUrl).origin;
+  if (origin && origin !== "null") return origin === new URL(appUrl).origin;
   return request.headers.get("sec-fetch-site") === "same-origin";
 }
 
@@ -136,7 +140,7 @@ function confirmPage(providerLabel: string, shopDomain: string): Response {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
+      "Referrer-Policy": "same-origin", // não vaza o ticket da URL pra fora, mas mantém o Origin real no POST do botão
       "X-Frame-Options": "DENY",
       "Content-Security-Policy": "frame-ancestors 'none'",
     },

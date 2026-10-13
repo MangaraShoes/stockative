@@ -165,19 +165,51 @@ const EXPIRY_SAFETY_BUFFER_MS = 5 * 60 * 1000; // renova um pouco antes de expir
 // publicação no TikTok continuar funcionando depois do primeiro dia
 // conectado. O TikTok também ROTACIONA o refresh_token a cada renovação:
 // precisa salvar o novo, nunca reusar o antigo depois de usado uma vez.
+// Uma renovação por conta de cada vez neste processo: o plan-week, a tela
+// Social e a publicação podem pedir o token ao mesmo tempo, e duas
+// renovações em paralelo com o MESMO refresh_token (que o TikTok rotaciona)
+// deixam uma delas com um token já invalidado — suspeita principal das
+// desconexões repetidas (13/10/2026: "Refresh token is invalid or expired").
+const refreshesInFlight = new Map<string, Promise<string>>();
+
 export async function getValidTikTokAccessToken(account: SocialAccount): Promise<string> {
   const isFresh = account.expiresAt && account.expiresAt.getTime() - Date.now() > EXPIRY_SAFETY_BUFFER_MS;
   if (isFresh) return account.accessToken;
   if (!account.refreshToken) return account.accessToken; // nada pra renovar com — segue com o que tem, deixa a chamada real falhar e reportar
 
-  const refreshed = await refreshAccessToken(account.refreshToken);
-  await prisma.socialAccount.update({
-    where: { id: account.id },
-    data: {
-      accessToken: refreshed.accessToken,
-      refreshToken: refreshed.refreshToken,
-      expiresAt: new Date(Date.now() + refreshed.expiresInSeconds * 1000),
-    },
-  });
-  return refreshed.accessToken;
+  const inFlight = refreshesInFlight.get(account.id);
+  if (inFlight) return inFlight;
+
+  const refresh = refreshAndStore(account.id).finally(() => refreshesInFlight.delete(account.id));
+  refreshesInFlight.set(account.id, refresh);
+  return refresh;
+}
+
+async function refreshAndStore(accountId: string): Promise<string> {
+  // Relê do banco: o objeto recebido pode ser de antes de outra renovação.
+  const current = await prisma.socialAccount.findUniqueOrThrow({ where: { id: accountId } });
+  if (current.expiresAt && current.expiresAt.getTime() - Date.now() > EXPIRY_SAFETY_BUFFER_MS) {
+    return current.accessToken;
+  }
+  if (!current.refreshToken) return current.accessToken;
+
+  try {
+    const refreshed = await refreshAccessToken(current.refreshToken);
+    // Só grava se ninguém trocou o refresh_token no meio (outra instância).
+    await prisma.socialAccount.updateMany({
+      where: { id: accountId, refreshToken: current.refreshToken },
+      data: {
+        accessToken: refreshed.accessToken,
+        refreshToken: refreshed.refreshToken,
+        expiresAt: new Date(Date.now() + refreshed.expiresInSeconds * 1000),
+      },
+    });
+    return refreshed.accessToken;
+  } catch (error) {
+    // Se outra instância renovou enquanto isso, o token novo dela vale.
+    const latest = await prisma.socialAccount.findUnique({ where: { id: accountId } });
+    if (latest && latest.refreshToken !== current.refreshToken) return latest.accessToken;
+    console.error(`TikTok token refresh failed for social account ${accountId}:`, error);
+    throw error;
+  }
 }

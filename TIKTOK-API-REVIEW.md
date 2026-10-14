@@ -104,14 +104,14 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 
 ### App review → explicação dos produtos e escopos
 
-**Versão enviada (o campo tem limite de 1000 caracteres, 14/10/2026):**
+**Versão enviada (o campo tem limite de 1000 caracteres, 14/10/2026). O `video.upload` não pode ser removido em Production porque vem junto com o produto Content Posting API, por isso o texto explica que o app não pede esse escopo:**
 
 ```
 Stockative is a Shopify app for online stores of any kind. It plans weekly social posts from the store's data, including Reels made from product images.
 
-Login Kit (user.info.basic, user.info.profile): on "Social accounts", the merchant clicks Connect TikTok, confirms the store and authorizes. We read only open_id, username and avatar to show which account is connected.
+Login Kit (user.info.basic, user.info.profile): on "Social accounts", the merchant clicks Connect TikTok, confirms the store and authorizes. We read only open_id, username and avatar to show the connected account.
 
-Content Posting API (video.publish): each Reel in the Weekly Plan has a TikTok panel following the Content Sharing Guidelines: the target account from creator_info, editable caption, "Who can see this video" with no default (only creator_info options; "Only me" until audited), Comment/Duet/Stitch, commercial content disclosure, Music Usage Confirmation and a processing notice. Nothing is sent until the merchant clicks "Post this Reel to TikTok". At the scheduled time (or Publish now) we post via PULL_FROM_URL from our verified domain and poll status. Disconnect deletes stored tokens.
+Content Posting API (video.publish): each Reel in the Weekly Plan has a TikTok panel per the Content Sharing Guidelines: account from creator_info, editable caption, "Who can see this video" with no default (creator_info options; "Only me" until audited), Comment/Duet/Stitch, commercial content disclosure and Music Usage Confirmation. Nothing is sent until the merchant clicks "Post this Reel to TikTok". At the scheduled time (or Publish now) we post via PULL_FROM_URL from our verified domain and poll status. video.upload comes with the product; we don't request it. Disconnect deletes tokens.
 ```
 
 Texto longo original (referência):

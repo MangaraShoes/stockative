@@ -115,7 +115,13 @@ declare global {
 }
 
 export function startInProcessScheduler() {
-  if (process.env.RAILWAY_ENVIRONMENT_NAME !== "production") return;
+  // ENABLE_IN_PROCESS_SCHEDULER=1 liga fora do Railway (servidor Hetzner,
+  // ver deploy/hetzner/) — lá não existe RAILWAY_ENVIRONMENT_NAME, e sem
+  // isso o servidor de produção nunca publicaria nada.
+  const isProductionHost =
+    process.env.RAILWAY_ENVIRONMENT_NAME === "production" ||
+    process.env.ENABLE_IN_PROCESS_SCHEDULER === "1";
+  if (!isProductionHost) return;
   if (process.env.DISABLE_IN_PROCESS_SCHEDULER === "1") return;
   if (globalThis.__stockativeSchedulerStarted) return;
   globalThis.__stockativeSchedulerStarted = true;

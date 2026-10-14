@@ -1,0 +1,56 @@
+# Produção do Stockative num servidor Hetzner (plano B, 14/10/2026): o
+# Railway só aceita cartão de crédito/débito não pré-pago, e nenhum cartão da
+# Patricia passou. A Hetzner cobra por débito SEPA. Ver HETZNER.md.
+#
+# Roda a partir de /opt/stockative (clone do repo). O deploy
+# (.github/workflows/deploy-hetzner.yml) faz git reset pro main e
+# `docker compose up -d --build`.
+services:
+  app:
+    build:
+      context: ../..
+    # .env fica só no servidor (nunca no git): o mesmo conteúdo do Raw
+    # Editor do Railway + ENABLE_IN_PROCESS_SCHEDULER=1.
+    env_file: ../../.env.production
+    environment:
+      PORT: "3000"
+    restart: unless-stopped
+    # O agendador espera até 280s a publicação em andamento terminar depois
+    # do SIGTERM (scheduler.server.ts) — o Docker não pode matar antes.
+    stop_grace_period: 300s
+    expose:
+      - "3000"
+
+  # App público da Shopify (PUBLIC-APP.md). Desligado até existir
+  # .env.public no servidor e DNS do domínio dele — ligar com
+  # `docker compose --profile public up -d`.
+  app-public:
+    profiles: ["public"]
+    build:
+      context: ../..
+    env_file: ../../.env.public
+    environment:
+      PORT: "3000"
+      DISABLE_IN_PROCESS_SCHEDULER: "1"
+    restart: unless-stopped
+    stop_grace_period: 300s
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy_data:
+  caddy_config:

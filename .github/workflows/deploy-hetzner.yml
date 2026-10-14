@@ -1,0 +1,56 @@
+name: Deploy (Hetzner)
+
+# Substitui o deploy automático do Railway (ver HETZNER.md): a cada push no
+# main, entra no servidor por SSH, atualiza o código e reconstrói o app.
+#
+# Secrets do repositório (Settings → Secrets and variables → Actions):
+#   HETZNER_HOST     — IP do servidor
+#   HETZNER_SSH_KEY  — chave privada do deploy (a pública fica em
+#                      /root/.ssh/authorized_keys no servidor)
+# Sem esses secrets o job não faz nada, então pode existir antes da migração.
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-hetzner
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check secrets
+        id: check
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+        run: |
+          if [ -z "$HOST" ]; then
+            echo "HETZNER_HOST not set, skipping deploy"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy over SSH
+        if: steps.check.outputs.skip != 'true'
+        env:
+          HOST: ${{ secrets.HETZNER_HOST }}
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key root@"$HOST" bash -s <<'EOF'
+            set -euo pipefail
+            cd /opt/stockative
+            git fetch --quiet origin main
+            git reset --hard --quiet origin/main
+            COMPOSE="docker compose -f deploy/hetzner/docker-compose.yml"
+            PROFILES=""
+            [ -f .env.public ] && PROFILES="--profile public"
+            $COMPOSE $PROFILES up -d --build --remove-orphans
+            $COMPOSE ps
+          EOF

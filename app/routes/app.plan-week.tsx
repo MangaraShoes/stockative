@@ -653,6 +653,15 @@ function nextWeekSlotDate(
   return nextWeeklyOccurrenceInTimezone(value.weekday, hour, minute, timeZone, new Date(buildsAround));
 }
 
+// Achado ao vivo, 14/10/2026: o dia já selecionado mostrava a data que
+// seria escolhida se a lojista clicasse nele AGORA ("Wednesday (Oct 14)"),
+// não a data salva de verdade (21/10), enquanto o card dizia "Posts
+// Wednesday, Oct 21". Pra opção que reflete o agendamento salvo, mostra a
+// data salva; as outras continuam mostrando o que seria escolhido.
+function savedDateLabel(iso: string, timeZone: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { timeZone, day: "numeric", month: "short" });
+}
+
 function resolvedDateLabel(weekday: number, time: string, timeZone: string): string {
   const [hour, minute] = time.split(":").map(Number);
   const resolved = nextWeeklyOccurrenceInTimezone(weekday, hour, minute, timeZone, new Date(), "soon");
@@ -1954,7 +1963,11 @@ export default function PlanWeek() {
                           >
                             {WEEKDAY_OPTIONS.map((option) => (
                               <s-option key={option.value} value={String(option.value)}>
-                                {option.label} ({resolvedDateLabel(option.value, currentTime, shopTimezone)})
+                                {option.label} (
+                                {option.value === currentWeekday && !scheduleChoices[slot.contentItemId]
+                                  ? savedDateLabel(slot.scheduledAt, shopTimezone)
+                                  : resolvedDateLabel(option.value, currentTime, shopTimezone)}
+                                )
                               </s-option>
                             ))}
                           </s-select>

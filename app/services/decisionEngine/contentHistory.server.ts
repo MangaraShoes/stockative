@@ -3,7 +3,12 @@ import prisma from "../../db.server";
 export interface ProductUsageStat {
   timesUsed: number;
   lastUsedAt: string; // ISO string, já serializável pelo loader
+  // Quantas vezes foi publicado nos últimos RECENT_USAGE_WINDOW_DAYS — base da
+  // penalidade de frequência em rankProductsForWeek (Patricia, 14/10/2026).
+  usesInWindow: number;
 }
+
+export const RECENT_USAGE_WINDOW_DAYS = 60;
 
 // Consulta o histórico de content_items JÁ PUBLICADOS por produto — sem
 // custo de IA nenhum, é só o que já está guardado no banco. Responde "já
@@ -27,16 +32,20 @@ export async function getProductUsageStats(
   });
 
   const stats: Record<string, ProductUsageStat> = {};
+  const windowStart = Date.now() - RECENT_USAGE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
   for (const item of items) {
     if (!item.productId) continue;
-    const usedAt = (item.publishedAt ?? item.createdAt).toISOString();
+    const usedAtDate = item.publishedAt ?? item.createdAt;
+    const usedAt = usedAtDate.toISOString();
+    const inWindow = usedAtDate.getTime() >= windowStart ? 1 : 0;
     const existing = stats[item.productId];
     if (existing) {
       existing.timesUsed += 1;
       existing.lastUsedAt = usedAt;
+      existing.usesInWindow += inWindow;
     } else {
-      stats[item.productId] = { timesUsed: 1, lastUsedAt: usedAt };
+      stats[item.productId] = { timesUsed: 1, lastUsedAt: usedAt, usesInWindow: inWindow };
     }
   }
 

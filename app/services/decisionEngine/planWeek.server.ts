@@ -49,6 +49,15 @@ const POSTS_PER_WEEK = 3;
 // real (quase o dobro) garante que o produto da semana passada ainda chega
 // penalizado -100 na nova rodada, dando espaço pro resto do catálogo entrar.
 const AVOID_REUSE_WITHIN_DAYS = 13;
+// Penalidade por uso, além da janela de 13 dias (Patricia, 14/10/2026: o
+// Caetê Black voltou pra próxima semana depois de já ter saído 13/09 e 30/09
+// — passados 13 dias a penalidade sumia por inteiro, sem olhar quantas vezes
+// o produto já tinha aparecido). Cada publicação nos últimos 60 dias tira
+// 15 pontos (mesma escala do empurrão de estação): não tira um produto
+// sozinho da disputa, mas entre candidatos parecidos quem apareceu menos
+// ganha a vez. Cor diferente do mesmo modelo conta como produto diferente
+// (decisão de Patricia, mesma data).
+const USAGE_FREQUENCY_PENALTY = 15;
 
 export interface WeeklyPlanImage {
   position: number;
@@ -302,7 +311,7 @@ async function rankProductsForWeek(
       ? Math.floor((now - new Date(usage.lastUsedAt).getTime()) / (24 * 60 * 60 * 1000))
       : Infinity;
     const usedRecently = daysSinceLastUsed < AVOID_REUSE_WITHIN_DAYS;
-    const recentPenalty = usedRecently ? 100 : 0;
+    const recentPenalty = (usedRecently ? 100 : 0) + (usage?.usesInWindow ?? 0) * USAGE_FREQUENCY_PENALTY;
 
     const salesVelocity = product.commerceSignal?.salesVelocity ?? 0;
     const unitsSold30d = product.commerceSignal?.unitsSold30d ?? 0;

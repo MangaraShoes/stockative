@@ -56,8 +56,8 @@ O Reel `cmv80u3yt0004ny011sgs15fh` foi confirmado no painel TikTok do Weekly Pla
 
 ## Checklist de acompanhamento
 
-- [ ] Confirmado se `video.upload` precisa de revisão separada ou está dentro do mesmo processo do Direct Post
-- [ ] Revisão solicitada — anotar data aqui
+- [x] `video.upload` vem junto com o produto Content Posting API e não dá pra remover em Production. Foi o mesmo envio do Direct Post (14/10/2026).
+- [x] Revisão solicitada em **14/10/2026** (Production: Login Kit + Content Posting API com Direct Post; vídeo `TIKTOK-review.mp4`; motivo: "First submission: Login Kit + Content Posting API (Direct Post) so merchants can auto-post their Reels to TikTok.")
 - [ ] Resposta da TikTok recebida — anotar resultado e prazo real observado
 - [x] `TIKTOK_SCOPES` atualizado no código, conta reconectada, 1 reel de teste entregue na caixa de rascunhos (30/09/2026, Sandbox)
 

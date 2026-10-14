@@ -50,6 +50,10 @@ O Sandbox basta pro piloto com a Mangará (até 10 contas). Pra outras lojistas,
 - O Reel `cmuqou7zn06hmpe01o3ub5zv3` foi publicado assim (`v_pub_url~v2-1.7693642413244385281`, PUBLISH_COMPLETE). Depois dá pra mudar a visibilidade do vídeo no próprio app do TikTok.
 - Reel sem confirmação no painel TikTok do Weekly Plan (`tiktokSettings` vazio) é pulado de propósito, não é falha.
 
+## 14/10/2026: primeiro Reel publicado no TikTok pelo fluxo do próprio app
+
+O Reel `cmv80u3yt0004ny011sgs15fh` foi confirmado no painel TikTok do Weekly Plan ("Only me", conta privada) e publicado com "Publish now". Saiu no Instagram, Facebook, YouTube e TikTok (`v_pub_url~v2-1.7696487909847107605`, PUBLISH_COMPLETE), sem nenhum script manual. Foi o fluxo gravado para o vídeo demo da revisão.
+
 ## Checklist de acompanhamento
 
 - [ ] Confirmado se `video.upload` precisa de revisão separada ou está dentro do mesmo processo do Direct Post

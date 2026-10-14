@@ -57,6 +57,7 @@ Partner Dashboard → Stockative (novo) → API access requests → Protected cu
 Um app público não aprovado só instala em loja de desenvolvimento (por exemplo `stockative-dev`, que hoje tem o app antigo instalado; desinstale antes ou crie outra dev store). Fluxo completo: instalar, sincronizar produtos, conectar o Instagram, gerar o plano da semana.
 
 ### 6. Listing e submissão na App Store
+Rascunho dos textos, screenshots, screencast e instruções para o revisor em [APP-STORE-LISTING.md](APP-STORE-LISTING.md).
 Partner Dashboard → Stockative (novo) → Distribution → **Manage submission**. Inclui listing, screenshots, screencast, conta de teste para o revisor, política de privacidade e os planos de preço do `BILLING-SETUP.md` (agora neste app). Só depois de aprovado as lojas piloto conseguem instalar.
 
 ## Depois da aprovação

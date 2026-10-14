@@ -1,5 +1,7 @@
 # Cobrança — Shopify App Pricing (06/10/2026)
 
+> **14/10/2026:** tudo aqui vale para o **app público** (`shopify.app.public.toml`, handle `stockative-2`, serviço Railway `stockative-public`), não para o app original, que é Custom distribution e não pode cobrar pela Shopify. Ver [PUBLIC-APP.md](PUBLIC-APP.md).
+
 The code is already in place and switched off. It turns on with `BILLING_ENABLED=true` on Railway. Until then, nothing changes for any shop.
 
 How it works:

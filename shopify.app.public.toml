@@ -1,0 +1,64 @@
+# App PÚBLICO do Stockative (criado em 14/10/2026), o que vai pra Shopify App
+# Store e que as lojas piloto instalam. O shopify.app.toml é o app antigo, de
+# Custom distribution, preso à loja da Mangará (cdcfc8-47) — a Shopify não
+# deixa trocar a distribuição depois de escolhida. Mesmo código e mesmo banco,
+# serviço separado no Railway (stockative-public). Ver PUBLIC-APP.md.
+#
+# Enviar esta configuração (URLs, escopos, webhooks) pro app:
+#   npx shopify app deploy --config public
+# automatically_update_urls_on_dev = false: `shopify app dev` nunca pode
+# trocar as URLs do app público por um túnel local.
+
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "eb3ff74e23e6e1a6e5ed129f29a46812"
+application_url = "https://stockative-public-production.up.railway.app"
+embedded = true
+name = "Stockative"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# read_locales: idioma primário/secundário real da loja (shopLocales), pra
+# pré-preencher o idioma de publicação no onboarding em vez de assumir
+# inglês (Patricia, 13/09/2026: "precisa sempre ter a permissao do idioma é
+# muito importante" — descoberto quando faltar essa permissão derrubou o
+# app inteiro na Mangará).
+scopes = "read_products,write_products,read_orders,read_locales"
+
+[webhooks]
+api_version = "2026-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/scopes_update"
+  topics = [ "app/scopes_update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/create"
+  topics = [ "products/create" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/update"
+  topics = [ "products/update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/products/delete"
+  topics = [ "products/delete" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/paid"
+  topics = [ "orders/paid" ]
+
+  # Webhooks de privacidade obrigatórios (GDPR) — ver webhooks.compliance.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/compliance"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
+[auth]
+redirect_urls = [ "https://stockative-public-production.up.railway.app/auth/callback" ]
+
+[build]
+automatically_update_urls_on_dev = false

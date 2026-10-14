@@ -25,9 +25,14 @@ export const FACEBOOK_OAUTH_DIALOG_BASE = `https://www.facebook.com/${GRAPH_API_
 // conectadas ANTES desta mudança também precisam reconectar (desconectar e
 // conectar de novo em Social accounts) pra receber o novo escopo — o token
 // antigo não ganha permissão nova sozinho.
+// pages_read_engagement saiu em 14/10/2026: o App Review rejeitou ("not
+// needed to support its core functionality", Developer Policy 1.6). O app
+// não lê engajamento de Página — só lista Páginas, acha a conta IG ligada e
+// publica, coberto por pages_show_list/instagram_basic/pages_manage_posts.
+// Pedir um escopo sem Advanced Access em Live mode quebraria o OAuth de quem
+// não tem papel no app.
 export const META_SCOPES = [
   "pages_show_list",
-  "pages_read_engagement",
   "pages_manage_posts",
   "business_management",
   "instagram_basic",

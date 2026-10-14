@@ -52,7 +52,16 @@ function offsetMinutesAt(date: Date, timeZone: string): number {
 // pra semana seguinte). Empurrar pra semana seguinte só faz sentido pro
 // planejamento automático da PRÓXIMA semana (planWeeklyContent), nunca pra
 // um reagendamento manual de um post que já existe — ver rescheduleWeeklyPlanSlot.
-const SOON_BUFFER_MS = 2 * 60 * 1000;
+//
+// Antecedência mínima subiu de 2 pra 30 minutos (Patricia, 14/10/2026):
+// a lojista mudou o dia pra hoje às 13:16 com o horário ainda em 09:00, e o
+// post ficou marcado pra sair 2 minutos depois — enquanto ela ainda estava
+// mexendo na imagem, e com a tela mostrando "09:00". 30 min dá tempo de
+// revisar; quem quer agora usa "Publish now". Vale também pra um horário
+// futuro mas a menos de 30 min (ex.: escolher 13:30 às 13:16 → 13:50).
+// Arredonda pra cima no múltiplo de 5 min, pra mostrar "13:50", não "13:46".
+const SOON_BUFFER_MS = 30 * 60 * 1000;
+const SOON_ROUND_MS = 5 * 60 * 1000;
 
 export function nextWeeklyOccurrenceInTimezone(
   weekday: number,
@@ -91,8 +100,11 @@ export function nextWeeklyOccurrenceInTimezone(
   // reaplicando o offset de HOJE em vez de recalcular o offset da data de
   // destino. Resolver de novo a partir da data-calendário (daysUntil + 7)
   // corrige o offset certo pra semana seguinte.
-  if (result <= from) {
-    result = pastBehavior === "soon" ? new Date(from.getTime() + SOON_BUFFER_MS) : resolve(daysUntil + 7);
+  if (pastBehavior === "soon") {
+    const earliest = Math.ceil((from.getTime() + SOON_BUFFER_MS) / SOON_ROUND_MS) * SOON_ROUND_MS;
+    if (result.getTime() < earliest) result = new Date(earliest);
+  } else if (result <= from) {
+    result = resolve(daysUntil + 7);
   }
   return result;
 }

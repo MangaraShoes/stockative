@@ -921,6 +921,36 @@ export default function PlanWeek() {
     }
   }
 
+  // Depois de salvar um novo dia/horário, o seletor passa a mostrar o horário
+  // que o servidor gravou de verdade, não o que a lojista escolheu (Patricia,
+  // 14/10/2026: mudou o dia pra hoje às 13:16, o horário continuou "09:00" na
+  // tela e o post ia sair em 2 min). Se o horário escolhido já passou, ou faltam
+  // menos de 30 min, o servidor empurra pra daqui a ≥30 min (ver
+  // nextWeeklyOccurrenceInTimezone, modo "soon") e avisa aqui.
+  const [syncedManageData, setSyncedManageData] = useState(manageFetcher.data);
+  const [scheduleAdjusted, setScheduleAdjusted] = useState<Record<string, string>>({});
+  if (manageFetcher.data !== syncedManageData) {
+    setSyncedManageData(manageFetcher.data);
+    const data = manageFetcher.data;
+    if (data?.intent === "reschedule" && data.result.status === "success") {
+      const savedAt = data.result.scheduledAt;
+      const saved = new Date(savedAt);
+      const savedChoice = { weekday: weekdayInTimezone(saved, shopTimezone), time: timeInTimezone(saved, shopTimezone) };
+      const chosen = scheduleChoices[data.contentItemId];
+      setScheduleChoices((current) => ({ ...current, [data.contentItemId]: savedChoice }));
+      setScheduleAdjusted((current) => {
+        const next = { ...current };
+        if (chosen && (chosen.weekday !== savedChoice.weekday || chosen.time !== savedChoice.time)) {
+          next[data.contentItemId] =
+            `${chosen.time} had already passed (or was less than 30 minutes away), so this post is now set for ${formatScheduledAt(savedAt, shopTimezone)}.`;
+        } else {
+          delete next[data.contentItemId];
+        }
+        return next;
+      });
+    }
+  }
+
   const isGenerating = generateFetcher.state !== "idle";
 
   // Gerar a semana toda demora (3 posts, cada um com várias chamadas de IA
@@ -1851,6 +1881,9 @@ export default function PlanWeek() {
                         </strong>
                       </s-paragraph>
                     )}
+                    {scheduleAdjusted[slot.contentItemId] && (
+                      <s-paragraph>{scheduleAdjusted[slot.contentItemId]}</s-paragraph>
+                    )}
                     {manageFailure?.contentItemId === slot.contentItemId && (
                       <s-paragraph>
                         <strong>
@@ -1938,7 +1971,7 @@ export default function PlanWeek() {
                               saveSchedule(slot.contentItemId, currentWeekday, time);
                             }}
                           >
-                            {TIME_OPTIONS.map((time) => (
+                            {(TIME_OPTIONS.includes(currentTime) ? TIME_OPTIONS : [...TIME_OPTIONS, currentTime].sort()).map((time) => (
                               <s-option key={time} value={time}>
                                 {time}
                               </s-option>

@@ -104,6 +104,18 @@ Segundo as diretrizes da TikTok, a Privacy Policy precisa estar visível no site
 
 ### App review → explicação dos produtos e escopos
 
+**Versão enviada (o campo tem limite de 1000 caracteres, 14/10/2026):**
+
+```
+Stockative is a Shopify app for fashion brands. It plans weekly social posts from the store's data, including Reels made from product images.
+
+Login Kit (user.info.basic, user.info.profile): on "Social accounts", the merchant clicks Connect TikTok, confirms the store and authorizes. We read only open_id, username and avatar to show which account is connected.
+
+Content Posting API (video.publish): each Reel in the Weekly Plan has a TikTok panel following the Content Sharing Guidelines: the target account from creator_info, editable caption, "Who can see this video" with no default (only creator_info options; "Only me" until audited), Comment/Duet/Stitch, commercial content disclosure, Music Usage Confirmation and a processing notice. Nothing is sent until the merchant clicks "Post this Reel to TikTok". At the scheduled time (or Publish now) we post via PULL_FROM_URL from our verified domain and poll status. Disconnect deletes stored tokens.
+```
+
+Texto longo original (referência):
+
 > Stockative is a Shopify app for small fashion and footwear brands. It reads the merchant's own store data (inventory, sales, products) to decide which product to promote each week, then drafts social content for it: captions, product images and short vertical videos (Reels) built from the merchant's approved product images.
 >
 > **Login Kit (user.info.basic, user.info.profile):** On the "Social accounts" page inside the Stockative app (embedded in Shopify Admin), the merchant clicks "Connect TikTok" and signs in with TikTok. We read only the open_id and username, to show the merchant which TikTok account is connected (e.g. "TikTok account connected (@mangara.official)") and to associate uploads with the right account. We don't read videos, followers or any other profile data.

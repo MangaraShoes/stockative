@@ -562,6 +562,9 @@ export async function planOneSlot(
   // ficava sem imagem, agora gera nova
   // pros 3 posts — o custo de até 3 gerações por semana em vez de 1 é a
   // troca consciente aqui.
+  // Erro na imagem deixa o post pedindo imagem manual, nunca derruba o
+  // plano da semana inteiro (achado real, 16/10/2026: um erro na imagem do
+  // Arachis parou o plano no 2º post e o 3º nunca foi criado).
   const result = await buildCarousel({
     shopId,
     productId: product.id,
@@ -570,6 +573,9 @@ export async function planOneSlot(
     creativeAngle: brief.creativeAngle,
     format: brief.format,
     allowNewGeneration: allowNewImageGeneration,
+  }).catch((error) => {
+    console.error(`Failed to build images for content item ${contentItem.id}:`, error);
+    return { status: "fallback" as const, reason: "Image generation failed." };
   });
   const needsManualImage = result.status !== "success";
   // A foto lifestyle da Shopify é sempre opção no painel de escolha (ver

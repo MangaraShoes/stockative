@@ -471,156 +471,167 @@ export async function generateProductImage(
   const candidates: { imageDataUrl: string; generationLogId: string }[] = [];
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const promptParams: BuildPromptParams = {
-      ...params,
-      merchantDirection,
-      modelDescription,
-      retryNote,
-      colorStory,
-      brandTone: shop?.brandTone,
-      brandAvoid: shop?.brandAvoid,
-      sceneDecision,
-      categoryPromptRules: repertoire.promptRules,
-      visualModeGuidance: VISUAL_MODE_GUIDANCE[mode],
-      fidelityConstraintsText,
-    };
-    const prompt = hasModel ? buildWornOrHandheldPrompt(promptParams) : buildStandaloneImagePrompt(promptParams);
+    // Uma tentativa que quebra (erro da API de imagem ou do guardrail)
+    // não pode jogar fora o que já foi aprovado antes dela (achado real,
+    // 16/10/2026: a 1ª imagem do Arachis passou e ficou guardada pro retry
+    // estrutural; a 2ª tentativa deu erro e o post ficou sem imagem nenhuma).
+    // Com algo já guardado, para aqui e entrega isso; sem nada, o erro sobe.
+    try {
+      const promptParams: BuildPromptParams = {
+        ...params,
+        merchantDirection,
+        modelDescription,
+        retryNote,
+        colorStory,
+        brandTone: shop?.brandTone,
+        brandAvoid: shop?.brandAvoid,
+        sceneDecision,
+        categoryPromptRules: repertoire.promptRules,
+        visualModeGuidance: VISUAL_MODE_GUIDANCE[mode],
+        fidelityConstraintsText,
+      };
+      const prompt = hasModel ? buildWornOrHandheldPrompt(promptParams) : buildStandaloneImagePrompt(promptParams);
 
-    let generated = styleReferenceUrl
-      ? await imageProvider.editImage(prompt + STYLE_REFERENCE_BLOCK, [params.referenceImageUrl, styleReferenceUrl])
-      : await imageProvider.generateImage(prompt, params.referenceImageUrl);
-    let fidelity = await fidelityProvider.checkImageFidelity(
-      params.referenceImageUrl,
-      generated.imageDataUrl,
-      params.productTitle,
-      fidelityConstraints,
-    );
-    // Só a cor reprovada → corrige a cor na própria imagem em vez de jogar
-    // a cena fora e refazer (05/10/2026: o Gemini erra o tom do produto com
-    // frequência, às vezes num desvio que nem a lojista enxerga; refazer do
-    // zero perdia cenas boas e uma tentativa inteira). Mesmo princípio das
-    // correções manuais da Mangará: corrigir o detalhe, não refazer a
-    // imagem. A versão corrigida passa pelo check de fidelidade de novo —
-    // a regra de cor continua sem exceção.
-    // 06/10/2026: o julgamento de cor oscila entre rodadas — a mesma
-    // imagem reprova e depois passa, e a lojista viu a cor certa onde o
-    // check viu errada (3 tentativas perdidas seguidas assim na Senna).
-    // Reprovação SÓ de cor pede maioria (2 de 3) antes de valer; se a
-    // maioria ainda reprovar, corrige a cor e julga a versão corrigida pela
-    // mesma maioria. Qualquer outro eixo reprovado continua valendo de cara.
-    const judge = (imageDataUrl: string) =>
-      fidelityProvider.checkImageFidelity(params.referenceImageUrl, imageDataUrl, params.productTitle, fidelityConstraints);
-    if (isColorOnlyFailure(fidelity)) {
-      const majority = await judgeColorByMajority(fidelity, () => judge(generated.imageDataUrl));
-      if (majority.passed) {
-        fidelity = majority;
-      } else if (isColorOnlyFailure(majority)) {
-        const recolored = await imageProvider.editImage(buildColorCorrectionPrompt(params.productTitle), [
-          generated.imageDataUrl,
-          params.referenceImageUrl,
-        ]);
-        const firstRecoloredVote = await judge(recolored.imageDataUrl);
-        const recoloredFidelity = isColorOnlyFailure(firstRecoloredVote)
-          ? await judgeColorByMajority(firstRecoloredVote, () => judge(recolored.imageDataUrl))
-          : firstRecoloredVote;
-        if (recoloredFidelity.passed) {
-          generated = recolored;
-          fidelity = recoloredFidelity;
+      let generated = styleReferenceUrl
+        ? await imageProvider.editImage(prompt + STYLE_REFERENCE_BLOCK, [params.referenceImageUrl, styleReferenceUrl])
+        : await imageProvider.generateImage(prompt, params.referenceImageUrl);
+      let fidelity = await fidelityProvider.checkImageFidelity(
+        params.referenceImageUrl,
+        generated.imageDataUrl,
+        params.productTitle,
+        fidelityConstraints,
+      );
+      // Só a cor reprovada → corrige a cor na própria imagem em vez de jogar
+      // a cena fora e refazer (05/10/2026: o Gemini erra o tom do produto com
+      // frequência, às vezes num desvio que nem a lojista enxerga; refazer do
+      // zero perdia cenas boas e uma tentativa inteira). Mesmo princípio das
+      // correções manuais da Mangará: corrigir o detalhe, não refazer a
+      // imagem. A versão corrigida passa pelo check de fidelidade de novo —
+      // a regra de cor continua sem exceção.
+      // 06/10/2026: o julgamento de cor oscila entre rodadas — a mesma
+      // imagem reprova e depois passa, e a lojista viu a cor certa onde o
+      // check viu errada (3 tentativas perdidas seguidas assim na Senna).
+      // Reprovação SÓ de cor pede maioria (2 de 3) antes de valer; se a
+      // maioria ainda reprovar, corrige a cor e julga a versão corrigida pela
+      // mesma maioria. Qualquer outro eixo reprovado continua valendo de cara.
+      const judge = (imageDataUrl: string) =>
+        fidelityProvider.checkImageFidelity(params.referenceImageUrl, imageDataUrl, params.productTitle, fidelityConstraints);
+      if (isColorOnlyFailure(fidelity)) {
+        const majority = await judgeColorByMajority(fidelity, () => judge(generated.imageDataUrl));
+        if (majority.passed) {
+          fidelity = majority;
+        } else if (isColorOnlyFailure(majority)) {
+          const recolored = await imageProvider.editImage(buildColorCorrectionPrompt(params.productTitle), [
+            generated.imageDataUrl,
+            params.referenceImageUrl,
+          ]);
+          const firstRecoloredVote = await judge(recolored.imageDataUrl);
+          const recoloredFidelity = isColorOnlyFailure(firstRecoloredVote)
+            ? await judgeColorByMajority(firstRecoloredVote, () => judge(recolored.imageDataUrl))
+            : firstRecoloredVote;
+          if (recoloredFidelity.passed) {
+            generated = recolored;
+            fidelity = recoloredFidelity;
+          }
         }
       }
-    }
-    // Só vale checar composição se o produto em si já bateu — não faz
-    // sentido avaliar estilo de uma imagem que nem é o produto certo.
-    const composition = fidelity.passed
-      ? await compositionProvider.checkImageComposition(
-          generated.imageDataUrl,
-          params.productTitle,
-          sceneOptions,
-          hasModel,
-          merchantDirection,
-          modelDescription,
-        )
-      : { passed: false, issues: [] as string[], observed: undefined };
-    const passed = fidelity.passed && composition.passed;
-    // Decidido ANTES de gravar o log: se esta tentativa vai ficar só como
-    // rede de segurança (retentativa de correção estrutural em curso), ela
-    // ainda NÃO foi entregue, então não pode contar crédito ainda — achado
-    // ao vivo, 12/09/2026: sem esse cuidado, a tentativa descartada e a
-    // tentativa de correção entregue contavam 2 créditos pra 1 imagem só
-    // (violava o princípio "1 crédito = 1 imagem ENTREGUE" já documentado
-    // aqui). Se este acabar sendo o fallback realmente entregue (a correção
-    // falhar), o crédito é ligado depois, no update logo abaixo.
-    // Nunca com direção da lojista (achado 05/10/2026): ela pediu
-    // restaurante, o sorteio tinha escolhido rua, a imagem seguiu o pedido
-    // dela — e o retry estrutural mandava refazer NA RUA, brigando com o
-    // pedido e queimando 2 tentativas. A direção dela manda no cenário.
-    const isStructuralHold =
-      passed &&
-      !merchantDirection &&
-      !usedStructuralRetry &&
-      attempt < MAX_ATTEMPTS &&
-      hasStructuralMismatch(sceneDecision, composition.observed);
+      // Só vale checar composição se o produto em si já bateu — não faz
+      // sentido avaliar estilo de uma imagem que nem é o produto certo.
+      const composition = fidelity.passed
+        ? await compositionProvider.checkImageComposition(
+            generated.imageDataUrl,
+            params.productTitle,
+            sceneOptions,
+            hasModel,
+            merchantDirection,
+            modelDescription,
+          )
+        : { passed: false, issues: [] as string[], observed: undefined };
+      const passed = fidelity.passed && composition.passed;
+      // Decidido ANTES de gravar o log: se esta tentativa vai ficar só como
+      // rede de segurança (retentativa de correção estrutural em curso), ela
+      // ainda NÃO foi entregue, então não pode contar crédito ainda — achado
+      // ao vivo, 12/09/2026: sem esse cuidado, a tentativa descartada e a
+      // tentativa de correção entregue contavam 2 créditos pra 1 imagem só
+      // (violava o princípio "1 crédito = 1 imagem ENTREGUE" já documentado
+      // aqui). Se este acabar sendo o fallback realmente entregue (a correção
+      // falhar), o crédito é ligado depois, no update logo abaixo.
+      // Nunca com direção da lojista (achado 05/10/2026): ela pediu
+      // restaurante, o sorteio tinha escolhido rua, a imagem seguiu o pedido
+      // dela — e o retry estrutural mandava refazer NA RUA, brigando com o
+      // pedido e queimando 2 tentativas. A direção dela manda no cenário.
+      const isStructuralHold =
+        passed &&
+        !merchantDirection &&
+        !usedStructuralRetry &&
+        attempt < MAX_ATTEMPTS &&
+        hasStructuralMismatch(sceneDecision, composition.observed);
 
-    const generationLog = await prisma.generationLog.create({
-      data: {
-        contentItemId: params.contentItemId,
-        taskType: "image",
-        model: generated.model,
-        passedFidelityCheck: fidelity.passed,
-        // Motivo da reprovação gravado (06/10/2026: 3 tentativas reprovadas
-        // na Senna sem registro do porquê, impossível de diagnosticar).
-        fidelityIssues: fidelity.passed ? undefined : (fidelity.issues as unknown as object),
-        passedCompositionCheck: fidelity.passed ? composition.passed : null,
-        // 1 crédito = 1 imagem válida ENTREGUE ao merchant, nunca 1 chamada
-        // de API — tentativa rejeitada por qualquer guardrail não é cobrada.
-        countsAsCredit: passed && !isStructuralHold,
-        // O correctionNote ORIGINAL da lojista (nunca a nota interna de
-        // retentativa, `retryNote`) — é o sinal real de "o que ela pediu pra mudar" numa
-        // regeneração, null pra uma geração normal (Patricia, 24/09/2026).
-        regenerationReason: params.correctionNote ?? null,
-        shopId: params.shopId,
-        productId: params.productId,
-        category: classification.category,
-        campaignId,
-        interaction,
-        visualMode: mode,
-        commercialObjective: params.objective,
-        strategyVersion: STRATEGY_VERSION,
-        fidelityConstraints: fidelityConstraints as unknown as object,
-        requestedAction: sceneDecision.action.id,
-        requestedEnvironment: sceneDecision.environment.id,
-        requestedFraming: sceneDecision.framing.id,
-        requestedLight: sceneDecision.light.id,
-        requestedPalette: colorStory?.id ?? null,
-        observedAction: composition.observed?.action ?? null,
-        observedEnvironment: composition.observed?.environment ?? null,
-        observedFraming: composition.observed?.framing ?? null,
-        observedLight: composition.observed?.light ?? null,
-      },
-    });
+      const generationLog = await prisma.generationLog.create({
+        data: {
+          contentItemId: params.contentItemId,
+          taskType: "image",
+          model: generated.model,
+          passedFidelityCheck: fidelity.passed,
+          // Motivo da reprovação gravado (06/10/2026: 3 tentativas reprovadas
+          // na Senna sem registro do porquê, impossível de diagnosticar).
+          fidelityIssues: fidelity.passed ? undefined : (fidelity.issues as unknown as object),
+          passedCompositionCheck: fidelity.passed ? composition.passed : null,
+          // 1 crédito = 1 imagem válida ENTREGUE ao merchant, nunca 1 chamada
+          // de API — tentativa rejeitada por qualquer guardrail não é cobrada.
+          countsAsCredit: passed && !isStructuralHold,
+          // O correctionNote ORIGINAL da lojista (nunca a nota interna de
+          // retentativa, `retryNote`) — é o sinal real de "o que ela pediu pra mudar" numa
+          // regeneração, null pra uma geração normal (Patricia, 24/09/2026).
+          regenerationReason: params.correctionNote ?? null,
+          shopId: params.shopId,
+          productId: params.productId,
+          category: classification.category,
+          campaignId,
+          interaction,
+          visualMode: mode,
+          commercialObjective: params.objective,
+          strategyVersion: STRATEGY_VERSION,
+          fidelityConstraints: fidelityConstraints as unknown as object,
+          requestedAction: sceneDecision.action.id,
+          requestedEnvironment: sceneDecision.environment.id,
+          requestedFraming: sceneDecision.framing.id,
+          requestedLight: sceneDecision.light.id,
+          requestedPalette: colorStory?.id ?? null,
+          observedAction: composition.observed?.action ?? null,
+          observedEnvironment: composition.observed?.environment ?? null,
+          observedFraming: composition.observed?.framing ?? null,
+          observedLight: composition.observed?.light ?? null,
+        },
+      });
 
-    if (passed) {
-      if (isStructuralHold) {
-        // Guarda esta versão válida como rede de segurança — se a correção
-        // não passar nos guardrails de qualidade, entregamos esta em vez de
-        // nada. "Correção limitada": no máximo uma tentativa extra por essa
-        // razão, nunca um novo orçamento de tentativas.
-        fallback = { imageDataUrl: generated.imageDataUrl, model: generated.model, generationLogId: generationLog.id };
-        usedStructuralRetry = true;
-        retryNote = buildStructuralCorrectionNote(sceneDecision, composition.observed!);
-        continue;
+      if (passed) {
+        if (isStructuralHold) {
+          // Guarda esta versão válida como rede de segurança — se a correção
+          // não passar nos guardrails de qualidade, entregamos esta em vez de
+          // nada. "Correção limitada": no máximo uma tentativa extra por essa
+          // razão, nunca um novo orçamento de tentativas.
+          fallback = { imageDataUrl: generated.imageDataUrl, model: generated.model, generationLogId: generationLog.id };
+          usedStructuralRetry = true;
+          retryNote = buildStructuralCorrectionNote(sceneDecision, composition.observed!);
+          continue;
+        }
+
+        return deliverImage(generated.imageDataUrl, generationLog.id, params, shop, attempt);
       }
 
-      return deliverImage(generated.imageDataUrl, generationLog.id, params, shop, attempt);
+      if (fidelity.passed) candidates.push({ imageDataUrl: generated.imageDataUrl, generationLogId: generationLog.id });
+
+      // Retentativa não é mais cega (05/10/2026): a próxima tentativa recebe
+      // o motivo exato da rejeição — antes ela repetia o mesmo prompt e
+      // tendia a errar igual.
+      const rejectionIssues = [...fidelity.issues, ...composition.issues];
+      retryNote = rejectionIssues.length > 0 ? rejectionIssues.join("; ") : undefined;
+    } catch (error) {
+      if (!fallback && candidates.length === 0) throw error;
+      console.error(`Image attempt ${attempt} failed for product ${params.productId}, keeping earlier result:`, error);
+      break;
     }
-
-    if (fidelity.passed) candidates.push({ imageDataUrl: generated.imageDataUrl, generationLogId: generationLog.id });
-
-    // Retentativa não é mais cega (05/10/2026): a próxima tentativa recebe
-    // o motivo exato da rejeição — antes ela repetia o mesmo prompt e
-    // tendia a errar igual.
-    const rejectionIssues = [...fidelity.issues, ...composition.issues];
-    retryNote = rejectionIssues.length > 0 ? rejectionIssues.join("; ") : undefined;
   }
 
   if (fallback) {

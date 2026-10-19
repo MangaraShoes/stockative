@@ -1521,24 +1521,50 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     };
   }
   await discardPendingImageCandidates(item.id);
+  const claimedAt = new Date();
 
-  const result = await buildCarousel({
-    shopId: params.shopId,
-    productId: item.productId,
-    contentItemId: item.id,
-    objective: item.commercialObjective as CommercialObjective,
-    creativeAngle: brief.creativeAngle,
-    format: brief.format,
-    forceNewHero: true,
-    correctionNote: trimmedFeedback || undefined,
-    regenerationOverrides: params.overrides,
-  });
+  // Devolve a tentativa quando nada foi gerado (Patricia, 19/10/2026): o
+  // OpenRouter recusou por falta de saldo (402) antes de gerar qualquer
+  // imagem, e a lojista perdeu a única regeneração do post sem nenhum custo
+  // ter acontecido. Toda geração paga grava um GenerationLog — sem nenhum
+  // desde a reserva, a falha foi do provedor, não uma tentativa gasta.
+  // Reprovação por fidelidade/composição continua contando (essas gerações
+  // custaram).
+  const refundIfNothingGenerated = async () => {
+    const generatedSinceClaim = await prisma.generationLog.count({
+      where: { contentItemId: item.id, taskType: "image", createdAt: { gte: claimedAt } },
+    });
+    if (generatedSinceClaim > 0) return;
+    await prisma.contentItem.updateMany({
+      where: { id: item.id, imageRegenerationCount: { gt: 0 } },
+      data: { imageRegenerationCount: { decrement: 1 } },
+    });
+  };
+
+  let result: Awaited<ReturnType<typeof buildCarousel>>;
+  try {
+    result = await buildCarousel({
+      shopId: params.shopId,
+      productId: item.productId,
+      contentItemId: item.id,
+      objective: item.commercialObjective as CommercialObjective,
+      creativeAngle: brief.creativeAngle,
+      format: brief.format,
+      forceNewHero: true,
+      correctionNote: trimmedFeedback || undefined,
+      regenerationOverrides: params.overrides,
+    });
+  } catch (error) {
+    await refundIfNothingGenerated();
+    throw error;
+  }
 
   // Depois da única regeneração a lojista sempre cai no painel de escolha —
   // a foto da Shopify só aparece lá se for lifestyle.
   await classifyShopifyShotTypes(item.productId).catch(() => undefined);
 
   if (result.status !== "success") {
+    await refundIfNothingGenerated();
     return { status: "error", reason: result.reason };
   }
   if (previousImageIds.length > 0) {

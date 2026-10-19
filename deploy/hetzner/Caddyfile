@@ -2,12 +2,12 @@
 # sozinho assim que o DNS do domínio aponta pro IP do servidor.
 app.stockative.com {
 	encode zstd gzip
-	reverse_proxy app:3000
+	reverse_proxy 127.0.0.1:3000
 }
 
 # App público (PUBLIC-APP.md) — descomentar quando o DNS de
 # apps.stockative.com apontar pra cá e o serviço app-public estiver ligado.
 # apps.stockative.com {
 # 	encode zstd gzip
-# 	reverse_proxy app-public:3000
+# 	reverse_proxy 127.0.0.1:3001
 # }

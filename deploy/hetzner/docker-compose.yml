@@ -15,11 +15,15 @@ services:
     environment:
       PORT: "3000"
     restart: unless-stopped
+    # Rede do próprio servidor (host): a rede padrão do Docker não tem IPv6,
+    # o Neon responde com IPv6 primeiro e o Prisma não cai pro IPv4 (P1001
+    # "Can't reach database server", achado na primeira subida, 19/10/2026 —
+    # desligar IPv6 no container não resolveu). O servidor tem IPv6 de
+    # verdade. A porta 3000 fica fechada pra fora pelo ufw (setup-server.sh).
+    network_mode: host
     # O agendador espera até 280s a publicação em andamento terminar depois
     # do SIGTERM (scheduler.server.ts) — o Docker não pode matar antes.
     stop_grace_period: 300s
-    expose:
-      - "3000"
 
   # App público da Shopify (PUBLIC-APP.md). Desligado até existir
   # .env.public no servidor e DNS do domínio dele — ligar com
@@ -30,20 +34,16 @@ services:
       context: ../..
     env_file: ../../.env.public
     environment:
-      PORT: "3000"
+      PORT: "3001"
       DISABLE_IN_PROCESS_SCHEDULER: "1"
     restart: unless-stopped
+    network_mode: host
     stop_grace_period: 300s
-    expose:
-      - "3000"
 
   caddy:
     image: caddy:2.8-alpine
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+    network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

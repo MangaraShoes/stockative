@@ -1,5 +1,13 @@
 # Migração Railway → Hetzner (plano B, 14/10/2026)
 
+## Estado (19/10/2026): produção NA HETZNER ✅
+- Servidor `stockative-prod`: CX23 (2 vCPU, 4 GB), **Helsinki** (o Cost-Optimized não estava disponível na Alemanha; ~20–25 ms até o Neon em Frankfurt), Ubuntu 26.04, IP `37.27.24.159` / `2a01:4f9:c013:26d1::1`, €5,99/mês, pago por crédito pré-pago (Patricia preferiu a débito SEPA). Lembrar de recarregar o crédito antes de acabar.
+- DNS no GoDaddy: `app` = A `37.27.24.159` + AAAA `2a01:4f9:c013:26d1::1` (o CNAME do Railway foi apagado). HTTPS do Let's Encrypt pelo Caddy, renovação automática.
+- Agendador ligado no servidor (`ENABLE_IN_PROCESS_SCHEDULER=1` em `/opt/stockative/.env.production`).
+- **Incidente junto com a migração:** o Neon (plano Free, org "Stockative" — não a org pessoal patricia@mangara.be, que está vazia) estourou a cota de **100 CU-hrs/mês** (110 em 19/10; o agendador consulta o banco a cada 5 min, então o banco nunca dorme). Banco bloqueado desde ~17/10 → nada publicava nem gerava plano. Upgrade para o **Launch** em 19/10 destravou. Storage só 0,21 GB.
+- Containers em `network_mode: host`: a rede padrão do Docker não tem IPv6 e o Prisma não alcançava o Neon.
+- Pendente: secrets `HETZNER_HOST`/`HETZNER_SSH_KEY` no GitHub (sem eles o push não faz deploy — até lá, deploy manual por SSH); apagar o projeto do Railway; decidir se o banco fica no Neon Launch (~$15–20/mês) ou vira Postgres no próprio servidor.
+
 ## Por quê
 O trial do Railway acaba em 5 dias (ou $3,49 de crédito). Depois disso ele desliga o `app.stockative.com`, e nada mais é publicado. O Railway só aceita cartão de crédito ou débito não pré-pago, e **nenhum cartão da Patricia foi aceito**. Também não aceita PayPal nem transferência fora do plano Enterprise. A Hetzner (Alemanha, perto do banco Neon em Frankfurt) aceita **débito direto SEPA** em contas em euro.
 

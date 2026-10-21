@@ -58,7 +58,9 @@ O Reel `cmv80u3yt0004ny011sgs15fh` foi confirmado no painel TikTok do Weekly Pla
 
 - [x] `video.upload` vem junto com o produto Content Posting API e não dá pra remover em Production. Foi o mesmo envio do Direct Post (14/10/2026).
 - [x] Revisão solicitada em **14/10/2026** (Production: Login Kit + Content Posting API com Direct Post; vídeo `TIKTOK-review.mp4`; motivo: "First submission: Login Kit + Content Posting API (Direct Post) so merchants can auto-post their Reels to TikTok.")
-- [ ] Resposta da TikTok recebida — anotar resultado e prazo real observado
+- [x] Resposta da TikTok: **app aprovado em 20/10/2026, 09:42** (6 dias depois do envio de 14/10).
+- [ ] **Auditoria do Direct Post: é um pedido separado.** A aprovação do app NÃO tira a restrição de post privado. A doc da TikTok diz: "All content posted by unaudited clients will be restricted to private viewing mode", e a auditoria é pedida em developers.tiktok.com/application/content-posting-api. Até essa aprovação: conta privada + "Only me", e `TIKTOK_DIRECT_POST_AUDITED` continua desligado.
+- [ ] Credenciais de Production em `/opt/stockative/.env.production` na Hetzner (não mais no Railway), container recriado, Mangará reconectada.
 - [x] `TIKTOK_SCOPES` atualizado no código, conta reconectada, 1 reel de teste entregue na caixa de rascunhos (30/09/2026, Sandbox)
 
 ## Submissão da revisão em Production: textos prontos (30/09/2026)
@@ -141,7 +143,7 @@ Gravar a parte do celular com a gravação de tela do iPhone e juntar os dois tr
 
 ### Depois da aprovação
 
-- No Railway, definir `TIKTOK_DIRECT_POST_AUDITED=true`. Sem isso, o painel do Weekly Plan continua oferecendo só "Only me" (commit 31ea618).
+- Definir `TIKTOK_DIRECT_POST_AUDITED=true` (hoje em `/opt/stockative/.env.production`, na Hetzner) **só depois da auditoria do Direct Post**, que é um pedido separado da aprovação do app. Sem isso, o painel do Weekly Plan continua oferecendo só "Only me" (commit 31ea618).
 
 - As credenciais de Production são diferentes das do Sandbox (as do Sandbox começam com `sbaw`). Trocar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` no Railway pelas de Production.
 - Reconectar a conta da Mangará (e a de qualquer outra lojista conectada no Sandbox), porque os tokens do Sandbox não valem com as credenciais de Production.

@@ -1803,11 +1803,17 @@ export default function PlanWeek() {
                               <s-stack direction="inline" gap="small">
                                 {options.map((option) => (
                                   <div key={option.key} style={{ textAlign: "center", width: 160 }}>
-                                    <img
-                                      src={option.url}
-                                      alt={`${option.label} — ${slot.productTitle}`}
-                                      style={{ width: 160, height: 200, objectFit: "cover", borderRadius: 4, display: "block" }}
-                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setZoomedImageUrl(option.url)}
+                                      style={{ padding: 0, border: "none", background: "none", cursor: "zoom-in", display: "block" }}
+                                    >
+                                      <img
+                                        src={option.url}
+                                        alt={`${option.label} — ${slot.productTitle}`}
+                                        style={{ width: 160, height: 200, objectFit: "cover", borderRadius: 4, display: "block" }}
+                                      />
+                                    </button>
                                     <p style={{ fontSize: 12, margin: "4px 0" }}>{option.label}</p>
                                     {option.choice && (
                                       <button

@@ -16,32 +16,32 @@ Por isso foi criado um segundo app, com **Public distribution**. É ele que vai 
 | Distribuição **Public** | ✅ escolhida (irreversível, era o objetivo) |
 | `shopify.app.public.toml` (client_id `eb3ff74e…`), mesmos escopos e webhooks do app antigo, incluindo os 3 webhooks GDPR | ✅ enviado com `shopify app deploy --config public` (versão ativa) |
 | Protected customer data, Step 1: motivo **Analytics**, sem campos de PII (o `orders/paid` só recalcula velocidade de venda) | ✅ salvo; era exigido para o webhook `orders/paid` |
-| Serviço Railway `stockative-public` (mesmo repo, branch `main`), domínio `stockative-public-production.up.railway.app` | ✅ criado, **sem variáveis**: vai falhar no boot até o passo 1 abaixo |
+| Serviço `app-public` no servidor Hetzner ([docker-compose.yml](deploy/hetzner/docker-compose.yml), porta 3001, profile `public`) | ⏸ previsto, **desligado** até existir `/opt/stockative/.env.public` (passo 1 abaixo). O serviço `stockative-public` do Railway nunca chegou a rodar e foi apagado com o projeto em 21/10/2026 |
 
 ## Arquitetura
 
-- **Mesmo código, mesmo banco Neon, dois serviços no Railway.** Cada serviço tem as credenciais Shopify do seu app. As tabelas `Shop` e `Session` são chaveadas pelo domínio da loja, então não colidem enquanto **nenhuma loja tiver os dois apps instalados ao mesmo tempo**. A Mangará fica só no app antigo, os pilotos só no novo.
+- **Mesmo código, mesmo banco Neon, dois serviços no mesmo servidor Hetzner** (`app` na 3000, `app-public` na 3001, Caddy na frente). Cada serviço tem as credenciais Shopify do seu app. As tabelas `Shop` e `Session` são chaveadas pelo domínio da loja, então não colidem enquanto **nenhuma loja tiver os dois apps instalados ao mesmo tempo**. A Mangará fica só no app antigo, os pilotos só no novo.
 - **O agendador roda só no serviço antigo** (`DISABLE_IN_PROCESS_SCHEDULER=1` no novo). Publicar e gerar planos não usa token da Shopify, só os tokens das redes sociais e o banco, então o serviço antigo atende as lojas dos dois apps. Mesmo se os dois rodassem, a duplicidade é segura (ver `scheduler.server.ts`).
 - **Mídia** (imagens e vídeos) fica no banco (`/media/...`), então qualquer um dos dois serviços serve.
 - O app antigo (custom) **nunca** liga `BILLING_ENABLED`, porque custom não pode cobrar. Cobrança só no serviço público.
 
 ## Pendências (Patricia)
 
-### 1. Variáveis do serviço `stockative-public` no Railway
-O auto mode bloqueou a cópia de segredos. Copie do serviço `stockative` **todas** as variáveis, exceto as do Railway, e troque estas:
+### 1. Criar `/opt/stockative/.env.public` no servidor
+O auto mode bloqueou a cópia de segredos. Copie o `/opt/stockative/.env.production` do servidor para `/opt/stockative/.env.public` e troque estas linhas:
 
 | Variável | Valor no `stockative-public` |
 |---|---|
 | `SHOPIFY_API_KEY` | `eb3ff74e23e6e1a6e5ed129f29a46812` |
 | `SHOPIFY_API_SECRET` | Dev Dashboard → Stockative (o novo) → Settings → Client secret |
-| `SHOPIFY_APP_URL` | `https://stockative-public-production.up.railway.app`, ou o domínio próprio (item 2) |
+| `SHOPIFY_APP_URL` | `https://apps.stockative.com` (item 2) |
 | `SHOPIFY_APP_HANDLE` | `stockative-2` |
-| `DISABLE_IN_PROCESS_SCHEDULER` | `1` (já está) |
+| `ENABLE_IN_PROCESS_SCHEDULER` | remover a linha (o agendador roda só no `app`; o compose já força `DISABLE_IN_PROCESS_SCHEDULER=1` no `app-public`) |
 
-Atalho: no Railway, em Variables → "Raw Editor" do serviço `stockative`, copie tudo, cole no `stockative-public` e troque as 4 linhas acima.
+Com o arquivo criado, o próximo deploy (push no `main` ou Actions → "Deploy (Hetzner)" → Run workflow) liga o `app-public` sozinho.
 
-### 2. (Recomendado) Domínio próprio em vez do `*.up.railway.app`
-Por exemplo `apps.stockative.com`: CNAME no GoDaddy (DNS do stockative.com) apontando para o alvo que `railway domain apps.stockative.com -s stockative-public` mostrar. Vale fazer **antes** do item 3, para não cadastrar os callbacks duas vezes. Também ajuda no TikTok: o `PULL_FROM_URL` exige domínio verificado, e um subdomínio de stockative.com tem mais chance de já estar coberto que um domínio do Railway. Se trocar, atualizar `application_url`/`redirect_urls` no `shopify.app.public.toml` e rodar de novo `npx @shopify/cli@latest app deploy --config public --allow-updates`.
+### 2. Domínio `apps.stockative.com`
+No GoDaddy (DNS do stockative.com): registro A `apps` → `37.27.24.159` e AAAA `apps` → `2a01:4f9:c013:26d1::1`, igual ao `app`. Depois descomentar o bloco `apps.stockative.com` no [Caddyfile](deploy/hetzner/Caddyfile) (o Caddy emite o HTTPS sozinho). Vale fazer **antes** do item 3, para não cadastrar os callbacks duas vezes. Também ajuda no TikTok: o `PULL_FROM_URL` exige domínio verificado, e um subdomínio de stockative.com tem mais chance de já estar coberto. Atualizar `application_url`/`redirect_urls` no `shopify.app.public.toml` e rodar de novo `npx @shopify/cli@latest app deploy --config public --allow-updates`.
 
 ### 3. Callbacks OAuth das redes no novo domínio
 Os callbacks são montados a partir de `SHOPIFY_APP_URL`, então cada provedor precisa aceitar o domínio novo (mantendo o antigo):
@@ -64,4 +64,4 @@ Partner Dashboard → Stockative (novo) → Distribution → **Manage submission
 
 - **Pilotos** instalam pelo link da App Store.
 - **Mangará**: pode continuar no app antigo, ou migrar: desinstalar o antigo e instalar o público. Os dados ficam, porque `Shop` é chaveada pelo domínio e o banco é o mesmo. O plano privado "Mangará" do `BILLING-SETUP.md` existe para isso. Depois da migração, o serviço antigo pode ser desligado e o agendador religado no público.
-- `railway.json` (config-as-code) está **deprecado** e funciona até 01/12/2026 (aviso do CLI do Railway em 14/10/2026). Migrar com `railway config migrate` antes disso.
+- `railway.json` não é mais usado (o projeto do Railway foi apagado em 21/10/2026) e pode ser removido do repositório.

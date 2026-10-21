@@ -6,7 +6,8 @@
 - Agendador ligado no servidor (`ENABLE_IN_PROCESS_SCHEDULER=1` em `/opt/stockative/.env.production`).
 - **Incidente junto com a migração:** o Neon (plano Free, org "Stockative" — não a org pessoal patricia@mangara.be, que está vazia) estourou a cota de **100 CU-hrs/mês** (110 em 19/10; o agendador consulta o banco a cada 5 min, então o banco nunca dorme). Banco bloqueado desde ~17/10 → nada publicava nem gerava plano. Upgrade para o **Launch** em 19/10 destravou. Storage só 0,21 GB.
 - Containers em `network_mode: host`: a rede padrão do Docker não tem IPv6 e o Prisma não alcançava o Neon.
-- Pendente: secrets `HETZNER_HOST`/`HETZNER_SSH_KEY` no GitHub (sem eles o push não faz deploy — até lá, deploy manual por SSH); apagar o projeto do Railway; decidir se o banco fica no Neon Launch (~$15–20/mês) ou vira Postgres no próprio servidor.
+- Secrets `HETZNER_HOST`/`HETZNER_SSH_KEY` configurados no GitHub em 21/10/2026: todo push no main faz deploy sozinho (antes disso o job pulava em silêncio e mostrava "success").
+- Pendente: apagar o projeto do Railway; decidir se o banco fica no Neon Launch (~$15–20/mês) ou vira Postgres no próprio servidor.
 
 ## Por quê
 O trial do Railway acaba em 5 dias (ou $3,49 de crédito). Depois disso ele desliga o `app.stockative.com`, e nada mais é publicado. O Railway só aceita cartão de crédito ou débito não pré-pago, e **nenhum cartão da Patricia foi aceito**. Também não aceita PayPal nem transferência fora do plano Enterprise. A Hetzner (Alemanha, perto do banco Neon em Frankfurt) aceita **débito direto SEPA** em contas em euro.

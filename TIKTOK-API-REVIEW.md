@@ -145,5 +145,5 @@ Gravar a parte do celular com a gravação de tela do iPhone e juntar os dois tr
 
 - Definir `TIKTOK_DIRECT_POST_AUDITED=true` (hoje em `/opt/stockative/.env.production`, na Hetzner) **só depois da auditoria do Direct Post**, que é um pedido separado da aprovação do app. Sem isso, o painel do Weekly Plan continua oferecendo só "Only me" (commit 31ea618).
 
-- As credenciais de Production são diferentes das do Sandbox (as do Sandbox começam com `sbaw`). Trocar `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` no Railway pelas de Production.
-- Reconectar a conta da Mangará (e a de qualquer outra lojista conectada no Sandbox), porque os tokens do Sandbox não valem com as credenciais de Production.
+- [x] As credenciais de Production são diferentes das do Sandbox (as do Sandbox começam com `sbaw`). **Feito em 22/10/2026:** `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` no `/opt/stockative/.env.production` (Hetzner) trocadas pelas de Production, validadas com `client_credentials` (token emitido). Isso também tirou de uso o secret do Sandbox, que vazou no incidente de variáveis de ambiente do Railway (21/10/2026).
+- [ ] Reconectar a conta da Mangará (e a de qualquer outra lojista conectada no Sandbox), porque os tokens do Sandbox não valem com as credenciais de Production. O Redirect URI e o domínio verificado (Content Posting API → Verify domains) precisam estar configurados também em Production.

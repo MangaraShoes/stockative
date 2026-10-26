@@ -140,10 +140,11 @@ export default function Index() {
                 publishing incomplete. Generate an image or swap the product
                 in the Weekly plan.
               </s-paragraph>
-              {/* Botão próprio em vez de link no meio da frase: o s-link
-                  dentro deste parágrafo não respondia ao clique no admin
-                  (achado ao vivo, 23/10/2026), enquanto o mesmo link no
-                  Welcome e os links soltos do Setup funcionavam. */}
+              {/* Botão próprio em vez de link no meio da frase, pra ação
+                  ficar visível. Atenção (medido ao vivo, 26/10/2026): o
+                  link antigo funcionava — o Weekly plan é que levava ~20s
+                  pra abrir sem nenhum sinal de carregamento, e parecia que
+                  o clique não fazia nada. */}
               <s-stack direction="inline">
                 <s-button href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
                   Open Weekly plan

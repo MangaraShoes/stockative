@@ -137,12 +137,18 @@ export default function Index() {
               <s-paragraph>
                 {data.stuckPostTitles.join(", ")} — image generation never
                 finished, so Stockative held these back instead of
-                publishing incomplete. Go to{" "}
-                <s-link href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
-                  Weekly plan
-                </s-link>{" "}
-                to generate an image or swap the product.
+                publishing incomplete. Generate an image or swap the product
+                in the Weekly plan.
               </s-paragraph>
+              {/* Botão próprio em vez de link no meio da frase: o s-link
+                  dentro deste parágrafo não respondia ao clique no admin
+                  (achado ao vivo, 23/10/2026), enquanto o mesmo link no
+                  Welcome e os links soltos do Setup funcionavam. */}
+              <s-stack direction="inline">
+                <s-button href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
+                  Open Weekly plan
+                </s-button>
+              </s-stack>
             </s-stack>
           </s-box>
         </s-section>

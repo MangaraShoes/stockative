@@ -1,5 +1,6 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Outlet, redirect, useLoaderData, useRouteError } from "react-router";
+import { useEffect } from "react";
+import { Outlet, redirect, useLoaderData, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
@@ -8,6 +9,7 @@ import { ensureShopContentLanguage, ensureShopEmail, ensureShopTimezone, getOrCr
 import { getOnboardingStatus } from "../services/onboardingStatus.server";
 import prisma from "../db.server";
 import { fetchActiveSubscription, isBillingEnabled, planSelectionUrl } from "../services/billing/subscription.server";
+import { startLoaderTimer } from "../utils/loaderTiming.server";
 
 // As mesmas fases do checklist da Home, na mesma ordem — usado aqui pra
 // TRAVAR a navegação, não só sinalizar progresso (Patricia, 12/09/2026: "eu
@@ -31,7 +33,9 @@ const SETUP_STEPS = [
 ] as const;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const timer = startLoaderTimer(`app layout loader ${new URL(request.url).pathname}`);
   const { session, admin, redirect: adminRedirect } = await authenticate.admin(request);
+  timer.step("auth");
 
   // Busca o fuso horário real da loja uma vez (cacheado depois) — usado
   // pro agendamento do plano semanal sair no horário local dela, não no do
@@ -40,6 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   await ensureShopTimezone(admin, shop);
   await ensureShopContentLanguage(admin, shop);
   await ensureShopEmail(admin, shop);
+  timer.step("shop+ensure");
 
   // Cobrança (Shopify App Pricing, 06/10/2026 — ver billing/subscription.server.ts).
   // Sem assinatura ativa (nem teste grátis), vai pra tela de planos da própria
@@ -63,6 +68,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
     billing = { trialEndsAt: subscription.trialEndsAt };
   }
+  timer.step("billing");
 
   const status = await getOnboardingStatus(shop.id);
   const firstIncomplete = SETUP_STEPS.findIndex((step) => !step.keys.every((k) => status[k]));
@@ -95,6 +101,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: { shopId: shop.id, weekBatchId: { not: null }, status: "draft" },
       })
     : 0;
+  timer.step("onboarding+approvals");
+  timer.done();
 
   // eslint-disable-next-line no-undef
   return {
@@ -122,6 +130,16 @@ const NAV_ITEMS = [
 export default function App() {
   const { apiKey, unlockedPaths, hasContentPillars, publishingPaused, pendingApprovalCount, trialEndsAt } =
     useLoaderData<typeof loader>();
+
+  // Barra de carregamento do próprio Shopify Admin enquanto a próxima tela
+  // carrega — sem isso, o clique parecia não fazer nada nos ~20s que o
+  // Weekly plan levava pra abrir (medido ao vivo, 26/10/2026).
+  const navigation = useNavigation();
+  const isNavigating = navigation.state === "loading";
+  useEffect(() => {
+    const appBridge = (window as { shopify?: { loading?: (isLoading: boolean) => void } }).shopify;
+    appBridge?.loading?.(isNavigating);
+  }, [isNavigating]);
   const isUnlocked = (href: string) =>
     href === "/app" || unlockedPaths === null || unlockedPaths.includes(href);
   // "Weekly objective" só existe pra criar os pilares na primeira vez

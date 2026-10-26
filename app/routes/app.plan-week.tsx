@@ -53,6 +53,7 @@ import {
 } from "../services/tiktok/postSettings.server";
 import type { TikTokPostSettings, TikTokPrivacyLevel } from "../services/tiktok/postSettings";
 import { TikTokPostPanel, type TikTokCreatorState } from "../components/TikTokPostPanel";
+import { startLoaderTimer } from "../utils/loaderTiming.server";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -125,7 +126,9 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData, defaultSh
   formData?.get("intent") === "next-week-preview" ? false : defaultShouldRevalidate;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const timer = startLoaderTimer("plan-week loader");
   const { session } = await authenticate.admin(request);
+  timer.step("auth");
 
   const shop = await prisma.shop.findUnique({
     where: { shopifyDomain: session.shop },
@@ -149,11 +152,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     : [];
 
   const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
+  timer.step("shop+products+onboarding");
 
   // O banco é a fonte única de verdade do plano (Patricia, 12/09/2026, via
   // revisão: "make the saved plan the source of truth. Reopening the page
   // must restore it.") — nunca mais só memória do navegador.
   const slots = shop ? await getCurrentWeekBatch(shop.id) : [];
+  timer.step(`currentWeek(${slots.length} slots)`);
 
   // Plano da próxima semana (só definição, sem IA) — aparece no fim da tela
   // quando a semana atual já existe. Não recalcula enquanto uma geração
@@ -162,6 +167,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shop && slots.length > 0 && !shop.weeklyPlanGeneratingAt
       ? await previewNextWeekPlan(shop.id)
       : null;
+  timer.step("nextWeekPreview");
 
   // Conta do TikTok consultada ao vivo sempre que há Reel ainda editável —
   // as diretrizes do Direct Post exigem mostrar a conta de destino e as
@@ -169,6 +175,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const hasEditableReel = slots.some((slot) => slot.format === "reel" && isEditable(slot.status));
   const tiktokCreator: TikTokCreatorState =
     shop && hasEditableReel ? await getTikTokCreatorInfoForShop(shop.id) : { status: "not_connected" };
+  timer.step(hasEditableReel ? "tiktokCreatorInfo" : "tiktokSkipped");
 
   // Coleções reais da loja, pra escopar uma campanha promocional (Patricia,
   // 13/09/2026: "acho melhor por collection assim ele pode criar uma
@@ -195,6 +202,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // e sugestões de motivo no idioma do APP (loja ou Settings), não no
   // idioma dos posts — ambos mostrados perto do botão Regenerate.
   const remainingImageCredits = shop ? await getRemainingCredits(shop, "image") : 0;
+  timer.step("collections+credits");
+  timer.done();
   const appLanguage = getAppLanguage(shop);
   const regenerationReasonSuggestions = REGENERATION_REASON_SUGGESTIONS[appLanguage];
   const captionRegenerationReasonSuggestions = CAPTION_REGENERATION_REASON_SUGGESTIONS[appLanguage];

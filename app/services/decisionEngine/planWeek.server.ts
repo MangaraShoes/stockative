@@ -4,7 +4,7 @@ import {
   discardPendingImageCandidates,
   loadLifestyleShopifyImage,
   loadPendingImageCandidates,
-  loadPreviousHeroImage,
+  loadImageChoicesForItems,
   type ImageCandidate,
 } from "../imageMvp/imageCandidates.server";
 import { MAX_IMAGE_REGENERATIONS_PER_POST } from "./constants";
@@ -1256,21 +1256,7 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     orderBy: { createdAt: "asc" },
   });
 
-  const choiceDataByItem = new Map(
-    await Promise.all(
-      items.map(
-        async (item) =>
-          [
-            item.id,
-            {
-              candidates: await loadPendingImageCandidates(item.id),
-              previousImage: await loadPreviousHeroImage(item.previousHeroAssetId),
-              shopifyLifestyleImage: item.productId ? await loadLifestyleShopifyImage(item.productId) : null,
-            },
-          ] as const,
-      ),
-    ),
-  );
+  const choiceDataByItem = await loadImageChoicesForItems(items);
 
   return items.map((item) => ({
     contentItemId: item.id,

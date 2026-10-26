@@ -91,6 +91,69 @@ export async function loadPendingImageCandidates(contentItemId: string): Promise
   return assets.map((asset) => ({ id: asset.id, url: asset.imageUrl }));
 }
 
+// Mesmas três buscas acima (candidatas, editorial anterior, foto lifestyle
+// da Shopify), mas para todos os posts da semana de uma vez: 3 consultas em
+// paralelo em vez de 3 em sequência por post. Cada consulta ao Neon custa
+// ~100ms a partir da Hetzner, e isto segurava o Weekly plan (26/10/2026).
+export type ImageChoiceData = {
+  candidates: ImageCandidate[];
+  previousImage: ImageCandidate | null;
+  shopifyLifestyleImage: ImageCandidate | null;
+};
+
+export async function loadImageChoicesForItems(
+  items: { id: string; previousHeroAssetId: string | null; productId: string | null }[],
+): Promise<Map<string, ImageChoiceData>> {
+  const itemIds = items.map((item) => item.id);
+  const previousIds = items.flatMap((item) => (item.previousHeroAssetId ? [item.previousHeroAssetId] : []));
+  const productIds = items.flatMap((item) => (item.productId ? [item.productId] : []));
+
+  const [candidateRows, previousRows, lifestyleRows] = await Promise.all([
+    itemIds.length > 0
+      ? prisma.creativeAsset.findMany({
+          where: { source: "ai_candidate", generationLog: { contentItemId: { in: itemIds } } },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, imageUrl: true, generationLog: { select: { contentItemId: true } } },
+        })
+      : Promise.resolve([]),
+    previousIds.length > 0
+      ? prisma.creativeAsset.findMany({ where: { id: { in: previousIds } }, select: { id: true, imageUrl: true } })
+      : Promise.resolve([]),
+    productIds.length > 0
+      ? prisma.productImage.findMany({
+          where: { productId: { in: productIds }, shotType: "lifestyle" },
+          orderBy: { position: "asc" },
+          select: { id: true, url: true, productId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const candidatesByItem = new Map<string, ImageCandidate[]>();
+  for (const row of candidateRows) {
+    const contentItemId = row.generationLog?.contentItemId;
+    if (!contentItemId) continue;
+    const list = candidatesByItem.get(contentItemId) ?? [];
+    if (list.length < MAX_IMAGE_CANDIDATES) list.push({ id: row.id, url: row.imageUrl });
+    candidatesByItem.set(contentItemId, list);
+  }
+  const previousById = new Map(previousRows.map((row) => [row.id, { id: row.id, url: row.imageUrl }]));
+  const lifestyleByProduct = new Map<string, ImageCandidate>();
+  for (const row of lifestyleRows) {
+    if (!lifestyleByProduct.has(row.productId)) lifestyleByProduct.set(row.productId, { id: row.id, url: row.url });
+  }
+
+  return new Map(
+    items.map((item) => [
+      item.id,
+      {
+        candidates: candidatesByItem.get(item.id) ?? [],
+        previousImage: item.previousHeroAssetId ? (previousById.get(item.previousHeroAssetId) ?? null) : null,
+        shopifyLifestyleImage: item.productId ? (lifestyleByProduct.get(item.productId) ?? null) : null,
+      },
+    ]),
+  );
+}
+
 export async function discardPendingImageCandidates(contentItemId: string): Promise<void> {
   await prisma.creativeAsset.updateMany({
     where: { source: "ai_candidate", generationLog: { contentItemId } },

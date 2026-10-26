@@ -153,7 +153,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // paralelo (antes, em sequência, somava ~6,5s no servidor; medido com os
   // logs [timing] em 26/10/2026). Cada etapa ainda loga o próprio tempo.
   const slotsPromise = timer.time("currentWeek", shop ? getCurrentWeekBatch(shop.id) : Promise.resolve([]));
-  const [socialAccount, products, onboardingStatus, slots, tiktokCreator, collectionRows, remainingImageCredits] =
+  const [socialAccount, products, onboardingStatus, slots, collectionRows, remainingImageCredits] =
     await Promise.all([
       timer.time(
         "instagram",
@@ -183,17 +183,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // revisão: "make the saved plan the source of truth. Reopening the page
       // must restore it.") — nunca mais só memória do navegador.
       slotsPromise,
-      // Conta do TikTok consultada ao vivo sempre que há Reel ainda editável —
-      // as diretrizes do Direct Post exigem mostrar a conta de destino e as
-      // opções atuais dela (ver TikTokPostPanel). Sem Reel pendente, nem chama.
-      timer.time(
-        "tiktokCreatorInfo",
-        slotsPromise.then((currentSlots): Promise<TikTokCreatorState> | TikTokCreatorState =>
-          shop && currentSlots.some((slot) => slot.format === "reel" && isEditable(slot.status))
-            ? getTikTokCreatorInfoForShop(shop.id)
-            : { status: "not_connected" },
-        ),
-      ),
       // Coleções reais da loja, pra escopar uma campanha promocional (Patricia,
       // 13/09/2026: "acho melhor por collection assim ele pode criar uma
       // collection com os items que deseja promover sem ter que criar uma nova
@@ -231,6 +220,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // NÃO esperado aqui: era sozinho ~3s do carregamento, e fica no fim da
   // página — vai como promessa e chega depois (streaming do React Router),
   // enquanto o resto da tela já aparece.
+  // Conta do TikTok consultada ao vivo sempre que há Reel ainda editável —
+  // as diretrizes do Direct Post exigem mostrar a conta de destino e as
+  // opções atuais dela (ver TikTokPostPanel). Sem Reel pendente, nem chama.
+  // Também NÃO esperada: chamada externa (~0,8s, e falhando toda vez com
+  // token expirado, 26/10/2026) que só aparece dentro do Reel.
+  const tiktokTimer = startLoaderTimer("plan-week tiktokCreatorInfo (deferred)");
+  const tiktokCreator: Promise<TikTokCreatorState> =
+    shop && slots.some((slot) => slot.format === "reel" && isEditable(slot.status))
+      ? getTikTokCreatorInfoForShop(shop.id).finally(() => tiktokTimer.done())
+      : Promise.resolve({ status: "not_connected" });
+
+  // Medição temporária (26/10/2026): quanto custa UMA ida e volta ao banco
+  // a partir da Hetzner, sem segurar a tela (roda depois, sem await). Decide
+  // se vale mudar o servidor pra perto do Neon ou trazer o banco pra cá.
+  void (async () => {
+    const pingTimer = startLoaderTimer("db ping (3x SELECT 1, sequential)");
+    for (const attempt of [1, 2, 3]) {
+      await prisma.$queryRaw`SELECT 1`;
+      pingTimer.step(`ping${attempt}`);
+    }
+    pingTimer.done();
+  })().catch((error) => console.error("db ping failed:", error));
+
   const nextWeekTimer = startLoaderTimer("plan-week nextWeekPreview (deferred)");
   const nextWeek: Promise<NextWeekPreview | null> =
     shop && slots.length > 0 && !shop.weeklyPlanGeneratingAt
@@ -777,7 +789,7 @@ export default function PlanWeek() {
     remainingImageCredits,
     regenerationReasonSuggestions,
     captionRegenerationReasonSuggestions,
-    tiktokCreator,
+    tiktokCreator: tiktokCreatorPromise,
   } = useLoaderData<typeof loader>();
 
   // A prévia da próxima semana chega depois do resto da tela (o loader não
@@ -796,6 +808,19 @@ export default function PlanWeek() {
       isCurrent = false;
     };
   }, [nextWeekPromise]);
+
+  // Mesmo padrão pra conta do TikTok: o painel do Reel mostra "Loading…" só
+  // na primeira vez; nas revalidações fica com o valor anterior até chegar.
+  const [tiktokCreator, setTiktokCreator] = useState<TikTokCreatorState>({ status: "loading" });
+  useEffect(() => {
+    let isCurrent = true;
+    Promise.resolve(tiktokCreatorPromise).then((state) => {
+      if (isCurrent) setTiktokCreator(state);
+    });
+    return () => {
+      isCurrent = false;
+    };
+  }, [tiktokCreatorPromise]);
 
   // Mostrar na ordem em que os posts realmente saem no ar (Patricia,
   // 12/09/2026: "a sequencia de posts deve seguir a sequencia da semana"),

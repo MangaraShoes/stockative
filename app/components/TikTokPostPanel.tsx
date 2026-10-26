@@ -21,6 +21,9 @@ import {
 // processamento, e nada enviado sem a lojista clicar em confirmar.
 
 export type TikTokCreatorState =
+  // A consulta à conta chega depois do resto do Weekly plan (não segura a
+  // tela, ver loader em app.plan-week.tsx).
+  | { status: "loading" }
   | { status: "not_connected" }
   | { status: "ok"; creator: TikTokCreatorInfo }
   | { status: "error"; reason: string };
@@ -96,6 +99,9 @@ export function TikTokPostPanel(props: {
   }
 
   if (creatorState.status === "not_connected") return null;
+  if (creatorState.status === "loading") {
+    return box(<s-paragraph>Loading your TikTok account…</s-paragraph>);
+  }
   if (creatorState.status === "error") {
     return box(
       <s-paragraph>

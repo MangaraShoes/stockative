@@ -352,6 +352,99 @@ export async function syncSingleProduct(
   await upsertProduct(shopId, node);
 }
 
+const CATALOG_SNAPSHOT_QUERY = `#graphql
+  query CatalogSnapshot($cursor: String) {
+    products(first: 250, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          id
+          title
+          status
+          totalInventory
+        }
+      }
+    }
+  }
+`;
+
+// Teto por chamada: normalmente só 0-2 produtos divergem; se for um catálogo
+// inteiro desatualizado, o resto entra nas próximas aberturas (ou no Sync).
+const MAX_PRODUCTS_REFRESHED_PER_CALL = 20;
+const CATALOG_REFRESH_INTERVAL_MS = 60_000;
+const lastCatalogRefreshAt = new Map<string, number>();
+
+// Achado de Patricia (26/10/2026): produto recém-criado não aparecia no
+// "Swap for a different product" do Weekly plan. A cópia em ProductCache só
+// muda por webhook, e ajuste de estoque depois da criação não dispara
+// products/update (é inventory_levels/update, que exigiria o escopo
+// read_inventory e reautorização de toda lojista) — o produto ficava com
+// estoque 0 e fora do filtro. Webhook que falha também não tem nova
+// tentativa. Aqui compara só id/título/status/estoque de todo o catálogo
+// (uma consulta leve) e re-sincroniza só os que divergem. Throttled por loja
+// porque o loader do Weekly plan revalida a cada 4s durante a geração.
+export async function refreshStaleProducts(
+  admin: AdminGraphqlClient,
+  shopId: string,
+): Promise<number> {
+  const now = Date.now();
+  if (now - (lastCatalogRefreshAt.get(shopId) ?? 0) < CATALOG_REFRESH_INTERVAL_MS) return 0;
+  lastCatalogRefreshAt.set(shopId, now);
+
+  const shopifyProducts: { id: string; title: string; status: string; totalInventory: number }[] = [];
+  let cursor: string | null = null;
+  let hasNextPage = true;
+  while (hasNextPage) {
+    const response: Response = await admin.graphql(CATALOG_SNAPSHOT_QUERY, { variables: { cursor } });
+    const json = await response.json();
+    const connection = json.data.products;
+    for (const edge of connection.edges) shopifyProducts.push(edge.node);
+    hasNextPage = connection.pageInfo.hasNextPage;
+    cursor = connection.pageInfo.endCursor;
+  }
+
+  const cached = await prisma.productCache.findMany({
+    where: { shopId },
+    select: { shopifyProductId: true, title: true, status: true, inventoryQuantity: true },
+  });
+  const cachedById = new Map(cached.map((row) => [row.shopifyProductId, row]));
+
+  const staleIds = shopifyProducts
+    .filter((product) => {
+      const row = cachedById.get(product.id);
+      return (
+        !row ||
+        row.title !== product.title ||
+        row.status !== product.status.toLowerCase() ||
+        row.inventoryQuantity !== product.totalInventory
+      );
+    })
+    .map((product) => product.id)
+    .slice(0, MAX_PRODUCTS_REFRESHED_PER_CALL);
+
+  for (const shopifyProductId of staleIds) {
+    await syncSingleProduct(admin, shopId, shopifyProductId);
+  }
+
+  // Apagado na Shopify sem o webhook products/delete ter chegado — só dá pra
+  // afirmar isso porque a listagem acima percorreu o catálogo inteiro.
+  const liveIds = new Set(shopifyProducts.map((product) => product.id));
+  const deletedIds = cached
+    .filter((row) => row.status !== "archived" && !liveIds.has(row.shopifyProductId))
+    .map((row) => row.shopifyProductId);
+  if (deletedIds.length > 0) {
+    await prisma.productCache.updateMany({
+      where: { shopId, shopifyProductId: { in: deletedIds } },
+      data: { status: "archived" },
+    });
+  }
+
+  return staleIds.length + deletedIds.length;
+}
+
 // products/delete só manda o ID no payload, sem mais nenhum dado — a loja já
 // não tem o produto pra buscar de volta. Arquiva em vez de apagar a linha,
 // pra não quebrar content_items/creative_assets que ainda referenciam esse

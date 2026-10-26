@@ -55,6 +55,7 @@ import {
 import type { TikTokPostSettings, TikTokPrivacyLevel } from "../services/tiktok/postSettings";
 import { TikTokPostPanel, type TikTokCreatorState } from "../components/TikTokPostPanel";
 import { startLoaderTimer } from "../utils/loaderTiming.server";
+import { refreshStaleProducts } from "../services/syncProducts.server";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -128,12 +129,25 @@ export const shouldRevalidate: ShouldRevalidateFunction = ({ formData, defaultSh
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const timer = startLoaderTimer("plan-week loader");
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   timer.step("auth");
 
   const shop = await prisma.shop.findUnique({
     where: { shopifyDomain: session.shop },
   });
+
+  // Produtos novos ou com estoque/status mudado sem webhook (ver
+  // refreshStaleProducts) entram na cópia antes da lista de troca e das
+  // coleções serem lidas. Falha aqui nunca derruba a tela — usa a cópia atual.
+  const catalogRefresh = timer.time(
+    "catalogRefresh",
+    shop
+      ? refreshStaleProducts(admin, shop.id).catch((error) => {
+          console.error("refreshStaleProducts failed, using cached catalog:", error);
+          return 0;
+        })
+      : Promise.resolve(0),
+  );
 
   // Tudo abaixo depende só da loja, não uma etapa da outra — roda em
   // paralelo (antes, em sequência, somava ~6,5s no servidor; medido com os
@@ -155,11 +169,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       timer.time(
         "products",
         shop
-          ? prisma.productCache.findMany({
-              where: { shopId: shop.id, status: "active", inventoryQuantity: { gt: 0 } },
-              select: { id: true, title: true },
-              orderBy: { title: "asc" },
-            })
+          ? catalogRefresh.then(() =>
+              prisma.productCache.findMany({
+                where: { shopId: shop.id, status: "active", inventoryQuantity: { gt: 0 } },
+                select: { id: true, title: true },
+                orderBy: { title: "asc" },
+              }),
+            )
           : Promise.resolve([]),
       ),
       timer.time("onboarding", shop ? getOnboardingStatus(shop.id) : Promise.resolve(EMPTY_ONBOARDING_STATUS)),
@@ -187,10 +203,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       timer.time(
         "collections",
         shop
-          ? prisma.productCache.findMany({
-              where: { shopId: shop.id, collections: { not: null } },
-              select: { collections: true },
-            })
+          ? catalogRefresh.then(() =>
+              prisma.productCache.findMany({
+                where: { shopId: shop.id, collections: { not: null } },
+                select: { collections: true },
+              }),
+            )
           : Promise.resolve([]),
       ),
       // Cota mensal de regeneração restante (Fase 3, ver creditUsage.server.ts)

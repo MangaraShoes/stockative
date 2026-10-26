@@ -8,6 +8,7 @@
 - Containers em `network_mode: host`: a rede padrão do Docker não tem IPv6 e o Prisma não alcançava o Neon.
 - Secrets `HETZNER_HOST`/`HETZNER_SSH_KEY` configurados no GitHub em 21/10/2026: todo push no main faz deploy sozinho (antes disso o job pulava em silêncio e mostrava "success").
 - Projeto do Railway (`steadfast-rebirth`, serviços `stockative` e `stockative-public`) apagado em 21/10/2026, depois do trial expirar. Nada se perdeu: as variáveis do `stockative` já estavam no `.env.production`, e o `stockative-public` só tinha `DISABLE_IN_PROCESS_SCHEDULER`.
+- **App usa a conexão direta do Neon desde 26/10/2026** (`DATABASE_URL` = valor da `DIRECT_URL`; a do pooler ficou comentada como `# DATABASE_URL_POOLER=` em `/opt/stockative/.env.production`, cópia em `.env.production.bak-pooler`). Medido com os logs `[timing]`: um `SELECT 1` caiu de ~140 ms (pooler) para ~30 ms, com a rede até o Neon em ~29 ms. O pooler só compensa com muitas instâncias que ligam e desligam; aqui é um servidor só, ligado sempre. Weekly plan: clique até a tela de ~3,5 s para ~2,1 s. Voltar ao pooler: restaurar o `.bak-pooler` e `docker compose ... up -d --force-recreate app`.
 - Pendente: decidir se o banco fica no Neon Launch (~$15–20/mês) ou vira Postgres no próprio servidor.
 
 ## Por quê

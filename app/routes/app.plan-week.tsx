@@ -22,6 +22,7 @@ import {
   parseNextWeekSlotOverrides,
   promotionNeedsPostsNow,
   type WeeklyPlanSlot,
+  type NextWeekPreview,
 } from "../services/decisionEngine/planWeek.server";
 import {
   chooseImageCandidate,
@@ -134,61 +135,69 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where: { shopifyDomain: session.shop },
   });
 
-  const socialAccount = shop
-    ? await prisma.socialAccount.findUnique({
-        where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
-      })
-    : null;
-
-  // Catálogo elegível pra troca de produto — mesmo filtro de
-  // rankProductsForWeek (ativo e com estoque), pra nunca deixar a lojista
-  // trocar um slot pra um produto que nem entraria no plano.
-  const products = shop
-    ? await prisma.productCache.findMany({
-        where: { shopId: shop.id, status: "active", inventoryQuantity: { gt: 0 } },
-        select: { id: true, title: true },
-        orderBy: { title: "asc" },
-      })
-    : [];
-
-  const onboardingStatus = shop ? await getOnboardingStatus(shop.id) : EMPTY_ONBOARDING_STATUS;
-  timer.step("shop+products+onboarding");
-
-  // O banco é a fonte única de verdade do plano (Patricia, 12/09/2026, via
-  // revisão: "make the saved plan the source of truth. Reopening the page
-  // must restore it.") — nunca mais só memória do navegador.
-  const slots = shop ? await getCurrentWeekBatch(shop.id) : [];
-  timer.step(`currentWeek(${slots.length} slots)`);
-
-  // Plano da próxima semana (só definição, sem IA) — aparece no fim da tela
-  // quando a semana atual já existe. Não recalcula enquanto uma geração
-  // está em andamento (o loader é revalidado a cada 4s nesse período).
-  const nextWeek =
-    shop && slots.length > 0 && !shop.weeklyPlanGeneratingAt
-      ? await previewNextWeekPlan(shop.id)
-      : null;
-  timer.step("nextWeekPreview");
-
-  // Conta do TikTok consultada ao vivo sempre que há Reel ainda editável —
-  // as diretrizes do Direct Post exigem mostrar a conta de destino e as
-  // opções atuais dela (ver TikTokPostPanel). Sem Reel pendente, nem chama.
-  const hasEditableReel = slots.some((slot) => slot.format === "reel" && isEditable(slot.status));
-  const tiktokCreator: TikTokCreatorState =
-    shop && hasEditableReel ? await getTikTokCreatorInfoForShop(shop.id) : { status: "not_connected" };
-  timer.step(hasEditableReel ? "tiktokCreatorInfo" : "tiktokSkipped");
-
-  // Coleções reais da loja, pra escopar uma campanha promocional (Patricia,
-  // 13/09/2026: "acho melhor por collection assim ele pode criar uma
-  // collection com os items que deseja promover sem ter que criar uma nova
-  // categoria") — em vez de productType, que travaria numa categoria fixa do
-  // cadastro. Cada linha em ProductCache.collections junta até 5 nomes com
-  // ", " (ver syncProducts.server.ts), então separa e desduplica em JS.
-  const collectionRows = shop
-    ? await prisma.productCache.findMany({
-        where: { shopId: shop.id, collections: { not: null } },
-        select: { collections: true },
-      })
-    : [];
+  // Tudo abaixo depende só da loja, não uma etapa da outra — roda em
+  // paralelo (antes, em sequência, somava ~6,5s no servidor; medido com os
+  // logs [timing] em 26/10/2026). Cada etapa ainda loga o próprio tempo.
+  const slotsPromise = timer.time("currentWeek", shop ? getCurrentWeekBatch(shop.id) : Promise.resolve([]));
+  const [socialAccount, products, onboardingStatus, slots, tiktokCreator, collectionRows, remainingImageCredits] =
+    await Promise.all([
+      timer.time(
+        "instagram",
+        shop
+          ? prisma.socialAccount.findUnique({
+              where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
+            })
+          : Promise.resolve(null),
+      ),
+      // Catálogo elegível pra troca de produto — mesmo filtro de
+      // rankProductsForWeek (ativo e com estoque), pra nunca deixar a lojista
+      // trocar um slot pra um produto que nem entraria no plano.
+      timer.time(
+        "products",
+        shop
+          ? prisma.productCache.findMany({
+              where: { shopId: shop.id, status: "active", inventoryQuantity: { gt: 0 } },
+              select: { id: true, title: true },
+              orderBy: { title: "asc" },
+            })
+          : Promise.resolve([]),
+      ),
+      timer.time("onboarding", shop ? getOnboardingStatus(shop.id) : Promise.resolve(EMPTY_ONBOARDING_STATUS)),
+      // O banco é a fonte única de verdade do plano (Patricia, 12/09/2026, via
+      // revisão: "make the saved plan the source of truth. Reopening the page
+      // must restore it.") — nunca mais só memória do navegador.
+      slotsPromise,
+      // Conta do TikTok consultada ao vivo sempre que há Reel ainda editável —
+      // as diretrizes do Direct Post exigem mostrar a conta de destino e as
+      // opções atuais dela (ver TikTokPostPanel). Sem Reel pendente, nem chama.
+      timer.time(
+        "tiktokCreatorInfo",
+        slotsPromise.then((currentSlots): Promise<TikTokCreatorState> | TikTokCreatorState =>
+          shop && currentSlots.some((slot) => slot.format === "reel" && isEditable(slot.status))
+            ? getTikTokCreatorInfoForShop(shop.id)
+            : { status: "not_connected" },
+        ),
+      ),
+      // Coleções reais da loja, pra escopar uma campanha promocional (Patricia,
+      // 13/09/2026: "acho melhor por collection assim ele pode criar uma
+      // collection com os items que deseja promover sem ter que criar uma nova
+      // categoria") — em vez de productType, que travaria numa categoria fixa do
+      // cadastro. Cada linha em ProductCache.collections junta até 5 nomes com
+      // ", " (ver syncProducts.server.ts), então separa e desduplica em JS.
+      timer.time(
+        "collections",
+        shop
+          ? prisma.productCache.findMany({
+              where: { shopId: shop.id, collections: { not: null } },
+              select: { collections: true },
+            })
+          : Promise.resolve([]),
+      ),
+      // Cota mensal de regeneração restante (Fase 3, ver creditUsage.server.ts)
+      // e sugestões de motivo no idioma do APP (loja ou Settings), não no
+      // idioma dos posts — ambos mostrados perto do botão Regenerate.
+      timer.time("credits", shop ? getRemainingCredits(shop, "image") : Promise.resolve(0)),
+    ]);
   const productCollections = Array.from(
     new Set(
       collectionRows
@@ -198,11 +207,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ),
   ).sort();
 
-  // Cota mensal de regeneração restante (Fase 3, ver creditUsage.server.ts)
-  // e sugestões de motivo no idioma do APP (loja ou Settings), não no
-  // idioma dos posts — ambos mostrados perto do botão Regenerate.
-  const remainingImageCredits = shop ? await getRemainingCredits(shop, "image") : 0;
-  timer.step("collections+credits");
+  // Plano da próxima semana (só definição, sem IA) — aparece no fim da tela
+  // quando a semana atual já existe. Não recalcula enquanto uma geração
+  // está em andamento (o loader é revalidado a cada 4s nesse período).
+  // NÃO esperado aqui: era sozinho ~3s do carregamento, e fica no fim da
+  // página — vai como promessa e chega depois (streaming do React Router),
+  // enquanto o resto da tela já aparece.
+  const nextWeekTimer = startLoaderTimer("plan-week nextWeekPreview (deferred)");
+  const nextWeek: Promise<NextWeekPreview | null> =
+    shop && slots.length > 0 && !shop.weeklyPlanGeneratingAt
+      ? previewNextWeekPlan(shop.id)
+          .catch((error) => {
+            console.error("Failed to build next week preview:", error);
+            return null;
+          })
+          .finally(() => nextWeekTimer.done())
+      : Promise.resolve(null);
   timer.done();
   const appLanguage = getAppLanguage(shop);
   const regenerationReasonSuggestions = REGENERATION_REASON_SUGGESTIONS[appLanguage];
@@ -735,12 +755,29 @@ export default function PlanWeek() {
     requireApproval,
     onboardingStatus,
     slots,
-    nextWeek,
+    nextWeek: nextWeekPromise,
     remainingImageCredits,
     regenerationReasonSuggestions,
     captionRegenerationReasonSuggestions,
     tiktokCreator,
   } = useLoaderData<typeof loader>();
+
+  // A prévia da próxima semana chega depois do resto da tela (o loader não
+  // espera por ela, ver acima). A cada revalidação vem uma promessa nova; a
+  // prévia anterior continua na tela até a nova chegar, sem piscar.
+  const [nextWeek, setNextWeek] = useState<NextWeekPreview | null>(null);
+  const [isNextWeekLoading, setIsNextWeekLoading] = useState(true);
+  useEffect(() => {
+    let isCurrent = true;
+    Promise.resolve(nextWeekPromise).then((preview) => {
+      if (!isCurrent) return;
+      setNextWeek(preview);
+      setIsNextWeekLoading(false);
+    });
+    return () => {
+      isCurrent = false;
+    };
+  }, [nextWeekPromise]);
 
   // Mostrar na ordem em que os posts realmente saem no ar (Patricia,
   // 12/09/2026: "a sequencia de posts deve seguir a sequencia da semana"),
@@ -2092,6 +2129,12 @@ export default function PlanWeek() {
           </s-stack>
         )}
       </s-section>
+
+      {!nextWeek && isNextWeekLoading && slots.length > 0 && (
+        <s-section heading="Next week's plan">
+          <s-paragraph>Loading next week…</s-paragraph>
+        </s-section>
+      )}
 
       {nextWeek && (
         <s-section heading="Next week's plan">

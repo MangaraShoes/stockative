@@ -11,6 +11,14 @@ export function startLoaderTimer(label: string) {
       steps.push(`${name}=${Math.round(now - lastAt)}ms`);
       lastAt = now;
     },
+    // Pra etapas que rodam em paralelo: mede do início até a promessa
+    // terminar, em vez do intervalo desde a etapa anterior.
+    time<T>(name: string, promise: Promise<T>): Promise<T> {
+      const stepStartedAt = performance.now();
+      return promise.finally(() => {
+        steps.push(`${name}=${Math.round(performance.now() - stepStartedAt)}ms`);
+      });
+    },
     done() {
       console.log(`[timing] ${label} total=${Math.round(performance.now() - startedAt)}ms ${steps.join(" ")}`);
     },

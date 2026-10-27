@@ -52,5 +52,14 @@ jobs:
             PROFILES=""
             [ -f .env.public ] && PROFILES="--profile public"
             $COMPOSE $PROFILES up -d --build --remove-orphans
+            # O Caddy não relê o Caddyfile sozinho e o `up` não recria o
+            # container quando só o arquivo muda (27/10/2026: o bloco
+            # apps.stockative.com ficou de fora). Recria quando o hash difere
+            # do último aplicado, guardado fora do git.
+            CADDY_HASH=$(sha256sum deploy/hetzner/Caddyfile | cut -d' ' -f1)
+            if [ "$CADDY_HASH" != "$(cat .caddyfile.applied 2>/dev/null)" ]; then
+              $COMPOSE up -d --force-recreate --no-deps caddy
+              echo "$CADDY_HASH" > .caddyfile.applied
+            fi
             $COMPOSE ps
           EOF

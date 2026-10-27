@@ -6,5 +6,10 @@
 #
 # `ignore` cancels the build when the command exits 0, so a deploy only runs when
 # .artifacts/ actually changed since the last deployed commit.
+#
+# 27/10/2026: a real site change (the Hetzner privacy policy) was canceled. Netlify clones
+# a shallow history, so when the last deployed commit isn't in the clone, the comparison
+# fails and the build was skipped. Now, if the last deployed commit can't be compared,
+# the build goes ahead (exit 1 = build, exit 0 = skip).
 [build]
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- .artifacts/ netlify.toml"
+  ignore = "git cat-file -e \"$CACHED_COMMIT_REF^{commit}\" 2>/dev/null || exit 1; git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- .artifacts/ netlify.toml"

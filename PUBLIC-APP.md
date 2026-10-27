@@ -28,7 +28,7 @@ Por isso foi criado um segundo app, com **Public distribution**. É ele que vai 
 ## Pendências (Patricia)
 
 ### 1. Criar `/opt/stockative/.env.public` no servidor
-✅ Feito em 27/10/2026: `app-public` no ar em https://apps.stockative.com, e as URLs novas enviadas à Shopify (versão `stockative-3`). O client secret foi rotacionado nesse dia, depois de ficar exposto no terminal.
+✅ Feito em 27/10/2026: `app-public` no ar em https://apps.stockative.com, e as URLs novas enviadas à Shopify (versão `stockative-3`). O client secret antigo ficou exposto no terminal nesse dia; o gravado no `.env.public` deve ser um secret novo (rotacionado).
 
 O auto mode bloqueou a cópia de segredos. Copie o `/opt/stockative/.env.production` do servidor para `/opt/stockative/.env.public` e troque estas linhas:
 

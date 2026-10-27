@@ -2,17 +2,19 @@
 # Store e que as lojas piloto instalam. O shopify.app.toml é o app antigo, de
 # Custom distribution, preso à loja da Mangará (cdcfc8-47) — a Shopify não
 # deixa trocar a distribuição depois de escolhida. Mesmo código e mesmo banco,
-# serviço separado no Railway (stockative-public). Ver PUBLIC-APP.md.
+# serviço separado (app-public, porta 3001) no servidor Hetzner, em
+# https://apps.stockative.com. Ver PUBLIC-APP.md.
 #
 # Enviar esta configuração (URLs, escopos, webhooks) pro app:
-#   npx shopify app deploy --config public
+#   npx @shopify/cli@latest app deploy --config public --allow-updates
+# (não `npx shopify`: esse nome resolve para outro pacote do npm)
 # automatically_update_urls_on_dev = false: `shopify app dev` nunca pode
 # trocar as URLs do app público por um túnel local.
 
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "eb3ff74e23e6e1a6e5ed129f29a46812"
-application_url = "https://stockative-public-production.up.railway.app"
+application_url = "https://apps.stockative.com"
 embedded = true
 name = "Stockative"
 
@@ -58,7 +60,7 @@ api_version = "2026-10"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
 [auth]
-redirect_urls = [ "https://stockative-public-production.up.railway.app/auth/callback" ]
+redirect_urls = [ "https://apps.stockative.com/auth/callback" ]
 
 [build]
 automatically_update_urls_on_dev = false

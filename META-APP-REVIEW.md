@@ -272,3 +272,10 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - [ ] Depois da aprovação: remover usuário `review@stockative.com` da organização Shopify e a regra `review` → Mailinator no Purelymail.
 - [x] (antigo) Último bloqueio: "API test calls" do instagram_manage_insights (chamadas feitas 30/09 ~22:26 via refresh da Performance da Mangará, aparecem em até 24h)
 - [ ] Submeter e anotar a data aqui, pra acompanhar o prazo de 2-6 semanas
+
+## Status 27/10/2026
+
+- **1º envio (01/10):** 7 de 8 aprovadas. `pages_read_engagement` recusada (Developer Policy 1.6, "não necessária para a função principal").
+- **Reenvio (27/10):** só `pages_read_engagement`, com texto explicando os 2 usos reais: ler os campos da Página (nome + `instagram_business_account`) e publicar na Página (`/{page-id}/photos|feed|videos`). As 7 aprovadas foram junto como renovação. No Data handling, Railway trocada por **Hetzner Online GmbH** (Finland/Germany), e a Privacy Policy no ar foi atualizada igual.
+- **App ainda Unpublished.** Decisão da Patricia: só publicar depois da aprovação da `pages_read_engagement`, porque sem ela a conexão e o espelho no Facebook de lojistas sem papel no app provavelmente falham.
+- **Access Verification (Tech Provider)** continua "In review" desde 23/09. O prazo para concluir é **26/12/2026**. Não existe chamado direto: o suporte manda para o fórum. Pergunta postada em 27/10: https://developers.facebook.com/community/threads/1060005730391258/. Vários outros devs relatam o mesmo atraso desde fim de setembro.

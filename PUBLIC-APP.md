@@ -48,7 +48,7 @@ No GoDaddy (DNS do stockative.com): registro A `apps` → `37.27.24.159` e AAAA 
 ### 3. Callbacks OAuth das redes no novo domínio
 Os callbacks são montados a partir de `SHOPIFY_APP_URL`, então cada provedor precisa aceitar o domínio novo (mantendo o antigo):
 - **Meta**: App Domains + Valid OAuth Redirect URIs → `<novo>/auth/meta/callback`. ✅ 28/10/2026 (App Domains já tinha `stockative.com`)
-- **TikTok**: Redirect URI → `<novo>/auth/tiktok/callback`; verificar o domínio/prefixo de URL para `PULL_FROM_URL`. ⏸ 28/10/2026: o painel trava a edição do Login Kit enquanto a revisão de Production (enviada 14/10) está em andamento; adicionar depois da aprovação, junto com os passos de TIKTOK-API-REVIEW.md
+- **TikTok**: Redirect URI → `<novo>/auth/tiktok/callback`; verificar o domínio/prefixo de URL para `PULL_FROM_URL`. ⏸ 28/10/2026: Sandbox feito; Production está Live (aprovado 20/10) e só aceita a URL nova via **Create Revision** (nova revisão). Ver TIKTOK-API-REVIEW.md
 - **YouTube (GCP)**: Authorized redirect URIs → `<novo>/auth/youtube/callback`. ✅ 28/10/2026
 - **Pinterest**: Redirect URI → `<novo>/auth/pinterest/callback`. ✅ 28/10/2026
 

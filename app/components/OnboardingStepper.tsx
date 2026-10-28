@@ -66,14 +66,30 @@ export function OnboardingStepper({
       }
     >
       <s-stack direction="inline" gap="small" alignItems="center">
-        {STEPS.map((step, index) => (
-          <s-badge
-            key={step.hrefs[0]}
-            tone={isDone(step) ? "success" : index === currentIndex ? "info" : "neutral"}
-          >
-            {index + 1}. {step.label}
-          </s-badge>
-        ))}
+        {STEPS.map((step, index) => {
+          const badge = (
+            <s-badge tone={isDone(step) ? "success" : index === currentIndex ? "info" : "neutral"}>
+              {index + 1}. {step.label}
+            </s-badge>
+          );
+          // Etapas feitas e a próxima a fazer viram atalho (Patricia,
+          // 28/10/2026: "se eu quero conferir uma etapa prévia não fica claro
+          // onde clicar"). As bloqueadas continuam só etiqueta — app.tsx
+          // mandaria de volta de qualquer jeito.
+          const clickable = (isDone(step) || step === nextIncomplete) && index !== currentIndex;
+          if (!clickable) return <span key={step.hrefs[0]}>{badge}</span>;
+          return (
+            <button
+              key={step.hrefs[0]}
+              type="button"
+              title={`Go to step ${index + 1}`}
+              onClick={goTo(navigate, step.hrefs[0])}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
+            >
+              {badge}
+            </button>
+          );
+        })}
       </s-stack>
 
       {nextIncomplete && onNextIncompleteStep && !isLastStep && (

@@ -2321,9 +2321,9 @@ export default function PlanWeek() {
           <s-paragraph>
             {nextWeek.buildsAfterLastPost ? (
               <>
-                Stockative builds next week right after this week&apos;s last
-                post goes out — around{" "}
-                <strong>{formatScheduledAt(nextWeek.buildsAround, shopTimezone)}</strong>.
+                Stockative builds next week as soon as this week&apos;s last
+                post goes out, scheduled for{" "}
+                <strong>{formatScheduledAt(nextWeek.lastPostAt ?? nextWeek.buildsAround, shopTimezone)}</strong>.
               </>
             ) : (
               <>

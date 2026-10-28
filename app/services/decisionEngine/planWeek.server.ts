@@ -668,6 +668,10 @@ export async function planWeeklyContent(
   // Shop.nextWeekSlotOverrides). Produto que saiu de estoque ou já foi
   // usado neste lote volta pra escolha automática.
   slotOverrides: NextWeekSlotOverride[] = [],
+  // Montagem automática da próxima semana: calcula os dias a partir da mesma
+  // âncora da prévia (ver nextWeekAnchor). Omitido = a partir de agora
+  // (geração manual da semana atual).
+  scheduleFrom?: Date,
 ): Promise<WeeklyPlanSlot[]> {
   // Reivindica a trava de geração antes de mexer em qualquer ContentItem —
   // sem isso, duas chamadas concorrentes pra mesma loja (duplo clique, ou o
@@ -802,6 +806,7 @@ export async function planWeeklyContent(
         slotSchedule.hour,
         slotSchedule.minute,
         timeZone,
+        scheduleFrom,
       );
       if (upcomingPromotions.some((promotion) => isWithinPromotion(scheduledAt, promotion))) {
         usedProductIds.delete(candidate.product.id);
@@ -880,7 +885,9 @@ export function parseNextWeekSlotOverrides(raw: unknown): NextWeekSlotOverride[]
 // antes do fim da semana (e descartar posts ainda não publicados) ou dias
 // depois dele (deixando a loja sem nada agendado). Null = não há semana
 // atual com post nenhum.
-async function getCurrentBatchLastPostAt(shopId: string): Promise<Date | null> {
+async function getCurrentBatchLastPost(
+  shopId: string,
+): Promise<{ scheduledAt: Date; published: boolean } | null> {
   const latestBatch = await prisma.contentItem.findFirst({
     where: { shopId, weekBatchId: { not: null }, promotionId: null },
     orderBy: { createdAt: "desc" },
@@ -895,15 +902,39 @@ async function getCurrentBatchLastPostAt(shopId: string): Promise<Date | null> {
       scheduledAt: { not: null },
     },
     orderBy: { scheduledAt: "desc" },
-    select: { scheduledAt: true },
+    select: { scheduledAt: true, status: true },
   });
-  return lastPost?.scheduledAt ?? null;
+  if (!lastPost?.scheduledAt) return null;
+  // "partial" já está no Instagram — só falta terminar as outras redes.
+  const lastPublished = lastPost.status === "published" || lastPost.status === "partial";
+  // O último post pode ter saído antes da hora ("Publish now") com outro
+  // post da semana ainda por publicar — montar agora cancelaria esse post.
+  const stillPending = lastPublished
+    ? await prisma.contentItem.count({
+        where: {
+          shopId,
+          weekBatchId: latestBatch.weekBatchId,
+          status: { in: ["draft", "approved", "publishing"] },
+        },
+      })
+    : 0;
+  return { scheduledAt: lastPost.scheduledAt, published: lastPublished && stillPending === 0 };
 }
 
 // Depois do horário do último post, espera ele sair de fato (publicação
 // roda a cada 5 min); passada esta folga, monta mesmo assim — um post
 // sem aprovação ou que falhou não pode travar a semana seguinte.
 const LAST_POST_GRACE_MS = 60 * 60 * 1000;
+
+// Instante a partir do qual os dias da próxima semana são calculados — o
+// mesmo na prévia ("Next week's plan") e na montagem. Desde 28/10/2026 a
+// semana é montada assim que o último post sai (Patricia: "na hora que o
+// último post for publicado"), antes da folga acabar; sem a mesma âncora, um
+// slot podia cair no mesmo dia do último post e não bater com o que ela
+// confirmou.
+function nextWeekAnchor(lastPostAt: Date | null): Date {
+  return new Date(Math.max(Date.now(), lastPostAt ? lastPostAt.getTime() + LAST_POST_GRACE_MS : Date.now()));
+}
 
 export function promotionNeedsPostsNow(promotion: Pick<Promotion, "startsAt">): boolean {
   return promotion.startsAt.getTime() <= Date.now() + PROMOTION_LEAD_DAYS * 24 * 60 * 60 * 1000;
@@ -923,9 +954,12 @@ export interface NextWeekPreviewSlot {
 }
 
 export interface NextWeekPreview {
-  buildsAround: string; // ISO — quando o cron monta a próxima semana
-  // true = buildsAround é o horário do último post da semana atual
+  // ISO — âncora dos dias da próxima semana (ver nextWeekAnchor); sem semana
+  // atual, é quando o cron monta
+  buildsAround: string;
+  // true = a próxima semana é montada quando sai o último post da atual
   buildsAfterLastPost: boolean;
+  lastPostAt: string | null; // ISO — horário agendado desse último post
   objectives: CommercialObjective[];
   overrides: NextWeekSlotOverride[];
   confirmedAt: string | null;
@@ -950,14 +984,12 @@ export async function previewNextWeekPlan(
   const objectives = draft?.objectives ?? parseNextWeekObjectives(shop.nextWeekObjectives);
   const overrides = draft?.overrides ?? parseNextWeekSlotOverrides(shop.nextWeekSlotOverrides);
 
-  const lastPostAt = await getCurrentBatchLastPostAt(shopId);
-  // Mesmo instante em que generateDueWeeklyPlans monta (último post + folga)
-  // — partir do horário exato do último post jogava um slot no mesmo dia
-  // dele, ainda na semana atual (achado ao vivo, 07/10/2026: "Thursday"
-  // aparecia antes de "Tuesday").
-  const buildsAround = new Date(
-    Math.max(Date.now(), lastPostAt ? lastPostAt.getTime() + LAST_POST_GRACE_MS : Date.now()),
-  );
+  const lastPostAt = (await getCurrentBatchLastPost(shopId))?.scheduledAt ?? null;
+  // Mesma âncora que generateDueWeeklyPlans usa pra montar — partir do
+  // horário exato do último post jogava um slot no mesmo dia dele, ainda na
+  // semana atual (achado ao vivo, 07/10/2026: "Thursday" aparecia antes de
+  // "Tuesday").
+  const buildsAround = nextWeekAnchor(lastPostAt);
 
   const promotions = await prisma.promotion.findMany({
     where: { shopId, endsAt: { gt: new Date() } },
@@ -1060,6 +1092,7 @@ export async function previewNextWeekPlan(
   return {
     buildsAround: buildsAround.toISOString(),
     buildsAfterLastPost: lastPostAt !== null,
+    lastPostAt: lastPostAt ? lastPostAt.toISOString() : null,
     objectives,
     overrides,
     confirmedAt: shop.nextWeekPlanConfirmedAt ? shop.nextWeekPlanConfirmedAt.toISOString() : null,
@@ -1111,7 +1144,7 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
   // loja também entra na fila assim que o lote atual não tem mais post
   // pendente (draft/approved) nenhum, mesmo que os 7 dias não tenham
   // passado — nunca deixa a tela do Weekly Plan vazia à toa.
-  const dueShops: { id: string }[] = [];
+  const dueShops: { id: string; scheduleFrom: Date }[] = [];
   for (const shop of candidateShops) {
     // Cobrança ligada: nunca gera (custo real de IA) pra loja sem assinatura
     // ativa nem teste grátis — ex.: o teste acabou e ela não escolheu plano.
@@ -1126,24 +1159,26 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
         continue;
       }
     }
-    // Semana atual com post: monta a próxima logo depois do último post
-    // dela (ver getCurrentBatchLastPostAt). Sem semana atual, vale o
-    // timer de sempre.
-    const lastPostAt = await getCurrentBatchLastPostAt(shop.id);
-    if (lastPostAt) {
-      if (Date.now() >= lastPostAt.getTime() + LAST_POST_GRACE_MS) {
-        dueShops.push(shop);
+    // Semana atual com post: monta a próxima assim que o último post dela
+    // é publicado (Patricia, 28/10/2026 — o agendador chama esta função logo
+    // depois de publicar, ver scheduler.server.ts), ou passada a folga se ele
+    // não saiu (sem aprovação, falhou). Sem semana atual, vale o timer de sempre.
+    const lastPost = await getCurrentBatchLastPost(shop.id);
+    const scheduleFrom = nextWeekAnchor(lastPost?.scheduledAt ?? null);
+    if (lastPost) {
+      if (lastPost.published || Date.now() >= lastPost.scheduledAt.getTime() + LAST_POST_GRACE_MS) {
+        dueShops.push({ id: shop.id, scheduleFrom });
         continue;
       }
     } else if (!shop.lastWeeklyPlanGeneratedAt || shop.lastWeeklyPlanGeneratedAt <= cutoff) {
-      dueShops.push(shop);
+      dueShops.push({ id: shop.id, scheduleFrom });
       continue;
     }
     const pendingCount = await prisma.contentItem.count({
       where: { shopId: shop.id, weekBatchId: { not: null }, status: { in: ["draft", "approved"] } },
     });
     if (pendingCount === 0) {
-      dueShops.push(shop);
+      dueShops.push({ id: shop.id, scheduleFrom });
     }
   }
 
@@ -1197,6 +1232,7 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
         shop.id,
         nextWeekObjectives.length > 0 ? nextWeekObjectives : undefined,
         parseNextWeekSlotOverrides(shopRow.nextWeekSlotOverrides),
+        shop.scheduleFrom,
       );
       // Objetivos ficam como pré-preenchimento; dia/produto por slot valiam
       // só para esta semana.

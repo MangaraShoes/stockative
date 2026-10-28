@@ -38,6 +38,12 @@ const jobs: Job[] = [
       if (outcomes.length > 0) {
         console.log(`[scheduler] publish-scheduled: ${outcomes.length} due`, JSON.stringify(outcomes));
       }
+      // Se era o último post da semana, a próxima é montada agora, não na
+      // próxima rodada de 15 min (Patricia, 28/10/2026: "na hora que o
+      // último post for publicado"). generateDueWeeklyPlans decide se é.
+      if (outcomes.some((outcome) => outcome.result.status === "success")) {
+        runNow("generate-weekly-plans");
+      }
     },
   },
   {
@@ -56,13 +62,25 @@ const jobs: Job[] = [
 // (inFlightWork.server.ts), pra o desligamento esperar as duas coisas.
 const timers: ReturnType<typeof setTimeout>[] = [];
 let stopping = false;
+const ticks = new Map<string, (requested?: boolean) => Promise<void>>();
+
+// Roda um job fora do intervalo dele, sem esperar.
+function runNow(name: string) {
+  void ticks.get(name)?.(true);
+}
 
 // Nunca empilha duas rodadas do mesmo job: gerar um plano chama a IA e pode
 // passar do intervalo — a próxima rodada só começa depois que esta acabar.
+// Um pedido de runNow no meio de uma rodada não se perde: roda logo depois.
 function schedule(job: Job) {
   let running = false;
-  const tick = async () => {
-    if (running || stopping) return;
+  let rerun = false;
+  const tick = async (requested = false) => {
+    if (stopping) return;
+    if (running) {
+      if (requested) rerun = true;
+      return;
+    }
     running = true;
     const run = (async () => {
       try {
@@ -74,7 +92,12 @@ function schedule(job: Job) {
       }
     })();
     await trackInFlight(run);
+    if (rerun) {
+      rerun = false;
+      void tick();
+    }
   };
+  ticks.set(job.name, tick);
   timers.push(
     setTimeout(() => {
       void tick();

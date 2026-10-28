@@ -26,7 +26,7 @@ interface ShopifyProductNode {
       };
     }[];
   };
-  images: { edges: { node: { id: string; url: string } }[] };
+  images: { pageInfo: { hasNextPage: boolean }; edges: { node: { id: string; url: string } }[] };
 }
 
 const PRODUCT_FIELDS = `#graphql
@@ -43,6 +43,9 @@ const PRODUCT_FIELDS = `#graphql
     url
   }
   images(first: 10) {
+    pageInfo {
+      hasNextPage
+    }
     edges {
       node {
         id
@@ -306,6 +309,43 @@ export async function upsertProduct(shopId: string, node: ShopifyProductNode): P
       },
     });
   }
+
+  // Foto apagada na Shopify sai daqui também (Patricia, 28/10/2026) — antes
+  // ficava pra sempre, com a URL dando 404, e podia entrar como still no
+  // carrossel de um post novo (achado na Jules: 5 de 11 fotos já não
+  // existiam). Só quando a galeria veio inteira: com mais de 10 fotos, as
+  // que ficaram de fora desta consulta não foram apagadas.
+  if (!node.images.pageInfo.hasNextPage) {
+    await removeDeletedProductImages(
+      product.id,
+      node.images.edges.map((edge) => edge.node.id),
+    );
+  }
+}
+
+// Post que ainda não saiu perde a foto apagada (publicaria uma imagem
+// quebrada); post já publicado só perde o vínculo — o arquivo não existe
+// mais mesmo, e o histórico do post continua.
+const UNPUBLISHED_STATUSES = ["draft", "approved", "failed", "cancelled"];
+
+async function removeDeletedProductImages(productId: string, currentShopifyImageIds: string[]): Promise<void> {
+  const deleted = await prisma.productImage.findMany({
+    where: { productId, shopifyImageId: { notIn: currentShopifyImageIds } },
+    select: { id: true },
+  });
+  if (deleted.length === 0) return;
+  const deletedIds = deleted.map((image) => image.id);
+
+  await prisma.$transaction([
+    prisma.contentItemImage.deleteMany({
+      where: { productImageId: { in: deletedIds }, contentItem: { status: { in: UNPUBLISHED_STATUSES } } },
+    }),
+    prisma.contentItemImage.updateMany({
+      where: { productImageId: { in: deletedIds } },
+      data: { productImageId: null },
+    }),
+    prisma.productImage.deleteMany({ where: { id: { in: deletedIds } } }),
+  ]);
 }
 
 // Busca todos os produtos da loja via Admin GraphQL (paginado) e grava/atualiza

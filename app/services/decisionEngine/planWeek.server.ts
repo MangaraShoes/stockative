@@ -1297,11 +1297,15 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
       cta: item.cta,
       hashtags: parseStoredHashtags(item.hashtags),
     }).slice(0, TIKTOK_TITLE_MAX_LENGTH),
-    images: item.images.map((row) => ({
-      position: row.position,
-      url: row.creativeAsset?.imageUrl ?? row.productImage?.url ?? "",
-      source: row.creativeAssetId ? ("ai_generated" as const) : ("shopify_existing" as const),
-    })),
+    // Sem origem nenhuma = foto apagada da Shopify num post já publicado
+    // (ver removeDeletedProductImages) — não mostra uma imagem quebrada.
+    images: item.images
+      .filter((row) => row.creativeAsset || row.productImage)
+      .map((row) => ({
+        position: row.position,
+        url: row.creativeAsset?.imageUrl ?? row.productImage?.url ?? "",
+        source: row.creativeAssetId ? ("ai_generated" as const) : ("shopify_existing" as const),
+      })),
   }));
 }
 

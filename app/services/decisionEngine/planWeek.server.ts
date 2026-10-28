@@ -763,7 +763,12 @@ export async function planWeeklyContent(
     );
     const pickedProductIds = new Set<string>();
     const slots: WeeklyPlanSlot[] = [];
+    // Reel que ainda não saiu nesta semana — se o slot reservado como Reel
+    // cair dentro de uma campanha e for pulado, o Reel passa pro próximo
+    // slot em vez de sumir da semana (Patricia, 28/10/2026).
+    let reelsOwed = 0;
     for (let index = 0; index < weeklySlotPlan.postsPerWeek; index++) {
+      if (weeklySlotPlan.reelSlotIndices.includes(index)) reelsOwed++;
       const objectiveForSlot = forcedObjectives?.length
         ? forcedObjectives[index % forcedObjectives.length]
         : undefined;
@@ -811,8 +816,9 @@ export async function planWeeklyContent(
         weekBatchId,
         objectiveForSlot,
         undefined,
-        weeklySlotPlan.reelSlotIndices.includes(index),
+        reelsOwed > 0,
       );
+      if (reelsOwed > 0) reelsOwed--;
       slots.push(slot);
     }
 
@@ -1920,6 +1926,11 @@ export async function planPromotionalWeek(
     .sort((a, b) => b.tiedUpCapital - a.tiedUpCapital);
 
   const pillarsForSlots = await allocatePillarsForWeek(shopId, POSTS_PER_WEEK);
+  // Semana de campanha também tem Reel (Patricia, 28/10/2026: "no momento
+  // só temos posts e preciso de um reel") — antes nenhum slot daqui pedia
+  // Reel, então a semana inteira de campanha saía só com imagem.
+  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: shopId }, select: { plan: true } });
+  const { reelSlotIndices } = getWeeklySlotPlan(shop);
 
   // Espalha os posts dentro da própria janela da promoção, não no
   // cronograma semanal genérico — 3 posts em partes iguais entre início e
@@ -1939,6 +1950,7 @@ export async function planPromotionalWeek(
       weekBatchId,
       "conversion",
       promotion,
+      reelSlotIndices.includes(index),
     );
     slots.push(slot);
   }

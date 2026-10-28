@@ -1,4 +1,4 @@
-import { ensurePlannedReel } from "../services/video/generateReelForContentItem.server";
+import { ensurePlannedReel, generateReelForContentItem } from "../services/video/generateReelForContentItem.server";
 import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs, ShouldRevalidateFunction } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
@@ -402,6 +402,67 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       result = { status: "error" as const, reason: "Something went wrong saving your choice. Please try again." };
     }
     return { intent: "image-choice" as const, contentItemId, result };
+  }
+
+  // Transforma um post da semana em Reel (Patricia, 28/10/2026: "no
+  // momento só temos posts e preciso de um reel") — monta o vídeo com as
+  // imagens que o post já tem. É um Reel a mais que o plano, então gasta 1
+  // crédito de vídeo; sem crédito, pede o aceite da cobrança avulsa, igual
+  // ao Regenerate image.
+  if (intent === "make-reel") {
+    const contentItemId = String(formData.get("contentItemId"));
+    try {
+      const item = await prisma.contentItem.findFirst({
+        where: { id: contentItemId, shopId: shop.id },
+        select: { status: true, format: true, _count: { select: { images: true } } },
+      });
+      if (!item || !isEditable(item.status)) {
+        return {
+          intent: "make-reel" as const,
+          contentItemId,
+          result: { status: "error" as const, reason: "This post can't be changed anymore." },
+        };
+      }
+      if (item.format === "reel") {
+        return { intent: "make-reel" as const, contentItemId, result: { status: "success" as const } };
+      }
+      if (item._count.images === 0) {
+        return {
+          intent: "make-reel" as const,
+          contentItemId,
+          result: { status: "error" as const, reason: "Choose an image for this post first — the Reel is built from it." },
+        };
+      }
+      if ((await getRemainingCredits(shop, "video")) <= 0) {
+        if (formData.get("acceptExtraCharge") !== "1") {
+          return { intent: "make-reel" as const, contentItemId, result: { status: "needs-charge" as const } };
+        }
+        try {
+          await purchaseExtraCredits(shop, "video", 1);
+        } catch (error) {
+          console.error("Failed to charge extra video credit:", error);
+          return {
+            intent: "make-reel" as const,
+            contentItemId,
+            result: {
+              status: "error" as const,
+              reason: "We couldn't add the extra reel charge to your Shopify bill, so nothing was charged or generated. Please try again in a moment.",
+            },
+          };
+        }
+      }
+      await prisma.contentItem.update({ where: { id: contentItemId }, data: { plannedAsReel: true } });
+      await generateReelForContentItem(contentItemId, shop.id);
+      await resetApprovalAfterEdit(shop.id, contentItemId);
+      return { intent: "make-reel" as const, contentItemId, result: { status: "success" as const } };
+    } catch (error) {
+      console.error("Failed to turn post into a Reel:", error);
+      return {
+        intent: "make-reel" as const,
+        contentItemId,
+        result: { status: "error" as const, reason: "Something went wrong building the Reel. Please try again." },
+      };
+    }
   }
 
   if (intent === "regenerate-caption") {
@@ -847,6 +908,7 @@ export default function PlanWeek() {
   const tiktokFetcher = useFetcher<typeof action>();
   const publishFetcher = useFetcher<typeof action>();
   const captionFetcher = useFetcher<typeof action>();
+  const reelFetcher = useFetcher<typeof action>();
   const savingTikTokContentItemId =
     tiktokFetcher.state !== "idle" ? String(tiktokFetcher.formData?.get("contentItemId") ?? "") : null;
   const tiktokFailure =
@@ -1207,6 +1269,18 @@ export default function PlanWeek() {
     }
     markPendingAction("publish this post");
     publishFetcher.submit({ intent: "publish-now", contentItemId }, { method: "POST" });
+  };
+
+  const makingReelContentItemId = submittingContentItemId(reelFetcher);
+  const reelOutcome =
+    reelFetcher.state === "idle" && reelFetcher.data?.intent === "make-reel" ? reelFetcher.data : null;
+
+  const makeReel = (contentItemId: string, acceptExtraCharge = false) => {
+    markPendingAction("turn this post into a Reel");
+    reelFetcher.submit(
+      { intent: "make-reel", contentItemId, ...(acceptExtraCharge ? { acceptExtraCharge: "1" } : {}) },
+      { method: "POST" },
+    );
   };
 
   const setApproval = (contentItemId: string, approved: boolean) => {
@@ -2151,6 +2225,40 @@ export default function PlanWeek() {
                           </s-button>
                           {publishBlockedReason && <s-text color="subdued">{publishBlockedReason}</s-text>}
                         </s-stack>
+                        {slot.format !== "reel" && slot.images.length > 0 && (
+                          <s-stack direction="inline" gap="small" alignItems="center">
+                            {reelOutcome?.contentItemId === slot.contentItemId &&
+                            reelOutcome.result.status === "needs-charge" ? (
+                              <>
+                                <s-button
+                                  variant="primary"
+                                  onClick={() => makeReel(slot.contentItemId, true)}
+                                  {...(makingReelContentItemId === slot.contentItemId ? { loading: true } : {})}
+                                >
+                                  Accept {formatEuroCents(EXTRA_CREDIT_PRICING.pricePerVideoCents)} charge and make Reel
+                                </s-button>
+                                <s-text color="subdued">No reel credits left this month.</s-text>
+                              </>
+                            ) : (
+                              <s-button
+                                variant="secondary"
+                                onClick={() => makeReel(slot.contentItemId)}
+                                {...(makingReelContentItemId === slot.contentItemId ? { loading: true } : {})}
+                                {...(makingReelContentItemId ? { disabled: true } : {})}
+                              >
+                                🎬 Make this a Reel
+                              </s-button>
+                            )}
+                          </s-stack>
+                        )}
+                        {makingReelContentItemId === slot.contentItemId && (
+                          <GeneratingProgressBar label="Building the Reel from this post's images…" />
+                        )}
+                        {reelOutcome?.contentItemId === slot.contentItemId && reelOutcome.result.status === "error" && (
+                          <s-paragraph>
+                            <strong>Couldn&apos;t make the Reel: {reelOutcome.result.reason}</strong>
+                          </s-paragraph>
+                        )}
                         {isPublishing && <GeneratingProgressBar label="Publishing to your connected accounts…" />}
                       </>
                     )}

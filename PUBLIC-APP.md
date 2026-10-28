@@ -56,10 +56,11 @@ Os callbacks são montados a partir de `SHOPIFY_APP_URL`, então cada provedor p
 Partner Dashboard → Stockative (novo) → API access requests → Protected customer data → **Data protection details**. São declarações sobre como os dados são protegidos (criptografia, retenção etc.) e precisam ser respondidas por você.
 
 ### 5. Testar numa loja de desenvolvimento
-🔄 28/10/2026, em andamento na dev store `stockative-public-test.myshopify.com` (plano Basic, dados de teste da Shopify; a `stockative-dev` fica para a revisão da Meta):
+✅ 28/10/2026, concluído na dev store `stockative-public-test.myshopify.com` (plano Basic, dados de teste da Shopify; a `stockative-dev` fica para a revisão da Meta):
 - ✅ Instalação pelo `apps.stockative.com` (OAuth da Shopify com as credenciais novas)
 - ✅ Sincronização: 17 produtos
 - ✅ Instagram/Facebook, YouTube e Pinterest conectaram pelos callbacks novos (contas da Mangará, desconectadas logo depois; o Disconnect só apaga o token no nosso banco, não revoga no provedor). YouTube mostra a tela "Google hasn't verified this app", ver YOUTUBE-API-VERIFICATION.md
+- ✅ Onboarding completo com o Instagram obrigatório: concorrentes, Store voice (rascunho automático com o Opus 5.5) e plano da semana gerados sem erro
 - ⏸ TikTok: aguarda a revisão com o callback novo (enviada 28/10/2026)
 - ⚠️ **Bloqueador para a submissão**: desde 28/10/2026 o passo 2 do onboarding exige o **Instagram** (decisão de Patricia: o IG é core, toda publicação começa por ele e as outras redes são espelhos). O revisor da Shopify só passa daí com um Instagram Business, e a Meta ainda não está Live (Access Verification pendente: só quem tem papel no app da Meta conecta). Decidir antes de submeter: dar ao revisor um papel no app da Meta / uma conta de teste, ou esperar a Meta ficar Live.
 

@@ -155,7 +155,7 @@ Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Set
 - [ ] Serviço `stockative-public` no ar, com as variáveis (PUBLIC-APP.md, item 1)
 - [ ] Callbacks das redes no domínio do app público (PUBLIC-APP.md, item 3)
 - [ ] Protected customer data, Step 2 respondido (PUBLIC-APP.md, item 4)
-- [ ] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `stockative-public`
+- [x] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `app-public` (28/10/2026, testado na dev store; falta clicar "Enable Shopify App Pricing" e configurar o App Events)
 - [ ] Política de privacidade com URL pública (a mesma usada na Meta serve, se cobrir dados da Shopify)
 - [x] Conta de teste do revisor criada, com papel de Tester no app da Meta
 - [ ] Fluxo testado numa dev store com a conta de teste, 2FA desligado, credenciais coladas nas instruções do Partner Dashboard

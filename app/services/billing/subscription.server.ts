@@ -55,9 +55,13 @@ const cache = new Map<string, { value: ActiveSubscription; expiresAt: number }>(
 // aprovar um plano é conferido na hora, e um cancelamento aparece quando o
 // cache expira. Lança em erro/limite de taxa, pra nunca tratar uma falha
 // como "sem assinatura" e bloquear quem está pagando.
-export async function fetchActiveSubscription(shopGid: string): Promise<ActiveSubscription | null> {
-  const cached = cache.get(shopGid);
+export async function fetchActiveSubscription(
+  shopGid: string,
+  options: { skipCache?: boolean } = {},
+): Promise<ActiveSubscription | null> {
+  const cached = options.skipCache ? undefined : cache.get(shopGid);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
+  cache.delete(shopGid);
 
   const orgId = process.env.SHOPIFY_PARTNER_ORG_ID;
   const token = process.env.SHOPIFY_PARTNER_API_ACCESS_TOKEN;

@@ -59,6 +59,13 @@ model Shop {
   // App Events API da cobrança (billing/*.server.ts). Preenchido no loader
   // raiz de /app (06/10/2026).
   shopGid       String?
+  // Cobrança (28/10/2026): o cron do plano semanal roda no serviço do app
+  // antigo, que não tem BILLING_ENABLED nem as credenciais da Partner API.
+  // O serviço público grava aqui se a loja precisa assinar (billingRequired,
+  // só lojas do app público) e se ela tem assinatura ativa — no loader de
+  // /app e no webhook app_subscriptions/update. O cron só lê estes campos.
+  billingRequired    Boolean @default(false)
+  subscriptionActive Boolean @default(false)
   installedAt   DateTime  @default(now())
   uninstalledAt DateTime?
 

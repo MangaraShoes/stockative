@@ -38,6 +38,11 @@ api_version = "2026-10"
   uri = "/webhooks/app/scopes_update"
   topics = [ "app/scopes_update" ]
 
+  # Só no app público (cobrança): mantém Shop.subscriptionActive em dia.
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/subscriptions_update"
+  topics = [ "app_subscriptions/update" ]
+
   [[webhooks.subscriptions]]
   uri = "/webhooks/products/create"
   topics = [ "products/create" ]

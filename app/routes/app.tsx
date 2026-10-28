@@ -62,6 +62,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let billing: { trialEndsAt: string | null } | null = null;
   if (isBillingEnabled() && shopGid) {
     const subscription = await fetchActiveSubscription(shopGid);
+    // Grava pro cron do serviço antigo (ver billingRequired no schema).
+    const active = Boolean(subscription);
+    if (!shop.billingRequired || shop.subscriptionActive !== active) {
+      await prisma.shop.update({
+        where: { id: shop.id },
+        data: { billingRequired: true, subscriptionActive: active },
+      });
+    }
     if (!subscription) {
       throw adminRedirect(planSelectionUrl(session.shop), { target: "_top" });
     }

@@ -1139,6 +1139,11 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
       // Pausa em Settings para também a geração (sem custo de IA).
       publishingPausedAt: null,
       socialAccounts: { some: { platform: "instagram", igBusinessAccountId: { not: null } } },
+      // Loja do app público sem assinatura (nunca escolheu plano, cancelou):
+      // nunca gera, custo real de IA (28/10/2026). Vale mesmo neste serviço,
+      // que roda o cron e não tem BILLING_ENABLED — ver billingRequired no
+      // schema. Lojas do app antigo (Mangará) têm billingRequired false.
+      NOT: { billingRequired: true, subscriptionActive: false },
     },
     select: { id: true, lastWeeklyPlanGeneratedAt: true, shopGid: true },
   });

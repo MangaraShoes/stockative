@@ -11,15 +11,17 @@ export type ExtraUsageMeter = "extra_image" | "extra_video";
 
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
-// Token via client credentials das chaves de API criadas no Dev Dashboard
-// (APP_EVENTS_CLIENT_ID/SECRET). Vale 60 min — renova com 5 min de folga.
+// Token via client credentials. Desde 28/10/2026 o Dev Dashboard não tem
+// mais a página "API keys"; a doc do App Events aceita o client ID/secret do
+// próprio app, então usa SHOPIFY_API_KEY/SECRET quando APP_EVENTS_* não
+// existem. Vale 60 min — renova com 5 min de folga.
 async function getAccessToken(): Promise<string> {
   if (tokenCache && tokenCache.expiresAt > Date.now()) return tokenCache.token;
 
-  const clientId = process.env.APP_EVENTS_CLIENT_ID;
-  const clientSecret = process.env.APP_EVENTS_CLIENT_SECRET;
+  const clientId = process.env.APP_EVENTS_CLIENT_ID || process.env.SHOPIFY_API_KEY;
+  const clientSecret = process.env.APP_EVENTS_CLIENT_SECRET || process.env.SHOPIFY_API_SECRET;
   if (!clientId || !clientSecret) {
-    throw new Error("APP_EVENTS_CLIENT_ID / APP_EVENTS_CLIENT_SECRET are missing.");
+    throw new Error("App Events credentials are missing (APP_EVENTS_CLIENT_ID/SECRET or SHOPIFY_API_KEY/SECRET).");
   }
 
   const response = await fetch("https://api.shopify.com/auth/access_token", {

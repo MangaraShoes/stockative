@@ -178,7 +178,16 @@ export default function Social() {
     <s-page heading="Social accounts">
       <OnboardingStepper status={data.onboardingStatus} currentStepHref="/app/social" />
 
-      <s-section heading="Instagram &amp; Facebook">
+      <s-section heading="Instagram &amp; Facebook (required)">
+        {/* Instagram obrigatório (Patricia, 28/10/2026): toda publicação
+            começa por ele, e as outras redes são espelhos — ver
+            onboardingStatus.server.ts. */}
+        <s-paragraph>
+          Stockative publishes every post to Instagram first, and mirrors it
+          to your Facebook Page. Connect it to continue — Pinterest, TikTok
+          and YouTube below are optional extras.
+        </s-paragraph>
+
         {!data.isMetaConfigured && (
           <s-paragraph>
             <strong>
@@ -243,7 +252,7 @@ export default function Social() {
         )}
       </s-section>
 
-      <s-section heading="Pinterest">
+      <s-section heading="Pinterest (optional)">
         <s-paragraph>
           Connect your Pinterest business account to publish product Pins
           automatically, organized into one board per product category.
@@ -293,7 +302,7 @@ export default function Social() {
         )}
       </s-section>
 
-      <s-section heading="TikTok">
+      <s-section heading="TikTok (optional)">
         <s-paragraph>
           Connect your TikTok account so Reels post there automatically too.
           For each Reel in your weekly plan, choose once who can see it on
@@ -357,7 +366,7 @@ export default function Social() {
         )}
       </s-section>
 
-      <s-section heading="YouTube">
+      <s-section heading="YouTube (optional)">
         <s-paragraph>
           Connect your YouTube channel so Reels also go out as Shorts.
           Shorts publish immediately and publicly, at the Reel&apos;s

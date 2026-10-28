@@ -31,7 +31,7 @@ export async function getOnboardingStatus(shopId: string): Promise<OnboardingSta
     productsCount,
     signalsCount,
     pillarsCount,
-    socialCount,
+    instagramCount,
     competitorCount,
     publishedCount,
     shop,
@@ -39,7 +39,14 @@ export async function getOnboardingStatus(shopId: string): Promise<OnboardingSta
     prisma.productCache.count({ where: { shopId } }),
     prisma.commerceSignal.count({ where: { product: { shopId } } }),
     prisma.contentPillar.count({ where: { shopId } }),
-    prisma.socialAccount.count({ where: usableSocialAccountsWhere(shopId) }),
+    // Passo 2 exige o Instagram (Patricia, 28/10/2026: "o IG é core do app...
+    // deixar o IG como conexão obrigatória desde o início"). Antes bastava
+    // qualquer rede, e a lojista sem Instagram passava daqui e travava no
+    // Weekly plan, porque a publicação começa sempre pelo Instagram (as
+    // outras redes são espelhos dele, ver publishContentItem.server.ts).
+    prisma.socialAccount.count({
+      where: { shopId, platform: "instagram", igBusinessAccountId: { not: null } },
+    }),
     prisma.competitorAccount.count({ where: { shopId } }),
     prisma.contentItem.count({ where: { shopId, status: "published" } }),
     prisma.shop.findUniqueOrThrow({ where: { id: shopId } }),
@@ -48,7 +55,7 @@ export async function getOnboardingStatus(shopId: string): Promise<OnboardingSta
   return {
     hasStock: productsCount > 0 && signalsCount > 0,
     hasBrand: Boolean(shop.brandDescription?.trim()),
-    hasSocial: socialCount > 0,
+    hasSocial: instagramCount > 0,
     // Passo próprio (Patricia, 12/09/2026: "teria que ser o step 3") — a
     // cliente PRECISA passar por essa decisão antes da store voice, mas pode
     // optar por não informar concorrentes; competitorsSkipped registra essa

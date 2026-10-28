@@ -189,7 +189,7 @@ model Shop {
   notifyPublished         Boolean @default(false)
   // Lembrete de redes não conectadas (Patricia, 28/10/2026): banner na Home
   // e e-mail. ignoredSocialPlatforms guarda as redes que a lojista disse que
-  // não usa ("meta" | "pinterest" | "tiktok" | "youtube") — somem dos avisos
+  // não usa ("pinterest" | "tiktok" | "youtube") — somem dos avisos
   // até ela reativar em Settings. socialReminderSentAt limita o e-mail a um
   // a cada 30 dias, ver socialReminders.server.ts.
   ignoredSocialPlatforms  String[]  @default([])

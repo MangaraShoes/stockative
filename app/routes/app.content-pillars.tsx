@@ -75,9 +75,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
   // Instagram conectado é obrigatório antes de gerar o plano semanal —
-  // mesma regra de app.plan-week.tsx. hasSocial (que já travou o onboarding
-  // até aqui) só exige QUALQUER conta social, não Instagram
-  // especificamente, então essa checagem continua necessária.
+  // mesma regra de app.plan-week.tsx. O passo 2 do onboarding já exige o
+  // Instagram (28/10/2026); isto barra quem desconectou depois.
   const socialAccount = await prisma.socialAccount.findUnique({
     where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
   });

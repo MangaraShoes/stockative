@@ -106,7 +106,7 @@ export default function Index() {
       done: data.hasSocial,
       title: "Connect your social accounts",
       description:
-        "Connect Instagram, Facebook and Pinterest so Stockative can publish straight to your channels.",
+        "Connect your Instagram (required) so Stockative can publish straight to it, plus Facebook, Pinterest, TikTok and YouTube if you use them.",
       href: "/app/social",
       cta: "Connect accounts",
     },

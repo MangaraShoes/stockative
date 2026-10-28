@@ -71,10 +71,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-// O rascunho de Brand Voice sai da própria Shopify (descrição da loja, About
-// Us, produtos e fotos) — o Instagram, quando conectado, só entra como fonte
-// extra (Patricia, 28/10/2026: a lojista que conecta só Pinterest ou YouTube
-// caía num formulário em branco). Antes era obrigatório (10/09/2026).
+// Instagram conectado é obrigatório antes de gerar o rascunho de Brand Voice
+// (Patricia, 10/09/2026, reafirmado em 28/10/2026: "o IG é core do app...
+// até a leitura do brand voice vai ficar mais rica"). O passo 2 do
+// onboarding já exige o Instagram, então isso só barra quem desconectou
+// depois.
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -86,6 +87,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!shop) throw new Response("Shop not found", { status: 404 });
 
   if (intent === "draft") {
+    const socialAccount = await prisma.socialAccount.findUnique({
+      where: { shopId_platform: { shopId: shop.id, platform: "instagram" } },
+    });
+    if (!socialAccount?.igBusinessAccountId) {
+      throw new Response("Connect Instagram first — see Social accounts.", { status: 400 });
+    }
+
     // Cota mensal (achado ao vivo, 26/09/2026: rodava ilimitado — ver
     // creditUsage.server.ts). Checa ANTES de montar produtos/fontes, pra
     // nunca gastar trabalho preparando uma chamada que vai ser recusada.
@@ -267,7 +275,7 @@ export default function StoreVoice() {
   const isSaving = saveFetcher.state !== "idle";
   const hasDraft = draftFetcher.data?.intent === "draft" && Boolean(draftFetcher.data.draft);
   const draftError = draftFetcher.data?.intent === "draft" ? draftFetcher.data.error : null;
-  const canDraft = data.productCount > 0;
+  const canDraft = data.productCount > 0 && data.isInstagramConnected;
   const hasSavedBefore = Boolean(
     data.brandDescription || data.brandTone || data.brandAvoid,
   );
@@ -437,8 +445,11 @@ export default function StoreVoice() {
         <s-stack direction="block" gap="base">
           {data.productCount > 0 && !data.isInstagramConnected && (
             <s-paragraph>
-              Tip: connect Instagram (Social accounts) for a more accurate
-              draft — we&apos;ll also read your bio and recent posts.
+              <strong>
+                Connect Instagram first (Social accounts) — the draft is
+                built from your real Instagram bio and post history together
+                with your Shopify data, not just your product catalog.
+              </strong>
             </s-paragraph>
           )}
 
@@ -452,10 +463,10 @@ export default function StoreVoice() {
           {isDrafting && !hasDraft && !hasSavedBefore && (
             <>
               <s-paragraph>
-                Writing your first draft from your store, products and About
-                Us page{data.isInstagramConnected ? ", plus your Instagram" : ""}…
+                Writing your first draft from your store, Instagram and About
+                Us page…
               </s-paragraph>
-              <GeneratingProgressBar label="Reading your store, products and About Us page…" />
+              <GeneratingProgressBar label="Reading your store, Instagram and About Us page…" />
             </>
           )}
           {draftError && (
@@ -553,8 +564,9 @@ export default function StoreVoice() {
           <div>
             <s-paragraph>What kind of product photo do you have in mind?</s-paragraph>
             <s-paragraph>
-              Some brands show the product on a model in a real setting; others want just the product on a surface, held
-              in someone&apos;s hand, or on a plain studio background. Telling
+              Some brands show the product on a model in a real setting;
+              others want just the product on a surface, held in
+              someone&apos;s hand, or on a plain studio background. Telling
               us upfront means we start with the right look for your brand,
               instead of you regenerating images until it matches what you
               had in mind.

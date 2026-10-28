@@ -1,6 +1,6 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useEffect } from "react";
-import { Outlet, redirect, useLoaderData, useNavigation, useRouteError } from "react-router";
+import { Outlet, useLoaderData, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
@@ -81,7 +81,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       (step) => step.paths,
     );
     if (!allowedPaths.includes(pathname as (typeof allowedPaths)[number])) {
-      throw redirect(SETUP_STEPS[firstIncomplete].paths[0]);
+      // adminRedirect, não o redirect do React Router: o comum perde os
+      // parâmetros da sessão embutida (shop/host/id_token) e a tela seguinte
+      // aparecia só com "200" (28/10/2026, link Settings do banner de trial).
+      throw adminRedirect(SETUP_STEPS[firstIncomplete].paths[0]);
     }
   }
 

@@ -94,7 +94,7 @@ Roteiro (~3 min, gravação de tela com narração ou legendas em inglês):
 
 - [ ] Branding atualizado (nome Stockative + logo) e salvo
 - [ ] Data Access com só os dois escopos
-- [ ] Vídeo gravado e enviado como Unlisted; link no formulário
+- [x] Vídeo gravado (na loja da Mangará) e enviado como Unlisted: https://youtu.be/EjJgS2MEBAc, salvo no Data access em 28/10/2026
 - [ ] Verification Center → **Prepare for verification** → enviar; anotar a data aqui
 - [ ] Responder os e-mails do Google (chegam no contato de desenvolvedor; costumam pedir ajuste no vídeo ou na política). Anotar cada ida e volta aqui
 - [ ] Aprovado: anotar a data e o prazo real; a tela "Google hasn't verified this app" some e o limite de 100 usuários cai

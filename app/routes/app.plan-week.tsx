@@ -45,6 +45,7 @@ import { weekdayInTimezone, timeInTimezone, nextWeeklyOccurrenceInTimezone } fro
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
+import { getWeeklySlotPlan } from "../services/decisionEngine/planTiers.server";
 import { getRemainingCredits, purchaseExtraCredits } from "../services/decisionEngine/creditUsage.server";
 import { EXTRA_CREDIT_PRICING } from "../services/decisionEngine/extrasPricing";
 import {
@@ -244,6 +245,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     pingTimer.done();
   })().catch((error) => console.error("db ping failed:", error));
 
+  // Semana sendo montada fora desta tela — pelo agendador, logo depois que o
+  // último post sai, ou por um clique antes de recarregar a página (Patricia,
+  // 28/10/2026: "mostra a linha de que está carregando e criando os novos
+  // posts"). Mesmo prazo da trava em planWeeklyContent: passado isso, o
+  // processo caiu e a trava não vale mais.
+  const generatingSince =
+    shop?.weeklyPlanGeneratingAt && Date.now() - shop.weeklyPlanGeneratingAt.getTime() < 15 * 60 * 1000
+      ? shop.weeklyPlanGeneratingAt
+      : null;
+  const backgroundGeneration = generatingSince && shop
+    ? {
+        readyCount: await prisma.contentItem.count({
+          where: { shopId: shop.id, weekBatchId: { not: null }, promotionId: null, createdAt: { gte: generatingSince } },
+        }),
+        totalCount: getWeeklySlotPlan(shop).postsPerWeek,
+      }
+    : null;
+
   const nextWeekTimer = startLoaderTimer("plan-week nextWeekPreview (deferred)");
   const nextWeek: Promise<NextWeekPreview | null> =
     shop && slots.length > 0 && !shop.weeklyPlanGeneratingAt
@@ -277,6 +296,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     onboardingStatus,
     slots,
     nextWeek,
+    backgroundGeneration,
     tiktokCreator,
   };
 };
@@ -849,6 +869,7 @@ export default function PlanWeek() {
     onboardingStatus,
     slots,
     nextWeek: nextWeekPromise,
+    backgroundGeneration,
     remainingImageCredits,
     regenerationReasonSuggestions,
     captionRegenerationReasonSuggestions,
@@ -1132,6 +1153,18 @@ export default function PlanWeek() {
     }, 4000);
     return () => clearInterval(interval);
   }, [isGenerating, revalidator]);
+
+  // Montagem rodando no servidor sem ter sido disparada por esta aba (ver
+  // backgroundGeneration no loader) — mesma revalidação, pros posts novos
+  // aparecerem sozinhos e a linha sumir quando terminar.
+  const isBackgroundGenerating = Boolean(backgroundGeneration) && !isGenerating;
+  useEffect(() => {
+    if (!isBackgroundGenerating) return;
+    const interval = setInterval(() => {
+      if (revalidator.state === "idle") revalidator.revalidate();
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isBackgroundGenerating, revalidator]);
 
   const generatingLabel =
     isGenerating && slots.length > 0
@@ -1472,6 +1505,12 @@ export default function PlanWeek() {
 
         {isGenerating && (
           <GeneratingProgressBar label={generatingLabel} />
+        )}
+
+        {isBackgroundGenerating && backgroundGeneration && (
+          <GeneratingProgressBar
+            label={`Creating your new posts — picking products, writing captions and building images and Reels (${backgroundGeneration.readyCount} of ${backgroundGeneration.totalCount} ready). They show up here as each one is done.`}
+          />
         )}
 
         {slots.length === 0 && !isGenerating && hasShop && isInstagramConnected && (

@@ -122,7 +122,7 @@ Pode reaproveitar trechos do roteiro do [META-APP-REVIEW.md](META-APP-REVIEW.md)
 
 > **Decisão de 28/10/2026: submeter com uma conta de teste, sem esperar a Meta.** O revisor instala o app numa dev store dele e precisa passar do passo 2 do onboarding, que exige Instagram. O app da Meta continua em modo de desenvolvimento (Access Verification "In review" desde 23/09, sem previsão), e nesse modo só quem tem papel no app da Meta consegue conectar. Esperar a Meta deixaria a Shopify parada por tempo indeterminado.
 >
-> **Conta de teste do revisor (Patricia cria, nunca a conta pessoal nem a da Mangará):**
+> **Conta de teste do revisor:** ✅ criada e com papel de Tester no app da Meta (Patricia, 28/10/2026). Os passos ficam abaixo como referência:
 > 1. Um e-mail novo só para isso (ex.: `reviewer@stockative.com`).
 > 2. Um usuário do Facebook com esse e-mail e uma Página do Facebook nova (ex.: "Stockative Demo Store").
 > 3. Uma conta Instagram nova, convertida para **Business**, ligada a essa Página.
@@ -157,6 +157,7 @@ Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Set
 - [ ] Protected customer data, Step 2 respondido (PUBLIC-APP.md, item 4)
 - [ ] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `stockative-public`
 - [ ] Política de privacidade com URL pública (a mesma usada na Meta serve, se cobrir dados da Shopify)
-- [ ] Conta de teste do revisor criada, Tester no app da Meta, 2FA desligado, fluxo testado numa dev store, credenciais coladas nas instruções do Partner Dashboard
+- [x] Conta de teste do revisor criada, com papel de Tester no app da Meta
+- [ ] Fluxo testado numa dev store com a conta de teste, 2FA desligado, credenciais coladas nas instruções do Partner Dashboard
 - [ ] Screenshots, ícone e screencast prontos
 - [ ] Contato de emergência no Partner Dashboard

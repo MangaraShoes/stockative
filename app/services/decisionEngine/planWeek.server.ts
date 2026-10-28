@@ -1,4 +1,4 @@
-import { notifyWeeklyPlanReady } from "../email/notify.server";
+import { notifyMissingSocialPlatforms, notifyWeeklyPlanReady } from "../email/notify.server";
 import {
   classifyShopifyShotTypes,
   discardPendingImageCandidates,
@@ -1200,6 +1200,12 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
       });
       outcomes.push({ shopId: shop.id, slotCount: slots.length });
       await notifyWeeklyPlanReady(shop.id, slots.length);
+      // Lembrete é acessório: uma falha aqui nunca pode virar erro do plano.
+      if (slots.length > 0) {
+        await notifyMissingSocialPlatforms(shop.id).catch((error) =>
+          console.error(`Missing-networks reminder failed for shop ${shop.id}:`, error),
+        );
+      }
     } catch (error) {
       console.error(`Failed to generate weekly plan for shop ${shop.id}:`, error);
       outcomes.push({

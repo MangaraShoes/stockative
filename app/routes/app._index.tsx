@@ -1,10 +1,16 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import type { ActionFunctionArgs, HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { useFetcher, useLoaderData, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { getOrCreateShop } from "../services/syncProducts.server";
 import { getOnboardingStatus, usableSocialAccountsWhere } from "../services/onboardingStatus.server";
+import {
+  getMissingSocialPlatforms,
+  isSocialPlatformKey,
+  joinPlatformLabels,
+  setSocialPlatformIgnored,
+} from "../services/socialReminders.server";
 import { goTo } from "../utils/navigateOnClick";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -21,7 +27,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // sozinha agora, com ou sem setup completo.
   const productsCount = await prisma.productCache.count({ where: { shopId: shop.id } });
 
-  const [socialCount, publishedCount, stuckPosts] = await Promise.all([
+  const [socialCount, publishedCount, stuckPosts, socialPlatforms] = await Promise.all([
     prisma.socialAccount.count({ where: usableSocialAccountsWhere(shop.id) }),
     prisma.contentItem.count({ where: { shopId: shop.id, status: "published" } }),
     // publishDueContentItems nunca tenta publicar (nem marca como failed) um
@@ -38,6 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
       select: { product: { select: { title: true } } },
     }),
+    getMissingSocialPlatforms(shop.id),
   ]);
 
   return {
@@ -46,7 +53,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     socialCount,
     publishedCount,
     stuckPostTitles: stuckPosts.map((p) => p.product?.title ?? "(product removed)"),
+    missingSocialPlatforms: socialPlatforms.missing,
   };
+};
+
+// "I don't use this" no banner de redes não conectadas — reativa em Settings.
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = await prisma.shop.findUnique({ where: { shopifyDomain: session.shop } });
+  if (!shop) throw new Response("Shop not found", { status: 404 });
+  const formData = await request.formData();
+  const platform = String(formData.get("platform") ?? "");
+  if (formData.get("intent") !== "ignore-platform" || !isSocialPlatformKey(platform)) {
+    throw new Response("Bad request", { status: 400 });
+  }
+  await setSocialPlatformIgnored(shop.id, platform, true);
+  return { ok: true };
 };
 
 interface ChecklistStep {
@@ -60,6 +82,7 @@ interface ChecklistStep {
 export default function Index() {
   const data = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const ignoreFetcher = useFetcher<typeof action>();
 
   // Onboarding real do merchant, na ordem em que os dados de fato fluem no
   // produto (Patricia, 12/09/2026: "vamos analisar o estoque antes de
@@ -117,6 +140,14 @@ export default function Index() {
   ];
 
   const setupComplete = steps.every((step) => step.done);
+  // Só depois dos 4 primeiros passos: durante o onboarding o próprio passo 2
+  // já cuida das redes, e um segundo aviso só competiria com o "Next step".
+  // Some na hora em que a lojista clica "I don't use this" (sem esperar o
+  // loader voltar).
+  const pendingIgnore = ignoreFetcher.formData?.get("platform");
+  const missingSocialPlatforms = data.missingSocialPlatforms.filter((p) => p.key !== pendingIgnore);
+  const showSocialReminder =
+    data.hasStock && data.hasSocial && data.hasCompetitors && data.hasBrand && missingSocialPlatforms.length > 0;
   const nextStepIndex = steps.findIndex((step) => !step.done);
   const nextStep = nextStepIndex === -1 ? undefined : steps[nextStepIndex];
 
@@ -149,6 +180,43 @@ export default function Index() {
                 <s-button href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
                   Open Weekly plan
                 </s-button>
+              </s-stack>
+            </s-stack>
+          </s-box>
+        </s-section>
+      )}
+
+      {showSocialReminder && (
+        <s-section>
+          <s-box padding="base" borderWidth="base" borderRadius="base">
+            <s-stack direction="block" gap="small">
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <s-badge tone="warning">Not connected</s-badge>
+                <s-heading>
+                  Your posts aren&apos;t going out on{" "}
+                  {joinPlatformLabels(missingSocialPlatforms.map((p) => p.label))}
+                </s-heading>
+              </s-stack>
+              <s-paragraph>
+                Connect {missingSocialPlatforms.length === 1 ? "it" : "them"} and
+                Stockative publishes the same weekly plan there too, so you reach
+                more customers without extra work.
+              </s-paragraph>
+              <s-stack direction="inline" gap="base" alignItems="center">
+                <s-button href="/app/social" onClick={goTo(navigate, "/app/social")} variant="primary">
+                  Connect accounts
+                </s-button>
+                {missingSocialPlatforms.map((platform) => (
+                  <s-button
+                    key={platform.key}
+                    variant="tertiary"
+                    onClick={() =>
+                      ignoreFetcher.submit({ intent: "ignore-platform", platform: platform.key }, { method: "POST" })
+                    }
+                  >
+                    I don&apos;t use {platform.label}
+                  </s-button>
+                ))}
               </s-stack>
             </s-stack>
           </s-box>

@@ -1,4 +1,5 @@
 import prisma from "../../db.server";
+import { getMissingSocialPlatforms, joinPlatformLabels } from "../socialReminders.server";
 
 // Notificações por e-mail (Settings, Patricia 03/10/2026), enviadas pelo
 // Resend (https://resend.com/docs/api-reference/emails/send-email). Só os
@@ -12,11 +13,12 @@ import prisma from "../../db.server";
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const DEFAULT_FROM = "Stockative <notifications@stockative.com>";
 
-async function sendEmail(params: { to: string; subject: string; text: string }): Promise<void> {
+// true só quando o Resend aceitou o e-mail.
+async function sendEmail(params: { to: string; subject: string; text: string }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     console.log(`[email] RESEND_API_KEY not set, skipping "${params.subject}" to ${params.to}`);
-    return;
+    return false;
   }
   try {
     const response = await fetch(RESEND_ENDPOINT, {
@@ -31,9 +33,12 @@ async function sendEmail(params: { to: string; subject: string; text: string }):
     });
     if (!response.ok) {
       console.error(`[email] Resend returned ${response.status}: ${await response.text()}`);
+      return false;
     }
+    return true;
   } catch (error) {
     console.error("[email] send failed:", error);
+    return false;
   }
 }
 
@@ -116,4 +121,40 @@ export async function notifyPublishOutcome(params: {
         ].join("\n")
       : [`Your post${product} was just published.`, "", `See your results: ${appLink(shop, "/app/performance")}`].join("\n"),
   });
+}
+
+// Lembrete de redes não conectadas (Patricia, 28/10/2026). Sai junto com o
+// plano semanal automático, no máximo um a cada 30 dias — toda semana virava
+// spam. Redes que a lojista dispensou ("I don't use …") não entram.
+const SOCIAL_REMINDER_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export async function notifyMissingSocialPlatforms(shopId: string): Promise<void> {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopId },
+    select: { ...notifiableSelect, socialReminderSentAt: true },
+  });
+  if (!shop) return;
+  if (shop.socialReminderSentAt && Date.now() - shop.socialReminderSentAt.getTime() < SOCIAL_REMINDER_INTERVAL_MS) {
+    return;
+  }
+  const to = recipient(shop);
+  if (!to) return;
+  const { missing } = await getMissingSocialPlatforms(shopId);
+  if (missing.length === 0) return;
+
+  const networks = joinPlatformLabels(missing.map((platform) => platform.label));
+  // Sem envio de verdade (ex.: Resend ainda não configurado), não conta como
+  // lembrete enviado — senão o primeiro e-mail real atrasaria até 30 dias.
+  const sent = await sendEmail({
+    to,
+    subject: `Your posts won't go out on ${networks}`,
+    text: [
+      `Stockative planned your posts for next week, but they won't be published on ${networks} because ${missing.length === 1 ? "it isn't" : "they aren't"} connected.`,
+      "",
+      `Connect ${missing.length === 1 ? "it" : "them"} and the same plan goes out there too: ${appLink(shop, "/app/social")}`,
+      "",
+      `Don't use ${missing.length === 1 ? "it" : "one of them"}? Open Stockative and click "I don't use …" on the Home page, and we'll stop reminding you.`,
+    ].join("\n"),
+  });
+  if (sent) await prisma.shop.update({ where: { id: shopId }, data: { socialReminderSentAt: new Date() } });
 }

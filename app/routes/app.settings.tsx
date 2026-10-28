@@ -6,6 +6,11 @@ import prisma from "../db.server";
 import { ensureShopContentLanguage } from "../services/syncProducts.server";
 import { deleteAllShopData } from "../services/shopDataDeletion.server";
 import {
+  getMissingSocialPlatforms,
+  isSocialPlatformKey,
+  setSocialPlatformIgnored,
+} from "../services/socialReminders.server";
+import {
   DEFAULT_MODEL_PROFILE,
   MODEL_AGE_RANGES,
   MODEL_ATTITUDES,
@@ -97,6 +102,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     notifyWeeklyPlan: shop?.notifyWeeklyPlan ?? true,
     notifyPublishFailed: shop?.notifyPublishFailed ?? true,
     notifyPublished: shop?.notifyPublished ?? false,
+    ignoredSocialPlatforms: shop ? (await getMissingSocialPlatforms(shop.id)).ignored : [],
     modelProfile: parseModelProfile(shop?.modelProfile) ?? DEFAULT_MODEL_PROFILE,
     schedule: schedule.map((slot) => ({ weekday: slot.weekday, time: `${pad(slot.hour)}:${pad(slot.minute)}` })),
   };
@@ -241,6 +247,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return ok;
   }
 
+  // Volta a lembrar de uma rede que a lojista tinha dispensado no banner da
+  // Home ("I don't use …").
+  if (intent === "unignore-platform") {
+    const platform = String(formData.get("platform") ?? "");
+    if (!isSocialPlatformKey(platform)) return fail("Unknown network.");
+    await setSocialPlatformIgnored(shop.id, platform, false);
+    return ok;
+  }
+
   // Exportar dados (GDPR, direito de acesso/portabilidade). Nunca inclui
   // tokens de acesso nem imagens binárias — só o que a lojista configurou e
   // o que o app gerou/mediu pra ela.
@@ -366,6 +381,7 @@ export default function Settings() {
   const scheduleFetcher = useFetcher<typeof action>();
   const planFetcher = useFetcher<typeof action>();
   const notificationFetcher = useFetcher<typeof action>();
+  const reminderFetcher = useFetcher<typeof action>();
   const photoProfileFetcher = useFetcher<typeof action>();
   const dataFetcher = useFetcher<typeof action>();
   const navigate = useNavigate();
@@ -623,6 +639,29 @@ export default function Settings() {
         />
         <FetcherResult fetcher={notificationFetcher} />
       </s-section>
+
+      {data.ignoredSocialPlatforms.length > 0 && (
+        <s-section heading="Network reminders">
+          <s-paragraph>
+            You told us you don&apos;t use these, so Stockative doesn&apos;t
+            remind you to connect them.
+          </s-paragraph>
+          <s-stack direction="block" gap="small">
+            {data.ignoredSocialPlatforms.map((platform) => (
+              <s-stack key={platform.key} direction="inline" gap="base" alignItems="center">
+                <s-text>{platform.label}</s-text>
+                <s-button
+                  variant="tertiary"
+                  disabled={reminderFetcher.state !== "idle"}
+                  onClick={() => submit(reminderFetcher, { intent: "unignore-platform", platform: platform.key })}
+                >
+                  Remind me again
+                </s-button>
+              </s-stack>
+            ))}
+          </s-stack>
+        </s-section>
+      )}
 
       <s-section heading="Post languages">
         <s-paragraph>

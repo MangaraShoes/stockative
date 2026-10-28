@@ -56,10 +56,10 @@ Path: App distribution → All apps → Stockative → Distribution → Manage l
 
 | Variable | Where to get it |
 |---|---|
-| `SHOPIFY_PARTNER_ORG_ID` | The number in the Partner Dashboard URL (`partners.shopify.com/<ID>/...`) |
-| `SHOPIFY_PARTNER_API_ACCESS_TOKEN` | Partner Dashboard → Settings → **Partner API clients** → create a client with the **Manage apps** permission |
-| `SHOPIFY_APP_GID` | `gid://shopify/App/<number>`, where the number is the app ID in the Partner Dashboard URL |
-| `APP_EVENTS_CLIENT_ID` / `APP_EVENTS_CLIENT_SECRET` | Dev Dashboard → **API keys** (client credentials, used for the App Events API) |
+| `SHOPIFY_PARTNER_ORG_ID` | `5172871` (the number in `partners.shopify.com/<ID>/...`) |
+| `SHOPIFY_PARTNER_API_ACCESS_TOKEN` | Since 27/10/2026: Dev Dashboard → Organization settings → **Users → Security → Partner API clients** (`admin.shopify.com/organization/234695916/settings/organization-account/security`). Client "Stockative billing (app-public)" created 28/10/2026 with **Manage apps** + **Manage app subscriptions** |
+| `SHOPIFY_APP_GID` | `gid://shopify/App/435409649665` |
+| `APP_EVENTS_CLIENT_ID` / `APP_EVENTS_CLIENT_SECRET` | The Dev Dashboard no longer has an "API keys" page (28/10/2026). The App Events docs say the client ID/secret of a Dev Dashboard app works, so use the public app's own credentials: the same values as `SHOPIFY_API_KEY` / `SHOPIFY_API_SECRET`. Not tested yet: if usage fails with `App Events auth failed`, look here first. Organization *service accounts* are something else (a CLI token with an expiry) |
 | `SHOPIFY_APP_HANDLE` | Optional. Must be `stockative-2` here (the code defaults to `stockative-1`, the custom app) (from the URL `admin.shopify.com/store/<store>/apps/stockative-1`) |
 
 ## 3. Turn it on and test

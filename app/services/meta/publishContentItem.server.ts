@@ -1,4 +1,5 @@
 import { notifyPublishOutcome } from "../email/notify.server";
+import { chooseImageCandidate, loadPendingImageCandidates } from "../imageMvp/imageCandidates.server";
 import prisma from "../../db.server";
 import {
   publishCarousel,
@@ -576,7 +577,23 @@ export async function publishDueContentItems(): Promise<DueContentItemOutcome[]>
   // no próprio post do Weekly plan ("Generate image now") ou trocar o produto do slot.
   const outcomes: DueContentItemOutcome[] = [];
   for (const item of due) {
-    if (item.images.length === 0) continue;
+    // Exceção: o post tem candidatas de IA esperando a lojista escolher.
+    // Chegou a hora sem escolha → publica com a mais recente (Patricia,
+    // 28/10/2026, depois de 2 posts de 27/10 ficarem parados em silêncio e
+    // serem cancelados). Toda candidata já passou na fidelidade — só a
+    // composição/estilo reprovou — e a mais recente é a que recebeu o motivo
+    // da reprovação anterior. Conta crédito igual à escolha manual.
+    if (item.images.length === 0) {
+      const [newestCandidate] = await loadPendingImageCandidates(item.id);
+      if (!newestCandidate) continue;
+      const choice = await chooseImageCandidate({
+        shopId: item.shopId,
+        contentItemId: item.id,
+        creativeAssetId: newestCandidate.id,
+      });
+      if (choice.status !== "success") continue;
+      console.log(`Auto-picked newest image candidate ${newestCandidate.id} for due post ${item.id}`);
+    }
 
     // Nunca publica um post de promoção depois que ela terminou (Patricia,
     // 13/09/2026: "sim trava a publicação depois do prazo") — sem isso, um

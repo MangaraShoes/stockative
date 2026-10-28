@@ -27,7 +27,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // sozinha agora, com ou sem setup completo.
   const productsCount = await prisma.productCache.count({ where: { shopId: shop.id } });
 
-  const [socialCount, publishedCount, stuckPosts, socialPlatforms] = await Promise.all([
+  const awaitingImageChoice = {
+    generationLogs: { some: { creativeAsset: { is: { source: "ai_candidate" } } } },
+  };
+  const [socialCount, publishedCount, stuckPosts, postsAwaitingImageChoice, socialPlatforms] = await Promise.all([
     prisma.socialAccount.count({ where: usableSocialAccountsWhere(shop.id) }),
     prisma.contentItem.count({ where: { shopId: shop.id, status: "published" } }),
     // publishDueContentItems nunca tenta publicar (nem marca como failed) um
@@ -41,11 +44,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         status: { in: ["draft", "approved"] },
         scheduledAt: { lte: new Date() },
         images: { none: {} },
+        // Com candidata de IA o agendador publica sozinho com a mais recente
+        // — esses aparecem no aviso de escolha pendente abaixo, não aqui.
+        NOT: awaitingImageChoice,
       },
       select: { product: { select: { title: true } } },
     }),
+    // Escolha de imagem pendente (Patricia, 28/10/2026): avisar ANTES da
+    // hora, não só depois de passar — 2 posts de 27/10 ficaram parados sem
+    // ninguém ver o painel de escolha dentro do Weekly plan.
+    prisma.contentItem.findMany({
+      where: {
+        shopId: shop.id,
+        status: { in: ["draft", "approved"] },
+        images: { none: {} },
+        ...awaitingImageChoice,
+      },
+      orderBy: { scheduledAt: "asc" },
+      select: { scheduledAt: true, product: { select: { title: true } } },
+    }),
     getMissingSocialPlatforms(shop.id),
   ]);
+  const timeZone = shop.ianaTimezone ?? "UTC";
 
   return {
     ...status,
@@ -53,6 +73,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     socialCount,
     publishedCount,
     stuckPostTitles: stuckPosts.map((p) => p.product?.title ?? "(product removed)"),
+    // Formatado no servidor, no fuso da loja — o mesmo horário em que o
+    // agendador publica, não o fuso de quem olha a tela.
+    imageChoicePosts: postsAwaitingImageChoice.map((p) => ({
+      title: p.product?.title ?? "(product removed)",
+      scheduledAt: p.scheduledAt
+        ? p.scheduledAt.toLocaleString("en-GB", {
+            timeZone,
+            weekday: "long",
+            day: "numeric",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : null,
+    })),
     missingSocialPlatforms: socialPlatforms.missing,
   };
 };
@@ -166,8 +201,8 @@ export default function Index() {
                 </s-heading>
               </s-stack>
               <s-paragraph>
-                {data.stuckPostTitles.join(", ")} — image generation never
-                finished, so Stockative held these back instead of
+                {data.stuckPostTitles.join(", ")} — there&apos;s no image for
+                these posts yet, so Stockative held them back instead of
                 publishing incomplete. Generate an image or swap the product
                 in the Weekly plan.
               </s-paragraph>
@@ -179,6 +214,36 @@ export default function Index() {
               <s-stack direction="inline">
                 <s-button href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
                   Open Weekly plan
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-box>
+        </s-section>
+      )}
+
+      {data.imageChoicePosts.length > 0 && (
+        <s-section>
+          <s-box padding="base" borderWidth="base" borderRadius="base" background="strong">
+            <s-stack direction="block" gap="small">
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <s-badge tone="warning">Your choice</s-badge>
+                <s-heading>
+                  {data.imageChoicePosts.length} post
+                  {data.imageChoicePosts.length === 1 ? " is" : "s are"} waiting for you to
+                  choose an image
+                </s-heading>
+              </s-stack>
+              <s-paragraph>
+                {data.imageChoicePosts
+                  .map((post) => (post.scheduledAt ? `${post.title} (${post.scheduledAt})` : post.title))
+                  .join(", ")}
+                . The AI images show your product correctly but didn&apos;t pass every
+                style check. If you don&apos;t choose in time, Stockative publishes each
+                post with its newest AI image.
+              </s-paragraph>
+              <s-stack direction="inline">
+                <s-button href="/app/plan-week" onClick={goTo(navigate, "/app/plan-week")}>
+                  Choose images
                 </s-button>
               </s-stack>
             </s-stack>

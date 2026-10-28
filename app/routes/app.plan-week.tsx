@@ -828,6 +828,9 @@ export default function PlanWeek() {
   const orderedSlots = [...slots].sort(
     (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
   );
+  const slotsAwaitingImageChoice = orderedSlots.filter(
+    (slot) => isEditable(slot.status) && slot.needsManualImage && slot.imageCandidates.length > 0,
+  );
 
   // Cada ação submete e, ao terminar, o React Router revalida o loader
   // desta rota sozinho — então `slots` acima já reflete a mutação, sem
@@ -1289,6 +1292,20 @@ export default function PlanWeek() {
             {recoveredPendingActionLabel}) — this usually happens when your
             session needs to refresh. It probably didn&apos;t go through.
             Please try it again.
+          </s-paragraph>
+        </s-banner>
+      )}
+
+      {/* No topo, não só dentro do post: a escolha pendente ficava escondida
+          no card e 2 posts de 27/10/2026 passaram da hora sem ninguém ver. */}
+      {slotsAwaitingImageChoice.length > 0 && (
+        <s-banner tone="warning" heading="Choose an image for these posts">
+          <s-paragraph>
+            {slotsAwaitingImageChoice
+              .map((slot) => `${slot.productTitle} (${formatScheduledAt(slot.scheduledAt, shopTimezone)})`)
+              .join(", ")}
+            . If you don&apos;t choose in time, Stockative publishes each one with its newest AI
+            image, which already shows your product correctly.
           </s-paragraph>
         </s-banner>
       )}
@@ -1824,7 +1841,17 @@ export default function PlanWeek() {
                       </s-paragraph>
                     )}
 
-                    {slot.needsManualImage && (
+                    {slot.needsManualImage && slot.imageCandidates.length > 0 && (
+                      <s-banner tone="warning" heading="Waiting for you to choose this post's image">
+                        <s-paragraph>
+                          If you don&apos;t choose by {formatScheduledAt(slot.scheduledAt, shopTimezone)},
+                          Stockative will publish it with &quot;New AI image 1&quot;. Every option below
+                          shows your product correctly.
+                        </s-paragraph>
+                      </s-banner>
+                    )}
+
+                    {slot.needsManualImage && slot.imageCandidates.length === 0 && (
                       <s-paragraph>
                         <strong>
                           No image yet — this post won&apos;t publish

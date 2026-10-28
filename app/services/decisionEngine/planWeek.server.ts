@@ -1241,6 +1241,8 @@ export async function generateDueWeeklyPlans(): Promise<GenerateDueWeeklyPlansOu
 // post antigo continua publicado no Instagram normalmente — só não aparece
 // mais NESTA tela depois que um lote novo existe.
 export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlot[]> {
+  // Abrir o plano já devolve uma regeneração presa (processo morreu no meio).
+  await refundStaleImageRegenerations(shopId);
   const latest = await prisma.contentItem.findFirst({
     where: { shopId, weekBatchId: { not: null } },
     orderBy: { createdAt: "desc" },
@@ -1432,6 +1434,45 @@ export type RegenerateImageResult =
 // editorial NOVA (forceNewHero) — sem isso, buildCarousel poderia
 // devolver a MESMA imagem que ela acabou de pedir pra trocar, já que ela
 // deixaria de estar "em uso" assim que a linha antiga for apagada.
+// Regeneração que o processo não terminou (redeploy ou queda no meio,
+// achado ao vivo 28/10/2026 com a Smile XS): a tentativa ficou reservada e o
+// reembolso de refundIfNothingGenerated nunca rodou. Passado este prazo — bem
+// acima de uma regeneração normal, mesmo com as 3 tentativas — devolve a
+// tentativa se nenhuma imagem foi gerada desde a reserva; se alguma foi, ela
+// custou e a tentativa continua gasta (mesma regra do reembolso normal).
+const STALE_REGENERATION_MINUTES = 10;
+
+async function refundStaleImageRegenerations(shopId: string, contentItemId?: string): Promise<void> {
+  const stale = await prisma.contentItem.findMany({
+    where: {
+      shopId,
+      ...(contentItemId ? { id: contentItemId } : {}),
+      imageRegenerationClaimedAt: { lt: new Date(Date.now() - STALE_REGENERATION_MINUTES * 60 * 1000) },
+    },
+    select: { id: true, imageRegenerationClaimedAt: true },
+  });
+  for (const item of stale) {
+    const claimedAt = item.imageRegenerationClaimedAt!;
+    const generatedSinceClaim = await prisma.generationLog.count({
+      where: { contentItemId: item.id, taskType: "image", createdAt: { gte: claimedAt } },
+    });
+    // Condicionado ao mesmo claimedAt: se outra requisição já resolveu este
+    // post, não devolve duas vezes.
+    const refunded = await prisma.contentItem.updateMany({
+      where: { id: item.id, imageRegenerationClaimedAt: claimedAt, imageRegenerationCount: { gt: 0 } },
+      data: {
+        imageRegenerationClaimedAt: null,
+        ...(generatedSinceClaim === 0 ? { imageRegenerationCount: { decrement: 1 } } : {}),
+      },
+    });
+    if (refunded.count > 0) {
+      console.log(
+        `[regenerate-image] stale claim on ${item.id} from ${claimedAt.toISOString()}: ${generatedSinceClaim === 0 ? "refunded" : "kept (images were generated)"}`,
+      );
+    }
+  }
+}
+
 export async function regenerateWeeklyPlanSlotImage(params: {
   shopId: string;
   contentItemId: string;
@@ -1448,6 +1489,7 @@ export async function regenerateWeeklyPlanSlotImage(params: {
   // como motivo da regeneração (dispensam o texto).
   overrides?: RegenerationOverrides;
 }): Promise<RegenerateImageResult> {
+  await refundStaleImageRegenerations(params.shopId, params.contentItemId);
   const item = await prisma.contentItem.findUnique({
     where: { id: params.contentItemId },
     include: { images: { select: { id: true, position: true, creativeAssetId: true } } },
@@ -1507,6 +1549,7 @@ export async function regenerateWeeklyPlanSlotImage(params: {
   // atômica: o limite por post vai no WHERE, então dois cliques simultâneos
   // não passam os dois pela checagem lá de cima (auditoria de segurança,
   // 07/10/2026, M4).
+  const claimedAt = new Date();
   const claimed = await prisma.contentItem.updateMany({
     where: {
       id: item.id,
@@ -1514,7 +1557,7 @@ export async function regenerateWeeklyPlanSlotImage(params: {
       status: { in: ["draft", "approved"] },
       imageRegenerationCount: { lt: MAX_IMAGE_REGENERATIONS_PER_POST },
     },
-    data: { imageRegenerationCount: { increment: 1 } },
+    data: { imageRegenerationCount: { increment: 1 }, imageRegenerationClaimedAt: claimedAt },
   });
   if (claimed.count !== 1) {
     return {
@@ -1523,7 +1566,12 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     };
   }
   await discardPendingImageCandidates(item.id);
-  const claimedAt = new Date();
+  // A regeneração terminou (com ou sem imagem): não está mais "em andamento".
+  const releaseClaim = () =>
+    prisma.contentItem.updateMany({
+      where: { id: item.id, imageRegenerationClaimedAt: claimedAt },
+      data: { imageRegenerationClaimedAt: null },
+    });
 
   // Devolve a tentativa quando nada foi gerado (Patricia, 19/10/2026): o
   // OpenRouter recusou por falta de saldo (402) antes de gerar qualquer
@@ -1536,10 +1584,13 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     const generatedSinceClaim = await prisma.generationLog.count({
       where: { contentItemId: item.id, taskType: "image", createdAt: { gte: claimedAt } },
     });
-    if (generatedSinceClaim > 0) return;
+    if (generatedSinceClaim > 0) {
+      await releaseClaim();
+      return;
+    }
     await prisma.contentItem.updateMany({
       where: { id: item.id, imageRegenerationCount: { gt: 0 } },
-      data: { imageRegenerationCount: { decrement: 1 } },
+      data: { imageRegenerationCount: { decrement: 1 }, imageRegenerationClaimedAt: null },
     });
   };
 
@@ -1569,6 +1620,7 @@ export async function regenerateWeeklyPlanSlotImage(params: {
     await refundIfNothingGenerated();
     return { status: "error", reason: result.reason };
   }
+  await releaseClaim();
   if (previousImageIds.length > 0) {
     await prisma.contentItemImage.deleteMany({ where: { id: { in: previousImageIds } } });
   }

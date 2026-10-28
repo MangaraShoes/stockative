@@ -437,6 +437,11 @@ model ContentItem {
   // entre as imagens de IA, a foto da Shopify (não-still) ou um upload. Ver
   // MAX_IMAGE_REGENERATIONS_PER_POST e imageCandidates.server.ts.
   imageRegenerationCount Int      @default(0)
+  // Quando a regeneração em andamento reservou a tentativa — apagado ao
+  // terminar. Se o processo morrer no meio (redeploy, queda), fica preso; com
+  // mais de STALE_REGENERATION_MINUTES e nenhuma imagem gerada desde então, a
+  // tentativa volta pro post (ver refundStaleImageRegenerations, 28/10/2026).
+  imageRegenerationClaimedAt DateTime?
   // A editorial que estava no post antes da última troca — continua
   // disponível como opção ("escolher entre as 2").
   previousHeroAssetId    String?

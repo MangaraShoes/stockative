@@ -20,6 +20,7 @@ import { getRemainingCredits } from "../services/decisionEngine/creditUsage.serv
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
+import { withInFlight } from "../services/inFlightWork.server";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -76,7 +77,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // até a leitura do brand voice vai ficar mais rica"). O passo 2 do
 // onboarding já exige o Instagram, então isso só barra quem desconectou
 // depois.
-export const action = async ({ request }: ActionFunctionArgs) => {
+// Conta como trabalho em andamento: o redeploy espera terminar (inFlightWork.server.ts).
+export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = formData.get("intent");
@@ -231,7 +233,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   return { intent: "save" as const, saved: true };
-};
+});
 
 export default function StoreVoice() {
   const data = useLoaderData<typeof loader>();

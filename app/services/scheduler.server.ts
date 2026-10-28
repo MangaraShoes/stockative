@@ -1,5 +1,6 @@
 import { publishDueContentItems } from "./meta/publishContentItem.server";
 import { generateDueWeeklyPlans } from "./decisionEngine/planWeek.server";
+import { inFlightCount, trackInFlight, waitForInFlight } from "./inFlightWork.server";
 
 // Agendador dentro do próprio processo do app (Patricia, 30/09/2026) —
 // substitui o cron do GitHub Actions pra publicar e gerar plano. O cron do
@@ -51,9 +52,8 @@ const jobs: Job[] = [
   },
 ];
 
-// Rodadas em andamento agora, pra o desligamento conseguir esperar por elas
-// (ver waitForInFlightJobsThenExit).
-const inFlight = new Set<Promise<void>>();
+// Rodadas em andamento entram no registro compartilhado com as ações da tela
+// (inFlightWork.server.ts), pra o desligamento esperar as duas coisas.
 const timers: ReturnType<typeof setTimeout>[] = [];
 let stopping = false;
 
@@ -73,9 +73,7 @@ function schedule(job: Job) {
         running = false;
       }
     })();
-    inFlight.add(run);
-    await run;
-    inFlight.delete(run);
+    await trackInFlight(run);
   };
   timers.push(
     setTimeout(() => {
@@ -100,11 +98,10 @@ async function waitForInFlightJobsThenExit(signal: string) {
   if (stopping) return;
   stopping = true;
   for (const timer of timers) clearTimeout(timer);
-  console.log(`[scheduler] ${signal} received, waiting for ${inFlight.size} in-flight job(s) before exiting`);
-  const timedOut = await Promise.race([
-    Promise.allSettled([...inFlight]).then(() => false),
-    new Promise<boolean>((resolve) => setTimeout(() => resolve(true), SHUTDOWN_GRACE_MS)),
-  ]);
+  // Inclui as ações da tela (regenerar imagem, gerar plano...), não só os
+  // jobs daqui — sair antes delas matava a geração no meio (28/10/2026).
+  console.log(`[scheduler] ${signal} received, waiting for ${inFlightCount()} in-flight job(s)/request(s) before exiting`);
+  const timedOut = await waitForInFlight(SHUTDOWN_GRACE_MS);
   console.log(`[scheduler] ${timedOut ? "grace period over" : "in-flight jobs finished"}, exiting`);
   process.exit(0);
 }

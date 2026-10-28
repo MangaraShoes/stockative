@@ -14,6 +14,7 @@ import {
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
+import { withInFlight } from "../services/inFlightWork.server";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -66,7 +67,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
+// Conta como trabalho em andamento: o redeploy espera terminar (inFlightWork.server.ts).
+export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
   const shop = await prisma.shop.findUnique({
@@ -137,7 +139,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   throw redirect("/app/plan-week");
-};
+});
 
 export default function ContentPillars() {
   const data = useLoaderData<typeof loader>();

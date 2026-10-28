@@ -56,6 +56,7 @@ import type { TikTokPostSettings, TikTokPrivacyLevel } from "../services/tiktok/
 import { TikTokPostPanel, type TikTokCreatorState } from "../components/TikTokPostPanel";
 import { startLoaderTimer } from "../utils/loaderTiming.server";
 import { refreshStaleProducts } from "../services/syncProducts.server";
+import { withInFlight } from "../services/inFlightWork.server";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -285,7 +286,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // dados da conta do IG para construir tudo isso junto com as informações do
 // Shopify") — checado aqui também, não só desabilitando o botão na UI, pra
 // nunca deixar passar uma chamada direta ao endpoint sem a conta conectada.
-export const action = async ({ request }: ActionFunctionArgs) => {
+// Conta como trabalho em andamento: o redeploy espera terminar (inFlightWork.server.ts).
+export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
   const shop = await prisma.shop.findUnique({
@@ -717,7 +719,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       error: "Something went wrong building this week's plan. Please try again.",
     };
   }
-};
+});
 
 function slotWeekday(slot: WeeklyPlanSlot, timeZone: string): number {
   return weekdayInTimezone(new Date(slot.scheduledAt), timeZone);

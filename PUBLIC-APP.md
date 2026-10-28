@@ -49,8 +49,8 @@ No GoDaddy (DNS do stockative.com): registro A `apps` → `37.27.24.159` e AAAA 
 Os callbacks são montados a partir de `SHOPIFY_APP_URL`, então cada provedor precisa aceitar o domínio novo (mantendo o antigo):
 - **Meta**: App Domains + Valid OAuth Redirect URIs → `<novo>/auth/meta/callback`. ✅ 28/10/2026 (App Domains já tinha `stockative.com`)
 - **TikTok**: Redirect URI → `<novo>/auth/tiktok/callback`; verificar o domínio/prefixo de URL para `PULL_FROM_URL`. ⏸ 28/10/2026: o painel trava a edição do Login Kit enquanto a revisão de Production (enviada 14/10) está em andamento; adicionar depois da aprovação, junto com os passos de TIKTOK-API-REVIEW.md
-- **YouTube (GCP)**: Authorized redirect URIs → `<novo>/auth/youtube/callback`
-- **Pinterest**: Redirect URI → `<novo>/auth/pinterest/callback`
+- **YouTube (GCP)**: Authorized redirect URIs → `<novo>/auth/youtube/callback`. ✅ 28/10/2026
+- **Pinterest**: Redirect URI → `<novo>/auth/pinterest/callback`. ✅ 28/10/2026
 
 ### 4. Protected customer data, Step 2
 Partner Dashboard → Stockative (novo) → API access requests → Protected customer data → **Data protection details**. São declarações sobre como os dados são protegidos (criptografia, retenção etc.) e precisam ser respondidas por você.

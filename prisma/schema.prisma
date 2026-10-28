@@ -485,6 +485,10 @@ model ContentItem {
   // format="reel"; diferente do TikTok, é publicação pública direta e
   // real, sem etapa de rascunho/confirmação manual (ver youtube/publish.server.ts).
   youtubeExternalPostId String?
+  // Motivo da última falha ao subir o Short (null = não tentou ou deu certo)
+  // — antes só ia pro console.error, e a lojista não tinha como saber se o
+  // Reel chegou no YouTube (Patricia, 28/10/2026).
+  youtubePublishError   String?
   // Quando a imagem hero foi subida pra galeria do produto no Shopify (ver
   // publishContentItem.server.ts). Sem isso, um retry de um item "partial"
   // (Instagram publicou, uma etapa depois falhou) subia a mesma imagem de

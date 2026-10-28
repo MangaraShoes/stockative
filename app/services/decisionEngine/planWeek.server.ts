@@ -94,6 +94,10 @@ export interface WeeklyPlanSlot {
   tiktokSettings: TikTokPostSettings | null;
   tiktokPublishStatus: string | null;
   tiktokDefaultTitle: string;
+  // Short no YouTube (só Reel) — os dois null = não tentou (canal não
+  // conectado ou post ainda não publicado).
+  youtubeVideoId: string | null;
+  youtubePublishError: string | null;
 }
 
 // Dia da semana (0=domingo) + horário em que cada slot posta por padrão, se
@@ -634,6 +638,8 @@ export async function planOneSlot(
       cta: contentItem.cta,
       hashtags: parseStoredHashtags(contentItem.hashtags),
     }).slice(0, TIKTOK_TITLE_MAX_LENGTH),
+    youtubeVideoId: null,
+    youtubePublishError: null,
   };
 }
 
@@ -1335,6 +1341,8 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
       cta: item.cta,
       hashtags: parseStoredHashtags(item.hashtags),
     }).slice(0, TIKTOK_TITLE_MAX_LENGTH),
+    youtubeVideoId: item.youtubeExternalPostId,
+    youtubePublishError: item.youtubePublishError,
     // Sem origem nenhuma = foto apagada da Shopify num post já publicado
     // (ver removeDeletedProductImages) — não mostra uma imagem quebrada.
     images: item.images

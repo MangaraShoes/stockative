@@ -444,6 +444,7 @@ export async function publishContentItemToInstagram(
         pinterestExternalPostId: pinterest.status === "published" ? pinterest.pinId : null,
         tiktokExternalPostId: tiktok.status === "published" ? tiktok.publishId : null,
         youtubeExternalPostId: youtube.status === "published" ? youtube.videoId : null,
+        youtubePublishError: youtube.status === "failed" ? youtube.reason : null,
       },
     });
 

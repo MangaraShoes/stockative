@@ -1576,6 +1576,20 @@ export default function PlanWeek() {
                         ? `Posted ${formatScheduledAt(slot.publishedAt, shopTimezone)}`
                         : `Posts ${formatScheduledAt(slot.scheduledAt, shopTimezone)}`}
                     </s-paragraph>
+                    {slot.youtubeVideoId && (
+                      <s-paragraph>
+                        YouTube: Short uploaded ·{" "}
+                        <s-link href={`https://youtube.com/shorts/${slot.youtubeVideoId}`} target="_blank">
+                          View on YouTube
+                        </s-link>{" "}
+                        (it can take a few minutes to appear on the channel)
+                      </s-paragraph>
+                    )}
+                    {!slot.youtubeVideoId && slot.youtubePublishError && (
+                      <s-paragraph>
+                        <strong>YouTube: couldn&apos;t upload the Short — {slot.youtubePublishError}</strong>
+                      </s-paragraph>
+                    )}
 
                     {slot.captionText && (
                       <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
@@ -2123,7 +2137,13 @@ export default function PlanWeek() {
                             ? `Couldn't publish: ${publishOutcome.result.reason}`
                             : `Published on Instagram${
                                 publishOutcome.result.facebook.status === "published" ? " and Facebook" : ""
-                              }.`}
+                              }.${
+                                publishOutcome.result.youtube.status === "published"
+                                  ? " YouTube Short uploaded."
+                                  : publishOutcome.result.youtube.status === "failed"
+                                    ? ` YouTube failed: ${publishOutcome.result.youtube.reason}`
+                                    : ""
+                              }`}
                         </strong>
                       </s-paragraph>
                     )}

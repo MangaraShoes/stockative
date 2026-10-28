@@ -28,7 +28,7 @@ const TASK_MODEL_CONFIG: Record<
   decision_engine: { model: "anthropic/claude-haiku-4.5" }, // barato, forte em structured output
   creative_copy: { model: "anthropic/claude-sonnet-5" }, // forte em linguagem/branding
   translation: { model: "anthropic/claude-haiku-4.5" },
-  brand_analysis: { model: "anthropic/claude-sonnet-5" }, // precisa de bom julgamento, não é tarefa frequente
+  brand_analysis: { model: "anthropic/claude-opus-5.5" }, // o mais capaz (Patricia, 28/10/2026): roda uma vez por loja e define a voz de tudo que vem depois
   content_pillars: { model: "anthropic/claude-sonnet-5" }, // estratégia de marca, mesma exigência de julgamento do brand_analysis
   image: { model: "google/gemini-2.5-flash-image" }, // Nano Banana — mesmo modelo do projeto da Mangará
   image_fidelity_check: { model: "anthropic/claude-sonnet-5" }, // modelo de geração não é o ideal pra julgar a própria imagem

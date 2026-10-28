@@ -120,18 +120,30 @@ Pode reaproveitar trechos do roteiro do [META-APP-REVIEW.md](META-APP-REVIEW.md)
 
 ## Testing instructions (para o revisor da Shopify)
 
-> ⚠️ **Bloqueio antes de submeter.** O revisor instala o app numa dev store dele e precisa testar o recurso principal, que é publicar. Enquanto o **Meta App Review** não for aprovado (enviado em 01/10/2026), o app da Meta está em modo de desenvolvimento, e só contas cadastradas como tester conseguem conectar o Instagram. **Duas opções:**
-> 1. **Esperar a aprovação da Meta** antes de submeter na Shopify (recomendado, porque a previsão era ~20 dias a partir de 01/10).
-> 2. Criar uma conta de teste do Instagram/Facebook, cadastrá-la como tester no app da Meta e passar as credenciais aqui (4.5.4, 4.5.5). As credenciais precisam continuar válidas durante toda a revisão.
+> **Decisão de 28/10/2026: submeter com uma conta de teste, sem esperar a Meta.** O revisor instala o app numa dev store dele e precisa passar do passo 2 do onboarding, que exige Instagram. O app da Meta continua em modo de desenvolvimento (Access Verification "In review" desde 23/09, sem previsão), e nesse modo só quem tem papel no app da Meta consegue conectar. Esperar a Meta deixaria a Shopify parada por tempo indeterminado.
+>
+> **Conta de teste do revisor (Patricia cria, nunca a conta pessoal nem a da Mangará):**
+> 1. Um e-mail novo só para isso (ex.: `reviewer@stockative.com`).
+> 2. Um usuário do Facebook com esse e-mail e uma Página do Facebook nova (ex.: "Stockative Demo Store").
+> 3. Uma conta Instagram nova, convertida para **Business**, ligada a essa Página.
+> 4. No app da Meta (developers.facebook.com → Stockative → App roles → Roles → Add people → **Tester**), adicionar esse usuário do Facebook e aceitar o convite logado nele.
+> 5. Testar o fluxo inteiro numa dev store com essa conta antes de submeter: Connect → publicar um post.
+> 6. **Deixar a verificação em duas etapas desligada** nessa conta e fazer login nela algumas vezes antes. O revisor entra de outro país, e um Facebook novo com 2FA ou sem histórico costuma pedir código, o que trava a revisão.
+> 7. Não trocar a senha nem desconectar nada até a Shopify aprovar (4.5.4, 4.5.5: as credenciais têm de valer durante toda a revisão).
+>
+> As credenciais vão **só** no campo de instruções da submissão no Partner Dashboard, nunca neste arquivo (o repositório é público).
 
 Rascunho:
 ```
 Stockative builds a weekly social media plan from the store's products and sales, generates posts (AI editorial image + caption) and publishes them to the merchant's connected channels.
 
 1. Install the app. Products sync automatically on install; no setup needed for this step.
-2. Complete the short brand questionnaire (Onboarding).
-3. Go to "Social" and connect Instagram/Facebook using the test account below. Instagram publishing requires an Instagram Business or Creator account linked to a Facebook Page.
-   Test account: [PREENCHER]
+2. Onboarding step 2 asks you to connect Instagram. It is required because every post is planned for Instagram first and the other channels mirror it. Click Connect, log in to Facebook with the test account below, then select the Page "[NOME DA PÁGINA]" and its Instagram account.
+   Our Meta app's Tech Provider access verification is still pending, so for now only accounts with a role in our Meta app can connect. The test account below has that role.
+   Facebook login: [PREENCHER NO PARTNER DASHBOARD]
+   Password: [PREENCHER NO PARTNER DASHBOARD]
+   If Facebook asks for a security code, email [CONTATO] and we reply within a few hours.
+3. Complete the rest of the onboarding (competitor accounts, store voice).
 4. Go to "Weekly plan", choose a weekly objective (or "Let AI decide") and generate the plan. Generation takes about [X] minutes.
 5. Open any post to see the decision behind it, the generated image and the caption. Approve it and click "Publish now" to publish immediately.
 6. Billing: a 7-day free trial starts on install. Development stores are not charged.
@@ -145,6 +157,6 @@ Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Set
 - [ ] Protected customer data, Step 2 respondido (PUBLIC-APP.md, item 4)
 - [ ] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `stockative-public`
 - [ ] Política de privacidade com URL pública (a mesma usada na Meta serve, se cobrir dados da Shopify)
-- [ ] Meta aprovada **ou** conta de teste tester com credenciais nas instruções
+- [ ] Conta de teste do revisor criada, Tester no app da Meta, 2FA desligado, fluxo testado numa dev store, credenciais coladas nas instruções do Partner Dashboard
 - [ ] Screenshots, ícone e screencast prontos
 - [ ] Contato de emergência no Partner Dashboard

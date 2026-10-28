@@ -1,8 +1,8 @@
 # Cobrança — Shopify App Pricing (06/10/2026)
 
-> **14/10/2026:** tudo aqui vale para o **app público** (`shopify.app.public.toml`, handle `stockative-2`, serviço Railway `stockative-public`), não para o app original, que é Custom distribution e não pode cobrar pela Shopify. Ver [PUBLIC-APP.md](PUBLIC-APP.md).
+> **14/10/2026:** tudo aqui vale para o **app público** (`shopify.app.public.toml`, handle `stockative-2`, serviço `app-public` no Hetzner), não para o app original, que é Custom distribution e não pode cobrar pela Shopify. Ver [PUBLIC-APP.md](PUBLIC-APP.md).
 
-The code is already in place and switched off. It turns on with `BILLING_ENABLED=true` on Railway. Until then, nothing changes for any shop.
+The code is already in place and switched off. It turns on with `BILLING_ENABLED=true` in `/opt/stockative/.env.public` (the `app-public` service only). Until then, nothing changes for any shop.
 
 How it works:
 - Plans, prices and the free trial live in the **Partner Dashboard**.
@@ -48,7 +48,7 @@ Path: App distribution → All apps → Stockative → Distribution → Manage l
      - Plus: 7 posts/week (4 image + 3 reels).
 3. Under **Private plans → Add**, create **"Mangará"** at **$0**, and authorize it only for the Mangará store (`cdcfc8-47.myshopify.com`). The code treats it as Plus.
 
-## 2. Credentials (Railway environment variables)
+## 2. Credentials (`/opt/stockative/.env.public` on the Hetzner server)
 
 | Variable | Where to get it |
 |---|---|
@@ -56,12 +56,12 @@ Path: App distribution → All apps → Stockative → Distribution → Manage l
 | `SHOPIFY_PARTNER_API_ACCESS_TOKEN` | Partner Dashboard → Settings → **Partner API clients** → create a client with the **Manage apps** permission |
 | `SHOPIFY_APP_GID` | `gid://shopify/App/<number>`, where the number is the app ID in the Partner Dashboard URL |
 | `APP_EVENTS_CLIENT_ID` / `APP_EVENTS_CLIENT_SECRET` | Dev Dashboard → **API keys** (client credentials, used for the App Events API) |
-| `SHOPIFY_APP_HANDLE` | Optional. Defaults to `stockative-1` (from the URL `admin.shopify.com/store/<store>/apps/stockative-1`) |
+| `SHOPIFY_APP_HANDLE` | Optional. Must be `stockative-2` here (the code defaults to `stockative-1`, the custom app) (from the URL `admin.shopify.com/store/<store>/apps/stockative-1`) |
 
 ## 3. Turn it on and test
 
-1. With the variables set, add `BILLING_ENABLED=true` on Railway.
-2. On `stockative-dev` (a dev store, so no charge), open the app. You should be sent to Shopify's plan page. Pick Grow and approve.
+1. With the variables set, add `BILLING_ENABLED=true` to `/opt/stockative/.env.public` and recreate `app-public` (`docker compose -f deploy/hetzner/docker-compose.yml --profile public up -d --force-recreate app-public`). Never set it in `.env.production`: the custom app cannot bill, and the scheduler there would skip Mangará.
+2. On `stockative-public-test` (a dev store, so no charge), open the app. You should be sent to Shopify's plan page. Pick Grow and approve.
 3. You come back to `/app`. Check the **"Free trial"** banner, and that Settings → Plan shows Grow.
 4. Upgrade to Plus from **Change plan** and check the plan updates (allow up to 5 minutes for the cache).
 5. Regenerate an image with no credit left → **Accept charge**, then check the `extra_image` event in the Dev Dashboard (App Events).

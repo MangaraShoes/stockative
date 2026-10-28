@@ -5,7 +5,7 @@
 // (2) manda quem não tem pra tela de planos e (3) sincroniza qual plano ela
 // escolheu, pra liberar a cadência/cota certa (planTiers.server.ts).
 //
-// Desligado até BILLING_ENABLED=true no Railway, pra nada mudar antes de os
+// Desligado até BILLING_ENABLED=true no .env.public, pra nada mudar antes de os
 // planos existirem no painel. Docs:
 // https://shopify.dev/docs/apps/launch/billing/shopify-app-pricing
 

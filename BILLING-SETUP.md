@@ -13,6 +13,10 @@ How it works:
   - it reports extra credits as usage;
   - the weekly cron stops generating plans for shops without a subscription.
 
+**Status on 28/10/2026:** the App Store registration is paid ($19, one-time) and the primary listing language is English. The three public plans exist as **drafts** under Pricing → "Draft and test plans": `basic` $24.90, `grow` $37.90 and `plus` $49.90. Each has a 7-day trial, redirect `/app`, "Free for partners and developers" ticked, and the `extra_image` ($0.20) and `extra_video` ($1.99) meters. **"Enable Shopify App Pricing" has not been clicked yet.** Do that only after the dev store test. The Mangará private plan is not created yet; it is only needed if Mangará migrates to this app. IDs: Partner org `5172871`, app `gid://shopify/App/435409649665`.
+
+Two quirks in the plan form. Typing the plan name auto-fills the handle, so typing the handle again doubles it (`basicbasic`). The redirect field already starts with `/`, so typing `/app` gives `//app`.
+
 Code: `app/services/billing/`, `app/routes/app.tsx`, `purchaseExtraCredits` in `creditUsage.server.ts`.
 
 Decisions made by Patricia on 06/10/2026:

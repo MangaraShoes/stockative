@@ -55,8 +55,11 @@ const KIND_SCENES: Record<AccessoryKind, KindScene> = {
       { id: "bag_on_lap_seated", promptText: "seated with the bag resting on the lap or on the seat beside them, one hand lightly on it, front of the bag toward the camera" },
     ],
     framings: [
-      { id: "bag_three_quarter", promptText: "a three-quarter length shot where the bag sits near the center of the frame, large and sharp, with the outfit around it" },
-      { id: "bag_waist_level_close", promptText: "a closer shot framed from the chest to mid-thigh, so the bag fills a real share of the frame while the torso stays in view" },
+      // Nunca "no centro do quadro" (Patricia, 28/10/2026): o modelo lia como
+      // centro do CORPO e pendurava a bolsa na frente da virilha, com as
+      // duas alças subindo — posição que ninguém usa na vida real.
+      { id: "bag_three_quarter", promptText: "a three-quarter length shot where the bag, carried at the side of the body, is large and sharp and catches the eye first, with the outfit around it" },
+      { id: "bag_waist_level_close", promptText: "a closer shot framed from the chest to mid-thigh, the bag at the side of the body filling a real share of the frame while the torso stays in view" },
     ],
   },
   neck: {
@@ -187,6 +190,8 @@ function makeSelectScene(category: VisualCategory) {
 const ACCESSORY_PROMPT_RULES = `- The accessory is the hero even though it is small: it sits where the eye lands first, large enough in the frame to show its shape, finish and details, in sharp focus — never a tiny detail lost in a wide shot.
 - Real-world scale: the piece keeps its true size relative to the body — never enlarged or shrunk to fill the frame.
 - Exact finish: metal tone (gold, silver, rose gold), stones, leather grain, hardware, clasps, chains, stitching and any logo stay exactly as in the reference — never swapped, added or simplified.
+- A bag is carried the way people really carry one: on the shoulder hanging at the hip, in one hand at the side, in the crook of the arm, or resting on the lap or seat. Never held or hanging centered in front of the body (in front of the groin or belly), never with both straps or handles pulled up symmetrically on each side.
+- The outfit right behind the piece is clearly a different color from it — a camel or cognac piece never against a camel, caramel, mustard or tan garment, a black piece never against black — so its silhouette reads unmistakably against the clothes.
 - Nothing covers it: no hair, sleeve, collar, hand or strap in front of the piece. Any other jewelry or accessory in frame is minimal and plain, so it never competes with the product.
 - Skin and hands near the piece look natural and well cared for — relaxed fingers, a plausible number of them, neutral nails.`;
 

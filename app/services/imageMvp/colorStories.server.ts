@@ -56,7 +56,7 @@ export const COLOR_STORIES: ColorStory[] = [
   {
     id: "bordeaux_camel",
     seasons: ["winter"],
-    clashesWith: ["red_burgundy", "tan_camel"],
+    clashesWith: ["red_burgundy", "tan_camel", "brown"],
     promptText: "soft, muted bordeaux with camel — a bordeaux knit or silk piece paired with a camel tailored layer",
   },
   {
@@ -86,7 +86,8 @@ export const COLOR_STORIES: ColorStory[] = [
   {
     id: "mustard_chocolate",
     seasons: ["winter"],
-    clashesWith: ["yellow"],
+    // Mostarda/ocre camufla bolsa caramelo/conhaque (Patricia, 28/10/2026).
+    clashesWith: ["yellow", "tan_camel", "brown", "orange_coral"],
     promptText: "a faded, muted mustard with chocolate brown — never bright yellow, closer to old gold",
   },
   // Primavera / verão
@@ -111,7 +112,7 @@ export const COLOR_STORIES: ColorStory[] = [
   {
     id: "terracotta_cream",
     seasons: ["summer"],
-    clashesWith: ["orange_coral", "tan_camel"],
+    clashesWith: ["orange_coral", "tan_camel", "brown"],
     promptText: "a soft, sun-faded terracotta with cream — never bright orange",
   },
   {
@@ -135,7 +136,7 @@ export const COLOR_STORIES: ColorStory[] = [
   {
     id: "butter_camel",
     seasons: ["summer"],
-    clashesWith: ["yellow", "tan_camel"],
+    clashesWith: ["yellow", "tan_camel", "brown"],
     promptText: "a soft butter yellow with camel — pale and creamy, never a bright yellow",
   },
   // Neutras: só pra produto de cor, que deve ser o único ponto de cor.

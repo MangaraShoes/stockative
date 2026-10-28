@@ -32,6 +32,8 @@ const SETUP_STEPS = [
   { keys: ["hasContentPillars", "hasPublished"], paths: ["/app/content-pillars", "/app/plan-week"] },
 ] as const;
 
+const ALWAYS_OPEN_PATHS = ["/app", "/app/settings"];
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const timer = startLoaderTimer(`app layout loader ${new URL(request.url).pathname}`);
   const { session, admin, redirect: adminRedirect } = await authenticate.admin(request);
@@ -75,8 +77,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Trava qualquer página além da próxima fase pendente — a Home continua
   // sempre acessível (é onde o checklist e o botão "Continue setup" vivem).
+  // Settings também (Patricia, 28/10/2026): o banner de teste grátis promete
+  // trocar/cancelar o plano lá "anytime", e Settings não é fase do setup.
   const pathname = new URL(request.url).pathname;
-  if (pathname !== "/app" && firstIncomplete !== -1) {
+  if (!ALWAYS_OPEN_PATHS.includes(pathname) && firstIncomplete !== -1) {
     const allowedPaths = SETUP_STEPS.slice(0, firstIncomplete + 1).flatMap(
       (step) => step.paths,
     );
@@ -144,7 +148,7 @@ export default function App() {
     appBridge?.loading?.(isNavigating);
   }, [isNavigating]);
   const isUnlocked = (href: string) =>
-    href === "/app" || unlockedPaths === null || unlockedPaths.includes(href);
+    ALWAYS_OPEN_PATHS.includes(href) || unlockedPaths === null || unlockedPaths.includes(href);
   // "Weekly objective" só existe pra criar os pilares na primeira vez
   // (Patricia, 20/09/2026: "esconde o Weekly objective do menu quando já
   // tiver pilares") — depois disso ela só redireciona pra "Weekly plan"

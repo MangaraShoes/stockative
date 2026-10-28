@@ -6,6 +6,7 @@ import { getOrCreateShop, syncProducts } from "../services/syncProducts.server";
 import { computeCommerceSignals } from "../services/computeCommerceSignals.server";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
 import { OnboardingStepper } from "../components/OnboardingStepper";
+import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -76,6 +77,7 @@ export default function Products() {
               >
                 Sync stock
               </s-button>
+              {isAnalyzing && <GeneratingProgressBar label="Syncing your products from Shopify…" />}
               {analyzeFetcher.data?.intent === "analyze-stock" &&
                 analyzeFetcher.data.syncedCount === 0 && (
                   <s-paragraph>
@@ -129,6 +131,9 @@ export default function Products() {
               {isAnalyzing ? "Syncing…" : "Sync stock"}
             </button>
           </div>
+          {/* Sync de catálogo inteiro leva vários segundos — sem a barra só
+              o botão cinza mudava (Patricia, 28/10/2026). */}
+          {isAnalyzing && <GeneratingProgressBar label="Syncing your products from Shopify…" />}
         </s-section>
       )}
     </s-page>

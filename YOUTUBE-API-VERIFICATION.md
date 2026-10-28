@@ -90,6 +90,8 @@ Roteiro (~3 min, gravação de tela com narração ou legendas em inglês):
 
 ### 4. Enviar e acompanhar
 
+- [x] **Marca verificada em 28/10/2026** (Branding → Verify branding, aprovado na hora: nome Stockative + logo). Precisa clicar em **Publish branding** em até 7 dias, senão o resultado expira.
+
 - [ ] Branding atualizado (nome Stockative + logo) e salvo
 - [ ] Data Access com só os dois escopos
 - [ ] Vídeo gravado e enviado como Unlisted; link no formulário

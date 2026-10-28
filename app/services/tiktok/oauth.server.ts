@@ -3,6 +3,7 @@ import prisma from "../../db.server";
 import {
   TIKTOK_AUTHORIZE_BASE,
   TIKTOK_REQUIRED_PUBLISH_SCOPE,
+  TIKTOK_REVOKE_URL,
   TIKTOK_SCOPES,
   TIKTOK_TOKEN_URL,
   TIKTOK_USER_INFO_URL,
@@ -211,5 +212,26 @@ async function refreshAndStore(accountId: string): Promise<string> {
     if (latest && latest.refreshToken !== current.refreshToken) return latest.accessToken;
     console.error(`TikTok token refresh failed for social account ${accountId}:`, error);
     throw error;
+  }
+}
+
+// Disconnect (28/10/2026): apagar só os tokens no nosso banco deixava o
+// consentimento guardado no TikTok — o próximo "Connect TikTok" pulava a
+// tela de permissões e voltava direto (achado ao regravar o vídeo da
+// auditoria do Direct Post). Revogar encerra o acesso dos dois lados.
+// Best-effort: se o TikTok falhar, a conta sai do app mesmo assim.
+export async function revokeTikTokAccess(account: SocialAccount): Promise<void> {
+  try {
+    const token = await getValidTikTokAccessToken(account);
+    const response = await fetch(TIKTOK_REVOKE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Cache-Control": "no-cache" },
+      body: new URLSearchParams({ client_key: getClientKey(), client_secret: getClientSecret(), token }),
+    });
+    if (!response.ok) {
+      console.error(`TikTok revoke failed for social account ${account.id}: HTTP ${response.status}`, await response.text());
+    }
+  } catch (error) {
+    console.error(`TikTok revoke failed for social account ${account.id}:`, error);
   }
 }

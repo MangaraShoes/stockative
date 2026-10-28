@@ -5,7 +5,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { isMetaConfigured } from "../services/meta/oauth.server";
 import { isPinterestConfigured } from "../services/pinterest/oauth.server";
-import { getValidTikTokAccessToken, isTikTokConfigured } from "../services/tiktok/oauth.server";
+import { getValidTikTokAccessToken, isTikTokConfigured, revokeTikTokAccess } from "../services/tiktok/oauth.server";
 import { isYouTubeConfigured } from "../services/youtube/oauth.server";
 import { getConnectUrl } from "../services/oauthTransaction.server";
 import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardingStatus.server";
@@ -108,6 +108,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (intent === "disconnect-tiktok") {
+    const account = await prisma.socialAccount.findUnique({
+      where: { shopId_platform: { shopId: shop.id, platform: "tiktok" } },
+    });
+    if (account) await revokeTikTokAccess(account);
     await prisma.socialAccount.deleteMany({ where: { shopId: shop.id, platform: "tiktok" } });
     return { intent, error: null };
   }

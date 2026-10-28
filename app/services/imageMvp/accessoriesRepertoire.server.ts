@@ -52,7 +52,10 @@ const KIND_SCENES: Record<AccessoryKind, KindScene> = {
     actions: [
       { id: "bag_on_shoulder_walking", promptText: "walking naturally with the bag carried on the shoulder, arm relaxed, the bag hanging at hip height and facing the camera" },
       { id: "bag_in_hand_standing", promptText: "standing in a relaxed pose holding the bag by its handle at the side, the bag's front and shape fully visible" },
-      { id: "bag_on_lap_seated", promptText: "seated with the bag resting on the lap or on the seat beside them, one hand lightly on it, front of the bag toward the camera" },
+      // Braço por dentro da alça (Patricia, 28/10/2026): a bolsa saiu no
+      // assento com a alça no ombro e o braço por fora dela — a posição em
+      // si ela aprovou, o braço solto fora da alça é que ninguém usa.
+      { id: "bag_on_lap_seated", promptText: "seated with the bag resting on the lap or on the seat beside them, one hand lightly on it, front of the bag toward the camera; if the strap is over the shoulder, the arm passes through the strap, so the strap runs between the arm and the body" },
     ],
     framings: [
       // Nunca "no centro do quadro" (Patricia, 28/10/2026): o modelo lia como
@@ -190,7 +193,7 @@ function makeSelectScene(category: VisualCategory) {
 const ACCESSORY_PROMPT_RULES = `- The accessory is the hero even though it is small: it sits where the eye lands first, large enough in the frame to show its shape, finish and details, in sharp focus — never a tiny detail lost in a wide shot.
 - Real-world scale: the piece keeps its true size relative to the body — never enlarged or shrunk to fill the frame.
 - Exact finish: metal tone (gold, silver, rose gold), stones, leather grain, hardware, clasps, chains, stitching and any logo stay exactly as in the reference — never swapped, added or simplified.
-- A bag is carried the way people really carry one: on the shoulder hanging at the hip, in one hand at the side, in the crook of the arm, or resting on the lap or seat. Never held or hanging centered in front of the body (in front of the groin or belly), never with both straps or handles pulled up symmetrically on each side.
+- A bag is carried the way people really carry one: on the shoulder hanging at the hip, in one hand at the side, in the crook of the arm, or resting on the lap or seat. Never held or hanging centered in front of the body (in front of the groin or belly), never with both straps or handles pulled up symmetrically on each side. Whenever the strap is over the shoulder, the arm passes through it — the strap runs between the arm and the body, never hanging loose outside the arm.
 - The outfit right behind the piece is clearly a different color from it — a camel or cognac piece never against a camel, caramel, mustard or tan garment, a black piece never against black — so its silhouette reads unmistakably against the clothes.
 - Nothing covers it: no hair, sleeve, collar, hand or strap in front of the piece. Any other jewelry or accessory in frame is minimal and plain, so it never competes with the product.
 - Skin and hands near the piece look natural and well cared for — relaxed fingers, a plausible number of them, neutral nails.`;

@@ -56,6 +56,12 @@ Os callbacks são montados a partir de `SHOPIFY_APP_URL`, então cada provedor p
 Partner Dashboard → Stockative (novo) → API access requests → Protected customer data → **Data protection details**. São declarações sobre como os dados são protegidos (criptografia, retenção etc.) e precisam ser respondidas por você.
 
 ### 5. Testar numa loja de desenvolvimento
+🔄 28/10/2026, em andamento na dev store `stockative-public-test.myshopify.com` (plano Basic, dados de teste da Shopify; a `stockative-dev` fica para a revisão da Meta):
+- ✅ Instalação pelo `apps.stockative.com` (OAuth da Shopify com as credenciais novas)
+- ✅ Sincronização: 17 produtos
+- ✅ Instagram/Facebook, YouTube e Pinterest conectaram pelos callbacks novos (contas da Mangará, desconectadas logo depois; o Disconnect só apaga o token no nosso banco, não revoga no provedor). YouTube mostra a tela "Google hasn't verified this app", ver YOUTUBE-API-VERIFICATION.md
+- ⏸ TikTok: aguarda a revisão com o callback novo (enviada 28/10/2026)
+
 Um app público não aprovado só instala em loja de desenvolvimento (por exemplo `stockative-dev`, que hoje tem o app antigo instalado; desinstale antes ou crie outra dev store). Fluxo completo: instalar, sincronizar produtos, conectar o Instagram, gerar o plano da semana.
 
 ### 6. Listing e submissão na App Store

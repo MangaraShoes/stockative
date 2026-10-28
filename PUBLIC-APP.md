@@ -61,6 +61,7 @@ Partner Dashboard → Stockative (novo) → API access requests → Protected cu
 - ✅ Sincronização: 17 produtos
 - ✅ Instagram/Facebook, YouTube e Pinterest conectaram pelos callbacks novos (contas da Mangará, desconectadas logo depois; o Disconnect só apaga o token no nosso banco, não revoga no provedor). YouTube mostra a tela "Google hasn't verified this app", ver YOUTUBE-API-VERIFICATION.md
 - ⏸ TikTok: aguarda a revisão com o callback novo (enviada 28/10/2026)
+- ⚠️ **Bloqueador para a submissão**: o onboarding não passa do passo 2 sem uma conta social que publique (`usableSocialAccountsWhere` em `onboardingStatus.server.ts`). O revisor da Shopify não consegue cumprir isso hoje: Meta ainda não está Live (Access Verification pendente, só quem tem papel no app conecta), YouTube mostra "app não verificado", TikTok aguarda revisão, Pinterest a confirmar. Decidir antes de submeter: conta com acesso para o revisor, caminho de demonstração, ou esperar a Meta.
 
 Um app público não aprovado só instala em loja de desenvolvimento (por exemplo `stockative-dev`, que hoje tem o app antigo instalado; desinstale antes ou crie outra dev store). Fluxo completo: instalar, sincronizar produtos, conectar o Instagram, gerar o plano da semana.
 

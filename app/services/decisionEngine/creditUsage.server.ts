@@ -64,19 +64,47 @@ export async function getMonthlyUsage(shopId: string, taskType: CreditTaskType):
 
 // Crédito extra comprado avulso (Patricia, 30/09/2026) — só imagem/vídeo,
 // e só no mês da compra (mesma janela da cota do plano).
-async function getPurchasedCreditsThisMonth(shopId: string, taskType: CreditTaskType): Promise<number> {
-  if (taskType !== "image" && taskType !== "video") return 0;
-  const result = await prisma.imageCreditPurchase.aggregate({
-    where: { shopId, taskType, purchasedAt: { gte: startOfCurrentMonth() } },
-    _sum: { creditsPurchased: true },
-  });
-  return result._sum.creditsPurchased ?? 0;
-}
-
+//
+// Percorre o mês em ordem (bug achado ao vivo, 28/10/2026): a conta antiga
+// era "limite + comprado − tudo o que foi gerado", mas os posts do plano são
+// gerados mesmo além da cota — o excesso já existente engolia o crédito
+// recém-comprado e a lojista pagava €0,20 sem regenerar nada. Agora cada
+// geração gasta primeiro a cota do plano, depois crédito extra comprado
+// ANTES dela; a que não tem nenhum dos dois é excesso do plano e não toca
+// em compra futura.
 export async function getRemainingCredits(shop: ShopPlanFields & { id: string }, taskType: CreditTaskType): Promise<number> {
-  const limit = getMonthlyLimit(shop, taskType) + (await getPurchasedCreditsThisMonth(shop.id, taskType));
-  const used = await getMonthlyUsage(shop.id, taskType);
-  return Math.max(0, limit - used);
+  const limit = getMonthlyLimit(shop, taskType);
+  if (taskType !== "image" && taskType !== "video") {
+    return Math.max(0, limit - (await getMonthlyUsage(shop.id, taskType)));
+  }
+
+  const since = startOfCurrentMonth();
+  const [usage, purchases] = await Promise.all([
+    prisma.generationLog.findMany({
+      where: { shopId: shop.id, taskType, countsAsCredit: true, createdAt: { gte: since } },
+      select: { createdAt: true },
+    }),
+    prisma.imageCreditPurchase.findMany({
+      where: { shopId: shop.id, taskType, purchasedAt: { gte: since }, creditsPurchased: { gt: 0 } },
+      select: { purchasedAt: true, creditsPurchased: true },
+    }),
+  ]);
+
+  // Compra antes de geração no mesmo instante: o crédito comprado pra uma
+  // regeneração já está disponível quando ela grava o log.
+  const events = [
+    ...purchases.map((p) => ({ at: p.purchasedAt.getTime(), credits: p.creditsPurchased })),
+    ...usage.map((u) => ({ at: u.createdAt.getTime(), credits: 0 })),
+  ].sort((a, b) => a.at - b.at || b.credits - a.credits);
+
+  let planLeft = limit;
+  let extraLeft = 0;
+  for (const event of events) {
+    if (event.credits > 0) extraLeft += event.credits;
+    else if (planLeft > 0) planLeft -= 1;
+    else if (extraLeft > 0) extraLeft -= 1;
+  }
+  return planLeft + extraLeft;
 }
 
 // Lojista aceitou a cobrança de crédito extra ao clicar Regenerate sem

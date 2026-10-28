@@ -1,5 +1,6 @@
 import prisma from "../../db.server";
-import { getMissingSocialPlatforms, joinPlatformLabels } from "../socialReminders.server";
+import { getMissingSocialPlatforms } from "../socialReminders.server";
+import { joinLabels } from "../../utils/joinLabels";
 
 // Notificações por e-mail (Settings, Patricia 03/10/2026), enviadas pelo
 // Resend (https://resend.com/docs/api-reference/emails/send-email). Só os
@@ -142,7 +143,7 @@ export async function notifyMissingSocialPlatforms(shopId: string): Promise<void
   const { missing } = await getMissingSocialPlatforms(shopId);
   if (missing.length === 0) return;
 
-  const networks = joinPlatformLabels(missing.map((platform) => platform.label));
+  const networks = joinLabels(missing.map((platform) => platform.label));
   // Sem envio de verdade (ex.: Resend ainda não configurado), não conta como
   // lembrete enviado — senão o primeiro e-mail real atrasaria até 30 dias.
   const sent = await sendEmail({

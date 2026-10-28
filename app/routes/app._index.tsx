@@ -8,9 +8,9 @@ import { getOnboardingStatus, usableSocialAccountsWhere } from "../services/onbo
 import {
   getMissingSocialPlatforms,
   isSocialPlatformKey,
-  joinPlatformLabels,
   setSocialPlatformIgnored,
 } from "../services/socialReminders.server";
+import { joinLabels } from "../utils/joinLabels";
 import { goTo } from "../utils/navigateOnClick";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -194,7 +194,7 @@ export default function Index() {
                 <s-badge tone="warning">Not connected</s-badge>
                 <s-heading>
                   Your posts aren&apos;t going out on{" "}
-                  {joinPlatformLabels(missingSocialPlatforms.map((p) => p.label))}
+                  {joinLabels(missingSocialPlatforms.map((p) => p.label))}
                 </s-heading>
               </s-stack>
               <s-paragraph>

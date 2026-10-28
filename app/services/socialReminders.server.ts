@@ -93,9 +93,3 @@ export async function setSocialPlatformIgnored(
     data: { ignoredSocialPlatforms: [...current] },
   });
 }
-
-// "label, label and label" para o texto do banner e do e-mail.
-export function joinPlatformLabels(labels: string[]): string {
-  if (labels.length <= 1) return labels.join("");
-  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
-}

@@ -48,6 +48,8 @@ const ORDERS_QUERY = `#graphql
   }
 `;
 
+const SIGNAL_BATCH_SIZE = 10;
+
 interface ProductAggregate {
   unitsSold7d: number;
   unitsSold30d: number;
@@ -122,9 +124,9 @@ export async function computeCommerceSignals(
     select: { id: true, shopifyProductId: true, shopifyCreatedAt: true, price: true, unitCost: true },
   });
 
-  let computedCount = 0;
-
-  for (const product of products) {
+  // Em lotes paralelos, não um produto por vez — mesmo motivo do
+  // SYNC_BATCH_SIZE em syncProducts.server.ts.
+  const upsertSignal = async (product: (typeof products)[number]) => {
     const aggregate = aggregates.get(product.shopifyProductId);
     const daysSinceLastSale = aggregate?.lastSaleAt
       ? Math.floor((now.getTime() - aggregate.lastSaleAt.getTime()) / (24 * 60 * 60 * 1000))
@@ -167,9 +169,11 @@ export async function computeCommerceSignals(
         margin,
       },
     });
+  };
 
-    computedCount += 1;
+  for (let start = 0; start < products.length; start += SIGNAL_BATCH_SIZE) {
+    await Promise.all(products.slice(start, start + SIGNAL_BATCH_SIZE).map(upsertSignal));
   }
 
-  return computedCount;
+  return products.length;
 }

@@ -292,23 +292,25 @@ export async function upsertProduct(shopId: string, node: ShopifyProductNode): P
 
   // Galeria completa (não só a featured image) — toda ProductImage é
   // sempre "still" (nunca geramos still por IA, ver ProductImage no schema).
-  for (const [index, imageEdge] of node.images.edges.entries()) {
-    await prisma.productImage.upsert({
-      where: {
-        productId_shopifyImageId: {
+  await Promise.all(
+    node.images.edges.map((imageEdge, index) =>
+      prisma.productImage.upsert({
+        where: {
+          productId_shopifyImageId: {
+            productId: product.id,
+            shopifyImageId: imageEdge.node.id,
+          },
+        },
+        update: { url: imageEdge.node.url, position: index + 1 },
+        create: {
           productId: product.id,
           shopifyImageId: imageEdge.node.id,
+          url: imageEdge.node.url,
+          position: index + 1,
         },
-      },
-      update: { url: imageEdge.node.url, position: index + 1 },
-      create: {
-        productId: product.id,
-        shopifyImageId: imageEdge.node.id,
-        url: imageEdge.node.url,
-        position: index + 1,
-      },
-    });
-  }
+      }),
+    ),
+  );
 
   // Foto apagada na Shopify sai daqui também (Patricia, 28/10/2026) — antes
   // ficava pra sempre, com a URL dando 404, e podia entrar como still no
@@ -348,6 +350,8 @@ async function removeDeletedProductImages(productId: string, currentShopifyImage
   ]);
 }
 
+const SYNC_BATCH_SIZE = 5;
+
 // Busca todos os produtos da loja via Admin GraphQL (paginado) e grava/atualiza
 // cada um em ProductCache. Retorna quantos produtos foram sincronizados.
 export async function syncProducts(admin: AdminGraphqlClient, shopId: string): Promise<number> {
@@ -362,10 +366,14 @@ export async function syncProducts(admin: AdminGraphqlClient, shopId: string): P
     const json = await response.json();
     const productsConnection = json.data.products;
 
-    for (const edge of productsConnection.edges as { node: ShopifyProductNode }[]) {
-      await upsertProduct(shopId, edge.node);
-      syncedCount += 1;
+    // Em lotes paralelos, não um produto por vez (Patricia, 28/10/2026:
+    // Sync stock de 173 produtos demorava demais). Lote pequeno pra caber
+    // no pool de conexões do Prisma no servidor de 2 vCPUs.
+    const nodes = (productsConnection.edges as { node: ShopifyProductNode }[]).map((edge) => edge.node);
+    for (let start = 0; start < nodes.length; start += SYNC_BATCH_SIZE) {
+      await Promise.all(nodes.slice(start, start + SYNC_BATCH_SIZE).map((node) => upsertProduct(shopId, node)));
     }
+    syncedCount += nodes.length;
 
     hasNextPage = productsConnection.pageInfo.hasNextPage;
     cursor = productsConnection.pageInfo.endCursor;

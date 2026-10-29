@@ -1,5 +1,7 @@
 # Rascunho do listing na Shopify App Store (14/10/2026)
 
+> **29/10/2026: preenchido no formulário (rascunho salvo, não submetido).** Nome, categoria **Marketing and conversion → Marketing → Marketing - Other** (não existe categoria de social media; depois de submeter, só muda com apelação), idioma English, introdução, detalhes, 5 features, privacy `https://stockative.com/#privacy`, site `https://stockative.com`, subtítulo, 5 termos de busca, "não exige Online Store/POS", nomes dos medidores e dos planos. A checagem automática da Shopify pediu para tirar a palavra **"plan"** (confunde com plano de preço), por isso os textos abaixo usam "schedule"/"calendar". A feature "See reach, saves and link clicks" ficou de fora (máximo de 5). Faltam 8 pendências, todas da Patricia: feature media, screenshots, e-mail de suporte, e-mails de review e de submissão, conta de teste, instruções de teste e screencast.
+
 App: **Stockative (público)**, handle `stockative-2`. Ver [PUBLIC-APP.md](PUBLIC-APP.md). Onde preencher: Partner Dashboard → Stockative → Distribution → Manage submission.
 
 Os textos estão em inglês, o idioma principal do listing. As traduções (FR/NL/DE/PT/ES) podem ser adicionadas depois, por locale.
@@ -27,22 +29,21 @@ Stockative: AI Content Planner
 
 ## App introduction (≤100)
 ```
-Turn your stock, sales and calendar into a ready-to-publish weekly social media plan.
+Turn your stock, sales and calendar into a ready-to-publish weekly social media schedule.
 ```
 
 ## App details (≤500)
 ```
-Stockative plans your social media from your store's data. Each week it looks at stock, sales speed, new arrivals and upcoming commercial dates, decides which products to promote and why, and builds a balanced plan. For each post it creates an editorial image from your real product photo, checked for color and detail accuracy, plus a caption in your brand voice. Review, adjust and approve: Stockative publishes on schedule and shows each post's reach, engagement and link clicks.
+Stockative builds your social media content from your store's data. Each week it looks at stock, sales speed, new arrivals and upcoming commercial dates, decides which products to promote and why, and builds a balanced schedule. For each post it creates an editorial image from your real product photo, checked for color and detail accuracy, plus a caption in your brand voice. Review, adjust and approve: Stockative publishes on time and shows each post's reach, engagement and link clicks.
 ```
 
 ## Feature list (≤80 cada)
 ```
-Weekly content plan based on your inventory, sales and commercial calendar
+Weekly content calendar based on your inventory, sales and commercial dates
 AI editorial images that keep your product's color and details unchanged
 Short product videos for Instagram and Facebook Reels and YouTube Shorts
 Captions in your brand voice, in English, French, Dutch, German and more
 Scheduled auto-publishing to Instagram, Facebook and Pinterest
-See reach, saves and link clicks for every published post
 ```
 Depois da auditoria do TikTok, trocar a 5ª linha por `Scheduled auto-publishing to Instagram, Facebook, Pinterest and TikTok`.
 
@@ -56,6 +57,11 @@ Depois da auditoria do TikTok, trocar a 5ª linha por `Scheduled auto-publishing
 ## Categoria e tags
 - Categoria: **Marketing and conversion → Social media** (confirmar o nome exato no formulário).
 - Tags: as que existirem mais próximas de *social media posting*, *content scheduling*, *AI content*.
+
+## App card subtitle (≤62)
+```
+Weekly social posts planned from your stock and sales
+```
 
 ## Search terms (se o formulário pedir)
 ```
@@ -152,11 +158,11 @@ Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Set
 ```
 
 ## Checklist antes de clicar em Submit
-- [ ] Serviço `stockative-public` no ar, com as variáveis (PUBLIC-APP.md, item 1)
-- [ ] Callbacks das redes no domínio do app público (PUBLIC-APP.md, item 3)
+- [x] Serviço `app-public` no ar, com as variáveis (PUBLIC-APP.md, item 1)
+- [x] Callbacks das redes no domínio do app público (PUBLIC-APP.md, item 3; TikTok em revisão)
 - [ ] Protected customer data, Step 2 respondido (PUBLIC-APP.md, item 4)
-- [x] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `app-public` (28/10/2026, testado na dev store; falta clicar "Enable Shopify App Pricing" e configurar o App Events)
-- [ ] Política de privacidade com URL pública (a mesma usada na Meta serve, se cobrir dados da Shopify)
+- [x] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `app-public` (Shopify App Pricing ativado em 29/10/2026, os 3 planos e o App Events testados na dev store)
+- [x] Política de privacidade com URL pública: `https://stockative.com/#privacy` no listing (conferir se o texto cobre os dados da Shopify)
 - [x] Conta de teste do revisor criada, com papel de Tester no app da Meta
 - [ ] Fluxo testado numa dev store com a conta de teste, 2FA desligado, credenciais coladas nas instruções do Partner Dashboard
 - [ ] Screenshots, ícone e screencast prontos

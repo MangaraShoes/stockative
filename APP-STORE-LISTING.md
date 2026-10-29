@@ -1,6 +1,6 @@
 # Rascunho do listing na Shopify App Store (14/10/2026)
 
-> **29/10/2026: preenchido no formulário (rascunho salvo, não submetido).** Nome, categoria **Marketing and conversion → Marketing → Marketing - Other** (não existe categoria de social media; depois de submeter, só muda com apelação), idioma English, introdução, detalhes, 5 features, privacy `https://stockative.com/#privacy`, site `https://stockative.com`, subtítulo, 5 termos de busca, "não exige Online Store/POS", nomes dos medidores e dos planos. A checagem automática da Shopify pediu para tirar a palavra **"plan"** (confunde com plano de preço), por isso os textos abaixo usam "schedule"/"calendar". A feature "See reach, saves and link clicks" ficou de fora (máximo de 5). Faltam 8 pendências, todas da Patricia: feature media, screenshots, e-mail de suporte, e-mails de review e de submissão, conta de teste, instruções de teste e screencast.
+> **29/10/2026: preenchido no formulário (rascunho salvo, não submetido).** Nome, categoria **Marketing and conversion → Marketing → Marketing - Other** (não existe categoria de social media; depois de submeter, só muda com apelação), idioma English, introdução, detalhes, 5 features, privacy `https://stockative.com/#privacy`, site `https://stockative.com`, subtítulo, 5 termos de busca, "não exige Online Store/POS", nomes dos medidores e dos planos. A checagem automática da Shopify pediu para tirar a palavra **"plan"** (confunde com plano de preço), por isso os textos abaixo usam "schedule"/"calendar". A feature "See reach, saves and link clicks" ficou de fora (máximo de 5). E-mails preenchidos em 29/10/2026: suporte `hello@stockative.com` (confirmar que recebe e-mail), review e submissão `patricia@mangara.be`. Faltam 5 pendências: feature media, screenshots, conta de teste, instruções de teste e screencast.
 
 App: **Stockative (público)**, handle `stockative-2`. Ver [PUBLIC-APP.md](PUBLIC-APP.md). Onde preencher: Partner Dashboard → Stockative → Distribution → Manage submission.
 
@@ -128,7 +128,7 @@ Pode reaproveitar trechos do roteiro do [META-APP-REVIEW.md](META-APP-REVIEW.md)
 
 > **Decisão de 28/10/2026: submeter com uma conta de teste, sem esperar a Meta.** O revisor instala o app numa dev store dele e precisa passar do passo 2 do onboarding, que exige Instagram. O app da Meta continua em modo de desenvolvimento (Access Verification "In review" desde 23/09, sem previsão), e nesse modo só quem tem papel no app da Meta consegue conectar. Esperar a Meta deixaria a Shopify parada por tempo indeterminado.
 >
-> **Conta de teste do revisor:** ✅ criada e com papel de Tester no app da Meta (Patricia, 28/10/2026). Os passos ficam abaixo como referência:
+> **Conta de teste do revisor:** ⚠️ **não confirmada.** Este arquivo marcou em 28/10/2026 que estava criada, mas em 29/10/2026 Patricia não se lembra de ter criado. Tratar como **não criada** até alguém ver o usuário em App roles → Roles no app da Meta. Passos para criar:
 > 1. Um e-mail novo só para isso (ex.: `reviewer@stockative.com`).
 > 2. Um usuário do Facebook com esse e-mail e uma Página do Facebook nova (ex.: "Stockative Demo Store").
 > 3. Uma conta Instagram nova, convertida para **Business**, ligada a essa Página.
@@ -163,7 +163,7 @@ Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Set
 - [ ] Protected customer data, Step 2 respondido (PUBLIC-APP.md, item 4)
 - [x] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `app-public` (Shopify App Pricing ativado em 29/10/2026, os 3 planos e o App Events testados na dev store)
 - [x] Política de privacidade com URL pública: `https://stockative.com/#privacy` no listing (conferir se o texto cobre os dados da Shopify)
-- [x] Conta de teste do revisor criada, com papel de Tester no app da Meta
+- [ ] Conta de teste do revisor criada, com papel de Tester no app da Meta (marcada por engano em 28/10/2026; não confirmada em 29/10/2026)
 - [ ] Fluxo testado numa dev store com a conta de teste, 2FA desligado, credenciais coladas nas instruções do Partner Dashboard
 - [ ] Screenshots, ícone e screencast prontos
 - [ ] Contato de emergência no Partner Dashboard

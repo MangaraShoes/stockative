@@ -128,7 +128,16 @@ Pode reaproveitar trechos do roteiro do [META-APP-REVIEW.md](META-APP-REVIEW.md)
 
 > **Decisão de 28/10/2026: submeter com uma conta de teste, sem esperar a Meta.** O revisor instala o app numa dev store dele e precisa passar do passo 2 do onboarding, que exige Instagram. O app da Meta continua em modo de desenvolvimento (Access Verification "In review" desde 23/09, sem previsão), e nesse modo só quem tem papel no app da Meta consegue conectar. Esperar a Meta deixaria a Shopify parada por tempo indeterminado.
 >
-> **Conta de teste do revisor:** ⚠️ **não confirmada.** Este arquivo marcou em 28/10/2026 que estava criada, mas em 29/10/2026 Patricia não se lembra de ter criado. Tratar como **não criada** até alguém ver o usuário em App roles → Roles no app da Meta. Passos para criar:
+> **Conta de teste do revisor:** ⚠️ **não confirmada.** Este arquivo marcou em 28/10/2026 que estava criada, mas em 29/10/2026 Patricia não se lembra de ter criado. Tratar como **não criada** até alguém ver o usuário em App roles → Roles no app da Meta.
+>
+> **Andamento em 29/10/2026 (Patricia):**
+> - ✅ Facebook de teste **Patricia Teixeira**, login `pcossettin@gmail.com`. Era uma conta antiga sem uso (nome "Paula Lamp"), renomeada; verificada pelo Google.
+> - ✅ Instagram **@stockative.demo** (mesmo e-mail), profissional.
+> - ✅ Página **Stockative Demo Store**, criada pela conta **principal** da Patricia (a conta de teste não conseguia criar Página: "An error occurred… Page policies"). A Meta pôs a Página e o Instagram num portfólio novo **Stockative Demo Store** (ID 2290287498495357), separado do da Mangará. Página e Instagram já estão ligados.
+> - ⏸ Dar acesso à conta de teste: o convite para `pcossettin@gmail.com` nunca chegou (provavelmente porque o Instagram com o mesmo e-mail já é membro do portfólio). O convite para `patricia@mangara.be`, aberto em janela anônima logada como Patricia Teixeira, falhou em "Accept" com **"The user cannot be added to the business"**: a Meta está restringindo a conta de teste (é a mesma causa do bloqueio de Página). Plano: esperar 24–48 h sem mexer e aceitar de novo pelo link do e-mail (o convite vale até 28/11/2026). Se continuar falhando, criar uma conta de teste nova com outro e-mail.
+> - ⏸ Papel de Tester no app da Meta e teste na `stockative-public-test`.
+>
+> Passos para criar:
 > 1. Um e-mail novo só para isso (ex.: `reviewer@stockative.com`).
 > 2. Um usuário do Facebook com esse e-mail e uma Página do Facebook nova (ex.: "Stockative Demo Store").
 > 3. Uma conta Instagram nova, convertida para **Business**, ligada a essa Página.

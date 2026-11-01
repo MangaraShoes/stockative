@@ -138,6 +138,7 @@ Pode reaproveitar trechos do roteiro do [META-APP-REVIEW.md](META-APP-REVIEW.md)
 > - ⏸ Papel de Tester no app da Meta e teste na `stockative-public-test`.
 > - ❌ **01/11/2026:** convite novo (enviado para `patricia@mangara.be`, aberto logado como Patricia Teixeira) falhou de novo em "Accept invitation" com **"The user cannot be added to the business"**. Account Overview/Account Status sem nenhum problema listado: é bloqueio silencioso da Meta, sem recurso. Acesso direto pela Página não existe aqui, porque a Página está no portfólio (Page access abre o Business Suite, que só atribui membros do portfólio). Próximo passo: conta de teste nova.
 > - ✅ **01/11/2026:** Gmail novo e Facebook novo criados pela Patricia para ser a conta do revisor (o e-mail fica fora deste arquivo, que é público). Deixar a conta "amadurecer" 3–5 dias com uso normal, 2FA desligado, antes do convite para o portfólio Stockative Demo Store (Full control na Página e no @stockative.demo), do papel de Tester no app da Meta e do teste na `stockative-public-test`.
+> - ✅ **01/11/2026:** a conta nova (**Priscila Cosset**) entrou no portfólio Stockative Demo Store, com acesso à Página e ao @stockative.demo. Falta: papel de Tester no app da Meta e teste do Connect na `stockative-public-test`.
 >
 > Passos para criar:
 > 1. Um e-mail novo só para isso (ex.: `reviewer@stockative.com`).

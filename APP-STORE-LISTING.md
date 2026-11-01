@@ -169,7 +169,8 @@ Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Set
 ## Checklist antes de clicar em Submit
 - [x] Serviço `app-public` no ar, com as variáveis (PUBLIC-APP.md, item 1)
 - [x] Callbacks das redes no domínio do app público (PUBLIC-APP.md, item 3; TikTok em revisão)
-- [ ] Protected customer data, Step 2 respondido (PUBLIC-APP.md, item 4)
+- [x] Protected customer data, Step 2 respondido (PUBLIC-APP.md, item 4; 01/11/2026 — fica *Draft* até a submissão)
+- [x] Dados da empresa e bancários para recebimento: **Mangara Shoes BV**, Private Corporation (01/11/2026)
 - [x] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `app-public` (Shopify App Pricing ativado em 29/10/2026, os 3 planos e o App Events testados na dev store)
 - [x] Política de privacidade com URL pública: `https://stockative.com/#privacy` no listing (conferir se o texto cobre os dados da Shopify)
 - [ ] Conta de teste do revisor criada, com papel de Tester no app da Meta (marcada por engano em 28/10/2026; não confirmada em 29/10/2026)

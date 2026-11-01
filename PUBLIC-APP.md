@@ -53,6 +53,8 @@ Os callbacks são montados a partir de `SHOPIFY_APP_URL`, então cada provedor p
 - **Pinterest**: Redirect URI → `<novo>/auth/pinterest/callback`. ✅ 28/10/2026
 
 ### 4. Protected customer data, Step 2
+✅ 01/11/2026: as 9 perguntas respondidas e salvas (nível 1, sem campos pessoais: o app lê só ID/data/quantidade/valor/produto dos pedidos dos últimos 30 dias e guarda só agregados por produto). Respostas: 1-4 Yes; consentimento, venda de dados e decisão automatizada = Not applicable; retenção e criptografia = Yes. O status continua *Draft* até a submissão do listing, que manda tudo junto para revisão. **Não** pedir o "Read all orders scope" (o app só lê 30 dias).
+
 Partner Dashboard → Stockative (novo) → API access requests → Protected customer data → **Data protection details**. São declarações sobre como os dados são protegidos (criptografia, retenção etc.) e precisam ser respondidas por você.
 
 ### 5. Testar numa loja de desenvolvimento

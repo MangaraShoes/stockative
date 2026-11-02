@@ -136,7 +136,9 @@ export const COLOR_STORIES: ColorStory[] = [
   {
     id: "all_white_textures",
     tone: "light",
-    clashesWith: ["white"],
+    // Bordô com branco não (Patricia, 02/11/2026): com bordô só marfim ou
+    // off-white — ivory_camel e raw_linen_tonal.
+    clashesWith: ["white", "red_burgundy"],
     promptText: "all white — warm whites and ivory only, the interest coming from mixed textures",
   },
   {

@@ -86,18 +86,20 @@ Como o pricing é gerenciado pela Shopify (Shopify App Pricing), os planos vêm 
 
 ## Screenshots (3 a 6, 1600×900, cada uma mostrando algo diferente)
 
-Regras: mostrar a interface real, sem moldura de navegador, sem preço, sem dado pessoal, com alt text em todas. Sugestão de 6:
+Regras: mostrar a interface real, sem moldura de navegador, sem preço, sem dado pessoal, com alt text em todas.
 
-| # | Tela | Legenda / alt text |
+**02/11/2026: prontas, fora do repositório, em `~/Desktop/stockative-screenshots/` (subir nesta ordem).** Capturadas com Cmd+Shift+4 no admin da Mangará (app antigo, mesmo código do público, com dados reais) e recortadas para 1600×900 sobre fundo branco, sem menu da Shopify nem barra da Sidekick. A captura feita pelo Chrome do Claude não serve: sai com 1470×745 em JPEG, abaixo dos 900 px.
+
+| # | Arquivo | Alt text |
 |---|---|---|
-| 1 | **Weekly Plan**: a semana com 3 posts, dias e horários | `Your weekly content plan, built from your store data` |
-| 2 | **Cartão de decisão** de um post: objetivo, produto, motivo, ângulo, CTA | `See why each product was chosen before the post is written` |
-| 3 | **Still original × editorial gerada**, lado a lado, no app | `Editorial images from your real product photo` |
-| 4 | **Post pronto**: carrossel + legenda + hashtags, com Approve/Regenerate | `Review, edit and approve every post` |
-| 5 | **Conexões sociais**: Instagram, Facebook, Pinterest e YouTube conectados | `Connect your channels once, publish on schedule` |
-| 6 | **Performance / What's working**: alcance, salvamentos e cliques por post | `See how each published post performs` |
+| 1 | `1-next-week-plan.png` | `Plan next week's posts and Reels by day, time and product` |
+| 2 | `2-post-caption.png` | `Every caption is written in your brand voice, ready to review` |
+| 3 | `3-store-voice.png` | `Your store voice, built by AI from your products and Instagram` |
+| 4 | `4-social-accounts.png` | `Publish to Instagram, Facebook, Pinterest, TikTok and YouTube` |
+| 5 | `5-performance.png` | `See which creative approaches work best for your audience` |
+| 6 | `6-home.png` | `Get set up in a few guided steps` |
 
-Usar produtos da Mangará nas telas (fotos próprias, sem problema de direitos) numa loja de desenvolvimento rodando o app público, para não aparecer dado de cliente real.
+Ficou de fora a comparação still × editorial: no app as imagens aparecem só como miniaturas pequenas no Weekly plan.
 
 ## Ícone
 1200×1200 px, PNG/JPG, sem texto, sem screenshot e sem foto (4.4). Reaproveitar o ícone do app atual se seguir essas regras.

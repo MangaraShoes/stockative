@@ -104,6 +104,8 @@ Ficou de fora a comparação still × editorial: no app as imagens aparecem só 
 ## Ícone
 1200×1200 px, PNG/JPG, sem texto, sem screenshot e sem foto (4.4). Reaproveitar o ícone do app atual se seguir essas regras.
 
+**02/11/2026: pronto, `~/Desktop/stockative-screenshots/stockative-icon-1200.png`.** É o ícone atual (`.artifacts/stockative-icon.png`, caixa com post e barras, sem texto) ampliado de 392 px para 900 px e centralizado num fundo branco de 1200×1200. Se a Shopify reclamar da nitidez, vetorizar o desenho original.
+
 ---
 
 ## Demo screencast (4.5.3: em inglês ou com legenda em inglês, cobrindo onboarding e tudo o que o listing promete)

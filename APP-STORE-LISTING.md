@@ -110,21 +110,31 @@ Ficou de fora a comparação still × editorial: no app as imagens aparecem só 
 
 ## Demo screencast (4.5.3: em inglês ou com legenda em inglês, cobrindo onboarding e tudo o que o listing promete)
 
-Roteiro de ~3–4 min, gravado numa **dev store** com o app público:
+**Roteiro revisto em 02/11/2026** para bater com o app de hoje: onboarding em 5 passos, Instagram obrigatório, cobrança pelo Shopify App Pricing ligada no `app-public`. São de 4 a 5 minutos, gravados na dev store **`stockative-public-test`** com o app **público**.
 
-1. **Instalação**: App Store → Install → tela de permissões → app abre embutido no admin.
-2. **Sync automático**: mostrar que os produtos já aparecem, sem clique (sync no `afterAuth`).
-3. **Onboarding de marca**: questionário curto → Store Voice e pilares gerados.
-4. **Conectar Instagram/Facebook** (e Pinterest/YouTube se quiser mostrar).
-5. **Objetivo da semana**: escolher "Increase sales" ou "Let AI decide" e escolher dias e horários.
-6. **Gerar o Weekly Plan**: abrir um post e mostrar o **cartão de decisão** (por que esse produto).
-7. **Imagem editorial**: mostrar a imagem gerada ao lado da foto original do produto.
-8. **Legenda**: regenerar uma vez informando o motivo.
-9. **Aprovar e agendar**, depois **Publish now** num post, e mostrar o post publicado no Instagram.
-10. **Performance**: o link rastreado do post e o painel "What's working" (alcance, engajamento, cliques).
-11. **Plano e cobrança**: tela de seleção de plano da Shopify, o trial, e onde ver o uso de créditos extras.
+**Antes de gravar:**
+- **Desinstalar o app da dev store**, para a gravação começar pela instalação. Os dados ficam, porque `Shop` é chaveada pelo domínio, mas a Shopify pede de novo as permissões e a escolha de plano.
+- **Conectar o @stockative.demo**, nunca o Instagram da Mangará: o passo 9 publica de verdade.
+- Gravar com **Cmd+Shift+5 → Record Selected Portion**, só a janela do Chrome, com o admin em inglês e sem abas pessoais.
+- Os trechos de espera, como a geração da semana e das imagens, podem ser cortados na edição (QuickTime → Edit → Trim, ou iMovie).
+- **Narração:** gravar sem voz e pôr as falas abaixo como legenda em inglês, ou ler as falas em inglês. A Shopify aceita os dois (4.5.3).
 
-Pode reaproveitar trechos do roteiro do [META-APP-REVIEW.md](META-APP-REVIEW.md), mas a Shopify quer o fluxo **completo do lojista**, não só a parte da Meta.
+| # | Na tela | Fala / legenda |
+|---|---|---|
+| 1 | Admin → Apps → instalar o Stockative → tela de permissões → **Install** | "Stockative installs from the Shopify App Store and asks for access to your products, orders and store languages." |
+| 2 | Tela **Select a plan** da Shopify → escolher Basic → trial de 7 dias → volta ao app | "Plans are billed through Shopify, with a 7-day free trial." |
+| 3 | Home com o stepper; passo 1 **Sync your stock** já Done | "The app syncs your catalog automatically and reads sales velocity, inventory age and days since last sale." |
+| 4 | **Social accounts** → Connect Instagram & Facebook → login da Meta → @stockative.demo conectado. Mostrar Pinterest, TikTok e YouTube como opcionais | "Connect Instagram and Facebook. Pinterest, TikTok and YouTube are optional extras." |
+| 5 | **Competitor accounts**: adicionar 1 conta ou clicar em Skip | "Optionally add accounts you admire in your niche, as a style reference." |
+| 6 | **Store voice**: os campos preenchidos pela IA; rolar até o tipo de foto | "Stockative drafts your store voice from your products, your Instagram and your About page. You can edit anything." |
+| 7 | **Content pillars** → **Weekly plan**: escolher o objetivo da semana e gerar | "Pick this week's objective, or let Stockative decide per product." |
+| 8 | Um post da semana: produto, objetivo, pilar, data, legenda e imagem editorial com as fotos do produto. Regenerar a legenda uma vez, com um motivo | "Each post says which product and why, with a caption in your voice and an editorial image built from your real product photo." |
+| 9 | **Publish now** num post → abrir o Instagram do @stockative.demo e mostrar o post publicado | "Posts go out automatically on schedule, or right away with Publish now." |
+| 10 | O card **Next week's plan**: trocar um dia ou um produto | "Next week is planned ahead. Change days and products before anything is generated." |
+| 11 | **Performance**: What's working + Published posts | "Performance shows reach, engagement and link clicks per post, and which creative approaches work for your audience." |
+| 12 | **Settings** → plano atual e cota de regeneração | "Your plan and remaining regenerations are always visible in Settings." |
+
+Sem preço extra na tela: não clicar em "Regenerate image only" sem crédito, porque isso abre a confirmação de cobrança. Subir o vídeo no YouTube como **Não listado** e colar o link no Partner Dashboard.
 
 ---
 

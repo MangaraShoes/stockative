@@ -114,7 +114,7 @@ Ficou de fora a comparação still × editorial: no app as imagens aparecem só 
 
 **Antes de gravar:**
 - **Desinstalar o app da dev store**, para a gravação começar pela instalação. Os dados ficam, porque `Shop` é chaveada pelo domínio, mas a Shopify pede de novo as permissões e a escolha de plano.
-- **Conectar o @stockative.demo**, nunca o Instagram da Mangará: o passo 9 publica de verdade.
+- **Conectar o @stockative26**, nunca o Instagram da Mangará: o passo 9 publica de verdade.
 - Gravar com **Cmd+Shift+5 → Record Selected Portion**, só a janela do Chrome, com o admin em inglês e sem abas pessoais.
 - Os trechos de espera, como a geração da semana e das imagens, podem ser cortados na edição (QuickTime → Edit → Trim, ou iMovie).
 - **Narração:** gravar sem voz e pôr as falas abaixo como legenda em inglês, ou ler as falas em inglês. A Shopify aceita os dois (4.5.3).
@@ -124,12 +124,12 @@ Ficou de fora a comparação still × editorial: no app as imagens aparecem só 
 | 1 | Admin → Apps → instalar o Stockative → tela de permissões → **Install** | "Stockative installs from the Shopify App Store and asks for access to your products, orders and store languages." |
 | 2 | Tela **Select a plan** da Shopify → escolher Basic → trial de 7 dias → volta ao app | "Plans are billed through Shopify, with a 7-day free trial." |
 | 3 | Home com o stepper; passo 1 **Sync your stock** já Done | "The app syncs your catalog automatically and reads sales velocity, inventory age and days since last sale." |
-| 4 | **Social accounts** → Connect Instagram & Facebook → login da Meta → @stockative.demo conectado. Mostrar Pinterest, TikTok e YouTube como opcionais | "Connect Instagram and Facebook. Pinterest, TikTok and YouTube are optional extras." |
+| 4 | **Social accounts** → Connect Instagram & Facebook → login da Meta → @stockative26 conectado. Mostrar Pinterest, TikTok e YouTube como opcionais | "Connect Instagram and Facebook. Pinterest, TikTok and YouTube are optional extras." |
 | 5 | **Competitor accounts**: adicionar 1 conta ou clicar em Skip | "Optionally add accounts you admire in your niche, as a style reference." |
 | 6 | **Store voice**: os campos preenchidos pela IA; rolar até o tipo de foto | "Stockative drafts your store voice from your products, your Instagram and your About page. You can edit anything." |
 | 7 | **Content pillars** → **Weekly plan**: escolher o objetivo da semana e gerar | "Pick this week's objective, or let Stockative decide per product." |
 | 8 | Um post da semana: produto, objetivo, pilar, data, legenda e imagem editorial com as fotos do produto. Regenerar a legenda uma vez, com um motivo | "Each post says which product and why, with a caption in your voice and an editorial image built from your real product photo." |
-| 9 | **Publish now** num post → abrir o Instagram do @stockative.demo e mostrar o post publicado | "Posts go out automatically on schedule, or right away with Publish now." |
+| 9 | **Publish now** num post → abrir o Instagram do @stockative26 e mostrar o post publicado | "Posts go out automatically on schedule, or right away with Publish now." |
 | 10 | O card **Next week's plan**: trocar um dia ou um produto | "Next week is planned ahead. Change days and products before anything is generated." |
 | 11 | **Performance**: What's working + Published posts | "Performance shows reach, engagement and link clicks per post, and which creative approaches work for your audience." |
 | 12 | **Settings** → plano atual e cota de regeneração | "Your plan and remaining regenerations are always visible in Settings." |
@@ -146,13 +146,13 @@ Sem preço extra na tela: não clicar em "Regenerate image only" sem crédito, p
 >
 > **Andamento em 29/10/2026 (Patricia):**
 > - ✅ Facebook de teste **Patricia Teixeira**, login `pcossettin@gmail.com`. Era uma conta antiga sem uso (nome "Paula Lamp"), renomeada; verificada pelo Google.
-> - ✅ Instagram **@stockative.demo** (mesmo e-mail), profissional.
+> - ✅ Instagram **@stockative26**, profissional, ligado à Página Stockative Demo Store (02/11/2026). Substitui o antigo @stockative.demo, apagado por estar ligado à conta de Facebook recusada.
 > - ✅ Página **Stockative Demo Store**, criada pela conta **principal** da Patricia (a conta de teste não conseguia criar Página: "An error occurred… Page policies"). A Meta pôs a Página e o Instagram num portfólio novo **Stockative Demo Store** (ID 2290287498495357), separado do da Mangará. Página e Instagram já estão ligados.
 > - ⏸ Dar acesso à conta de teste: o convite para `pcossettin@gmail.com` nunca chegou (provavelmente porque o Instagram com o mesmo e-mail já é membro do portfólio). O convite para `patricia@mangara.be`, aberto em janela anônima logada como Patricia Teixeira, falhou em "Accept" com **"The user cannot be added to the business"**: a Meta está restringindo a conta de teste (é a mesma causa do bloqueio de Página). Plano: esperar 24–48 h sem mexer e aceitar de novo pelo link do e-mail (o convite vale até 28/11/2026). Se continuar falhando, criar uma conta de teste nova com outro e-mail.
 > - ⏸ Papel de Tester no app da Meta e teste na `stockative-public-test`.
 > - ❌ **01/11/2026:** convite novo (enviado para `patricia@mangara.be`, aberto logado como Patricia Teixeira) falhou de novo em "Accept invitation" com **"The user cannot be added to the business"**. Account Overview/Account Status sem nenhum problema listado: é bloqueio silencioso da Meta, sem recurso. Acesso direto pela Página não existe aqui, porque a Página está no portfólio (Page access abre o Business Suite, que só atribui membros do portfólio). Próximo passo: conta de teste nova.
-> - ✅ **01/11/2026:** Gmail novo e Facebook novo criados pela Patricia para ser a conta do revisor (o e-mail fica fora deste arquivo, que é público). Deixar a conta "amadurecer" 3–5 dias com uso normal, 2FA desligado, antes do convite para o portfólio Stockative Demo Store (Full control na Página e no @stockative.demo), do papel de Tester no app da Meta e do teste na `stockative-public-test`.
-> - ✅ **01/11/2026:** a conta nova (**Priscila Cosset**) entrou no portfólio Stockative Demo Store, com acesso à Página e ao @stockative.demo. Falta: papel de Tester no app da Meta e teste do Connect na `stockative-public-test`.
+> - ✅ **01/11/2026:** Gmail novo e Facebook novo criados pela Patricia para ser a conta do revisor (o e-mail fica fora deste arquivo, que é público). Deixar a conta "amadurecer" 3–5 dias com uso normal, 2FA desligado, antes do convite para o portfólio Stockative Demo Store (Full control na Página e no @stockative26), do papel de Tester no app da Meta e do teste na `stockative-public-test`.
+> - ✅ **01/11/2026:** a conta nova (**Priscila Cosset**) entrou no portfólio Stockative Demo Store, com acesso à Página e ao @stockative26. Falta: papel de Tester no app da Meta e teste do Connect na `stockative-public-test`.
 >
 > Passos para criar:
 > 1. Um e-mail novo só para isso (ex.: `reviewer@stockative.com`).

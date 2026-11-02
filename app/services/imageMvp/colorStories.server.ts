@@ -15,12 +15,14 @@ import type { ProductSeason } from "./repertoire.server";
 //
 // Como escolhe (ver pickColorStory):
 // - produto NEUTRO (preto, castanho, bege, branco...) aceita quase qualquer
-//   cor, então a roda de cores não diz nada útil: escolhe na biblioteca da
-//   estação, tirando as histórias da mesma família do produto;
+//   cor, então a roda de cores não diz nada útil: escolhe na biblioteca
+//   inteira, tirando as histórias da mesma família do produto;
 // - produto de COR: harmonias filtradas pela marca — as histórias neutras
 //   mais as complementares/análogas suaves daquela família. Cor forte
 //   (vermelho, coral, rosa...) fica com o outfit só neutro: o produto é o
 //   único ponto de cor, regra validada na Mangará;
+// - produto ESCURO (bordô) nunca recebe roupa escura — só clara;
+// - as cores valem o ano todo; a estação só decide o tecido (02/11/2026);
 // - rotação: nunca repete uma história das últimas ROTATION_WINDOW imagens
 //   da loja enquanto houver alternativa, e as menos usadas pesam mais.
 //
@@ -29,134 +31,146 @@ import type { ProductSeason } from "./repertoire.server";
 
 export interface ColorStory {
   id: string;
-  seasons: ProductSeason[];
+  // Tom dominante da roupa. Produto escuro só recebe roupa clara (ver
+  // DARK_PRODUCT_FAMILIES).
+  tone: "light" | "dark";
   // Neutra = sem cor de verdade. É a única escolha pra produto de cor forte,
   // e nunca é sorteada pra produto neutro (senão o bege volta a dominar).
   neutral?: boolean;
   // Famílias de produto com que esta roupa se confunde — fora da escolha.
   clashesWith: ProductColorFamily[];
+  // Só as cores. O tecido vem da estação (ver seasonFabrics) — Patricia,
+  // 02/11/2026: "as cores de verão também funcionam no inverno, mas em um
+  // look mais inverno ou ambiente interno".
   promptText: string;
 }
 
 export const COLOR_STORIES: ColorStory[] = [
-  // Outono / inverno
   {
     id: "khaki_tonal",
-    seasons: ["winter"],
+    tone: "light",
     clashesWith: ["khaki_olive", "green", "beige_cream", "tan_camel"],
     promptText:
-      "khaki tone on tone — a fluid silk piece in khaki with a sandier, lighter khaki cashmere layer; the texture difference between silk and cashmere creates the depth, warm gold jewelry",
+      "khaki tone on tone — a khaki piece with a sandier, lighter khaki layer; the texture difference between the two fabrics creates the depth, warm gold jewelry",
   },
   {
     id: "chocolate_cream",
-    seasons: ["winter"],
+    tone: "dark",
     clashesWith: ["brown"],
-    promptText: "deep chocolate brown and cream — for example a chocolate silk or fine-knit dress with a cream cashmere layer",
+    promptText: "deep chocolate brown and cream — for example a chocolate dress with a cream layer",
   },
   {
     id: "bordeaux_camel",
-    seasons: ["winter"],
+    tone: "dark",
     clashesWith: ["red_burgundy", "tan_camel", "brown"],
-    promptText: "soft, muted bordeaux with camel — a bordeaux knit or silk piece paired with a camel tailored layer",
+    promptText: "soft, muted bordeaux with camel — a bordeaux piece paired with a camel layer",
   },
   {
     id: "bottle_green_ivory",
-    seasons: ["winter"],
+    tone: "dark",
     clashesWith: ["khaki_olive", "green"],
-    promptText: "a muted, dusty bottle green with ivory — a bottle-green knit or skirt with ivory silk or wool",
+    promptText: "a muted, dusty bottle green with ivory",
   },
   {
     id: "navy_offwhite",
-    seasons: ["winter"],
+    tone: "dark",
     clashesWith: ["blue"],
-    promptText: "deep navy with off-white — crisp navy tailoring or knit with off-white silk or poplin",
+    promptText: "deep navy with off-white — crisp navy with off-white",
   },
   {
     id: "caramel_chocolate",
-    seasons: ["winter"],
+    tone: "dark",
     clashesWith: ["brown", "tan_camel"],
     promptText: "warm tone on tone in caramel and chocolate — a caramel piece layered with chocolate, rich and warm",
   },
   {
     id: "plum_rosebeige",
-    seasons: ["winter"],
+    tone: "dark",
     clashesWith: ["purple", "pink"],
-    promptText: "a muted, greyed plum with a soft rosy beige — a plum knit or silk with rose-beige wool",
+    promptText: "a muted, greyed plum with a soft rosy beige",
   },
   {
     id: "mustard_chocolate",
-    seasons: ["winter"],
+    tone: "dark",
     // Mostarda/ocre camufla bolsa caramelo/conhaque (Patricia, 28/10/2026).
     clashesWith: ["yellow", "tan_camel", "brown", "orange_coral"],
     promptText: "a faded, muted mustard with chocolate brown — never bright yellow, closer to old gold",
   },
-  // Primavera / verão
   {
     id: "dusty_blue_ivory",
-    seasons: ["summer"],
+    tone: "light",
     clashesWith: ["blue"],
-    promptText: "dusty blue with ivory — a dusty-blue linen or silk piece with ivory",
+    promptText: "a soft, light dusty blue with ivory — greyed and pale, never navy or bright",
   },
   {
     id: "sage_raw_linen",
-    seasons: ["summer"],
+    tone: "light",
     clashesWith: ["khaki_olive", "green"],
-    promptText: "soft sage green with raw, undyed linen — airy and natural",
+    promptText: "soft sage green with raw, undyed ecru — natural and calm",
   },
   {
     id: "dusty_rose_tonal",
-    seasons: ["summer"],
-    clashesWith: ["pink", "red_burgundy"],
-    promptText: "dusty rose tone on tone — two close shades of muted, powdery rose in fluid fabrics",
+    tone: "light",
+    // Rosa antigo com produto bordô liberado (Patricia, 02/11/2026).
+    clashesWith: ["pink"],
+    promptText: "dusty rose (old rose) tone on tone — two close shades of muted, powdery rose",
   },
   {
     id: "terracotta_cream",
-    seasons: ["summer"],
+    tone: "light",
     clashesWith: ["orange_coral", "tan_camel", "brown"],
     promptText: "a soft, sun-faded terracotta with cream — never bright orange",
   },
   {
     id: "lavender_warm_white",
-    seasons: ["summer"],
+    tone: "light",
     clashesWith: ["purple"],
     promptText: "a greyed, muted lavender with warm white",
   },
   {
     id: "washed_sky_sand",
-    seasons: ["summer"],
+    tone: "light",
     clashesWith: ["blue", "beige_cream"],
     promptText: "a washed, pale sky blue with sand",
   },
   {
     id: "all_white_textures",
-    seasons: ["summer"],
+    tone: "light",
     clashesWith: ["white"],
-    promptText: "all white — warm whites and ivory only, the interest coming from mixed textures (linen, poplin, crochet or silk)",
+    promptText: "all white — warm whites and ivory only, the interest coming from mixed textures",
   },
   {
     id: "butter_camel",
-    seasons: ["summer"],
+    tone: "light",
     clashesWith: ["yellow", "tan_camel", "brown"],
     promptText: "a soft butter yellow with camel — pale and creamy, never a bright yellow",
   },
   // Neutras: só pra produto de cor, que deve ser o único ponto de cor.
   {
     id: "ivory_camel",
-    seasons: ["summer", "winter"],
+    tone: "light",
     neutral: true,
     clashesWith: ["tan_camel", "beige_cream"],
     promptText: "ivory and camel only, fully neutral so the product is the only point of color",
   },
   {
     id: "raw_linen_tonal",
-    seasons: ["summer"],
+    tone: "light",
     neutral: true,
     clashesWith: ["beige_cream", "white"],
-    promptText: "raw linen tone on tone — undyed linen and ecru, fully neutral so the product is the only point of color",
+    promptText: "raw ecru tone on tone — undyed, natural off-whites, fully neutral so the product is the only point of color",
+  },
+  {
+    id: "nude_blush",
+    tone: "light",
+    neutral: true,
+    // Nude com produto bordô (Patricia, 02/11/2026).
+    clashesWith: ["beige_cream", "tan_camel", "pink"],
+    promptText: "nude tone on tone — soft nude, blush and rosy beige, fully neutral so the product is the only point of color",
   },
   {
     id: "black_ivory",
-    seasons: ["winter"],
+    tone: "dark",
     neutral: true,
     clashesWith: ["black"],
     promptText: "black and ivory, sharp and graphic, fully neutral so the product is the only point of color",
@@ -178,8 +192,21 @@ const NEUTRAL_PRODUCT_FAMILIES: ProductColorFamily[] = [
 const STRONG_COLOR_FAMILIES: ProductColorFamily[] = ["red_burgundy", "pink", "orange_coral", "yellow", "purple", "multicolor"];
 
 // Marinho, chocolate e branco funcionam como neutros na moda — sem eles, um
-// produto de cor forte só teria 2 histórias por estação.
+// produto de cor forte só teria poucas histórias.
 const DEEP_NEUTRAL_STORIES = ["chocolate_cream", "navy_offwhite", "all_white_textures"];
+
+// Cores suaves que também valem com um produto de cor forte (Patricia,
+// 02/11/2026: com bordô, rosa antigo e um azul mais claro ficam bons).
+const STRONG_HARMONIES: Partial<Record<ProductColorFamily, string[]>> = {
+  red_burgundy: ["dusty_rose_tonal", "dusty_blue_ivory", "washed_sky_sand"],
+};
+
+// Produto escuro só com roupa clara (Patricia, 02/11/2026, depois de uma
+// bolsa bordô sumir contra um vestido chocolate: escuro contra escuro não dá
+// destaque). Decidido aqui, não no prompt — instrução em texto o gerador
+// ignora metade das vezes. "purple" fica de fora porque mistura ameixa
+// (escuro) com lavanda (claro).
+const DARK_PRODUCT_FAMILIES: ProductColorFamily[] = ["red_burgundy"];
 
 // Produto de cor suave → neutras + as histórias que harmonizam com ela
 // (complementar dessaturada ou análoga terrosa).
@@ -190,14 +217,17 @@ const HARMONIES: Partial<Record<ProductColorFamily, string[]>> = {
 
 export const ROTATION_WINDOW = 8;
 
-export function candidateStories(colorFamily: ProductColorFamily, season: ProductSeason): ColorStory[] {
-  const inSeason = COLOR_STORIES.filter((s) => s.seasons.includes(season) && !s.clashesWith.includes(colorFamily));
-  if (NEUTRAL_PRODUCT_FAMILIES.includes(colorFamily)) return inSeason.filter((s) => !s.neutral);
+export function candidateStories(colorFamily: ProductColorFamily): ColorStory[] {
+  const allowed = COLOR_STORIES.filter(
+    (s) => !s.clashesWith.includes(colorFamily) && !(DARK_PRODUCT_FAMILIES.includes(colorFamily) && s.tone === "dark"),
+  );
+  if (NEUTRAL_PRODUCT_FAMILIES.includes(colorFamily)) return allowed.filter((s) => !s.neutral);
   if (STRONG_COLOR_FAMILIES.includes(colorFamily)) {
-    return inSeason.filter((s) => s.neutral || DEEP_NEUTRAL_STORIES.includes(s.id));
+    const harmonies = STRONG_HARMONIES[colorFamily] ?? [];
+    return allowed.filter((s) => s.neutral || DEEP_NEUTRAL_STORIES.includes(s.id) || harmonies.includes(s.id));
   }
   const harmonies = HARMONIES[colorFamily] ?? [];
-  return inSeason.filter((s) => s.neutral || harmonies.includes(s.id));
+  return allowed.filter((s) => s.neutral || harmonies.includes(s.id));
 }
 
 export async function pickColorStory(
@@ -205,10 +235,10 @@ export async function pickColorStory(
   colorFamily: ProductColorFamily,
   season: ProductSeason,
 ): Promise<ColorStory> {
-  let candidates = candidateStories(colorFamily, season);
-  // Nunca deveria acontecer com a biblioteca atual, mas uma estação sem
+  let candidates = candidateStories(colorFamily);
+  // Nunca deveria acontecer com a biblioteca atual, mas uma família sem
   // opção não pode travar a geração.
-  if (candidates.length === 0) candidates = COLOR_STORIES.filter((s) => s.seasons.includes(season));
+  if (candidates.length === 0) candidates = COLOR_STORIES;
 
   const recent = await prisma.generationLog.findMany({
     where: { shopId, taskType: "image", requestedPalette: { not: null } },
@@ -226,7 +256,15 @@ export async function pickColorStory(
   const unused = candidates.filter((s) => !counts.has(s.id));
   const minCount = Math.min(...candidates.map((s) => counts.get(s.id) ?? 0));
   const pool = unused.length > 0 ? unused : candidates.filter((s) => (counts.get(s.id) ?? 0) === minCount);
-  return pool[Math.floor(Math.random() * pool.length)];
+  const story = pool[Math.floor(Math.random() * pool.length)];
+  return { ...story, promptText: `${story.promptText}, ${seasonFabrics(season)}` };
+}
+
+// A mesma cor em qualquer estação; o tecido é que muda.
+function seasonFabrics(season: ProductSeason): string {
+  return season === "winter"
+    ? "worn in winter fabrics — fine knits, fine wool or cashmere, soft layers suited to a warm indoor scene"
+    : "worn in light, airy fabrics — linen, cotton or silk";
 }
 
 export function describeColorStory(story: ColorStory): string {

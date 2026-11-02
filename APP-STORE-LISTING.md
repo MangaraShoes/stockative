@@ -110,6 +110,8 @@ Ficou de fora a comparação still × editorial: no app as imagens aparecem só 
 
 ## Demo screencast (4.5.3: em inglês ou com legenda em inglês, cobrindo onboarding e tudo o que o listing promete)
 
+**02/11/2026: gravado e montado, `~/Desktop/stockative-screenshots/stockative-screencast.mp4`** (3min31, 1920×984, sem áudio, legendas em inglês embutidas). Juntado de 5 gravações da `stockative-public-test` com o @stockative26: instalação, conexão Meta, concorrente, store voice, geração da semana, Publish now e post no Instagram, Next week's plan, Performance e Settings. Ficaram de fora o feed pessoal do Facebook e o trecho com o e-mail nas notificações. Não mostra a tela de escolha de plano (a assinatura de teste já existia). Montagem com AVFoundation (não há ffmpeg na máquina); o script ficou só no scratchpad da sessão. Falta subir no YouTube como Não listado e colar o link.
+
 **Roteiro revisto em 02/11/2026** para bater com o app de hoje: onboarding em 5 passos, Instagram obrigatório, cobrança pelo Shopify App Pricing ligada no `app-public`. São de 4 a 5 minutos, gravados na dev store **`stockative-public-test`** com o app **público**.
 
 **Antes de gravar:**

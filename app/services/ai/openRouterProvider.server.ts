@@ -23,6 +23,11 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 // caso já observado neste ambiente (chamadas de até ~100s), mas finito.
 const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 
+// Sem pedir proporção, a imagem sai no formato da foto de referência: produto
+// com still quadrado gerava editorial quadrada, e o Reel (9:16) perdia ~44% da
+// largura, inclusive o logo (03/11/2026). Em 2:3 perde ~16%.
+const IMAGE_ASPECT_RATIO = "2:3";
+
 type MessageContent =
   | string
   | ({ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } })[];
@@ -215,6 +220,7 @@ export class OpenRouterProvider implements AIProvider {
         },
       ],
       modalities: ["image", "text"],
+      image_config: { aspect_ratio: IMAGE_ASPECT_RATIO },
     });
 
     const imageUrl = json.choices[0]?.message.images?.[0]?.image_url.url;
@@ -239,6 +245,7 @@ export class OpenRouterProvider implements AIProvider {
         },
       ],
       modalities: ["image", "text"],
+      image_config: { aspect_ratio: IMAGE_ASPECT_RATIO },
     });
 
     const imageUrl = json.choices[0]?.message.images?.[0]?.image_url.url;

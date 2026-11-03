@@ -51,6 +51,7 @@ export async function generateReelForContentItem(
       shopId,
       taskType: "video",
       model: "ffmpeg",
+      costEstimate: 0, // montado no próprio servidor, sem API paga
       countsAsCredit,
     },
   });

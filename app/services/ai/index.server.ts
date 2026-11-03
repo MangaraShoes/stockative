@@ -33,6 +33,7 @@ export async function generateTextForTask(
       taskType,
       model: result.model,
       tokensUsed: result.tokensUsed,
+      costEstimate: result.costUsd,
     },
   });
 
@@ -58,6 +59,7 @@ export async function generateStructuredForTask<T>(
       taskType,
       model: result.model,
       tokensUsed: result.tokensUsed,
+      costEstimate: result.costUsd,
     },
   });
 

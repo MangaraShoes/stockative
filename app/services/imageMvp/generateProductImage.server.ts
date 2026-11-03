@@ -477,6 +477,14 @@ export async function generateProductImage(
     // 16/10/2026: a 1ª imagem do Arachis passou e ficou guardada pro retry
     // estrutural; a 2ª tentativa deu erro e o post ficou sem imagem nenhuma).
     // Com algo já guardado, para aqui e entrega isso; sem nada, o erro sobe.
+    // Custo real de TODAS as chamadas desta tentativa (geração, votos de
+    // fidelidade, correção de cor, composição) — vai junto no log da
+    // tentativa como costEstimate. null se nenhuma chamada informou custo.
+    let attemptCostUsd: number | null = null;
+    const track = <T extends { costUsd?: number | null }>(result: T): T => {
+      if (result.costUsd != null) attemptCostUsd = (attemptCostUsd ?? 0) + result.costUsd;
+      return result;
+    };
     try {
       const promptParams: BuildPromptParams = {
         ...params,
@@ -493,14 +501,18 @@ export async function generateProductImage(
       };
       const prompt = hasModel ? buildWornOrHandheldPrompt(promptParams) : buildStandaloneImagePrompt(promptParams);
 
-      let generated = styleReferenceUrl
-        ? await imageProvider.editImage(prompt + STYLE_REFERENCE_BLOCK, [params.referenceImageUrl, styleReferenceUrl])
-        : await imageProvider.generateImage(prompt, params.referenceImageUrl);
-      let fidelity = await fidelityProvider.checkImageFidelity(
-        params.referenceImageUrl,
-        generated.imageDataUrl,
-        params.productTitle,
-        fidelityConstraints,
+      let generated = track(
+        styleReferenceUrl
+          ? await imageProvider.editImage(prompt + STYLE_REFERENCE_BLOCK, [params.referenceImageUrl, styleReferenceUrl])
+          : await imageProvider.generateImage(prompt, params.referenceImageUrl),
+      );
+      let fidelity = track(
+        await fidelityProvider.checkImageFidelity(
+          params.referenceImageUrl,
+          generated.imageDataUrl,
+          params.productTitle,
+          fidelityConstraints,
+        ),
       );
       // Só a cor reprovada → corrige a cor na própria imagem em vez de jogar
       // a cena fora e refazer (05/10/2026: o Gemini erra o tom do produto com
@@ -515,17 +527,21 @@ export async function generateProductImage(
       // Reprovação SÓ de cor pede maioria (2 de 3) antes de valer; se a
       // maioria ainda reprovar, corrige a cor e julga a versão corrigida pela
       // mesma maioria. Qualquer outro eixo reprovado continua valendo de cara.
-      const judge = (imageDataUrl: string) =>
-        fidelityProvider.checkImageFidelity(params.referenceImageUrl, imageDataUrl, params.productTitle, fidelityConstraints);
+      const judge = async (imageDataUrl: string) =>
+        track(
+          await fidelityProvider.checkImageFidelity(params.referenceImageUrl, imageDataUrl, params.productTitle, fidelityConstraints),
+        );
       if (isColorOnlyFailure(fidelity)) {
         const majority = await judgeColorByMajority(fidelity, () => judge(generated.imageDataUrl));
         if (majority.passed) {
           fidelity = majority;
         } else if (isColorOnlyFailure(majority)) {
-          const recolored = await imageProvider.editImage(buildColorCorrectionPrompt(params.productTitle), [
-            generated.imageDataUrl,
-            params.referenceImageUrl,
-          ]);
+          const recolored = track(
+            await imageProvider.editImage(buildColorCorrectionPrompt(params.productTitle), [
+              generated.imageDataUrl,
+              params.referenceImageUrl,
+            ]),
+          );
           const firstRecoloredVote = await judge(recolored.imageDataUrl);
           const recoloredFidelity = isColorOnlyFailure(firstRecoloredVote)
             ? await judgeColorByMajority(firstRecoloredVote, () => judge(recolored.imageDataUrl))
@@ -539,13 +555,15 @@ export async function generateProductImage(
       // Só vale checar composição se o produto em si já bateu — não faz
       // sentido avaliar estilo de uma imagem que nem é o produto certo.
       const composition = fidelity.passed
-        ? await compositionProvider.checkImageComposition(
-            generated.imageDataUrl,
-            params.productTitle,
-            sceneOptions,
-            hasModel,
-            merchantDirection,
-            modelDescription,
+        ? track(
+            await compositionProvider.checkImageComposition(
+              generated.imageDataUrl,
+              params.productTitle,
+              sceneOptions,
+              hasModel,
+              merchantDirection,
+              modelDescription,
+            ),
           )
         : { passed: false, issues: [] as string[], observed: undefined };
       const passed = fidelity.passed && composition.passed;
@@ -573,6 +591,7 @@ export async function generateProductImage(
           contentItemId: params.contentItemId,
           taskType: "image",
           model: generated.model,
+          costEstimate: attemptCostUsd,
           passedFidelityCheck: fidelity.passed,
           // Motivo da reprovação gravado (06/10/2026: 3 tentativas reprovadas
           // na Senna sem registro do porquê, impossível de diagnosticar).

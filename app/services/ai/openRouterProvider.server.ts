@@ -39,7 +39,7 @@ interface OpenRouterResponse {
       images?: { type: string; image_url: { url: string } }[];
     };
   }[];
-  usage?: { total_tokens?: number };
+  usage?: { total_tokens?: number; cost?: number };
 }
 
 // Um veredito por eixo em vez de um `passed` solto (03/10/2026, bota khaki
@@ -126,7 +126,9 @@ export class OpenRouterProvider implements AIProvider {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ model: this.model, ...body }),
+        // usage.include: pede o custo real da chamada (usage.cost, em
+        // dólares) junto com os tokens — ver costUsd em types.server.ts.
+        body: JSON.stringify({ model: this.model, usage: { include: true }, ...body }),
         signal: controller.signal,
       });
     } catch (error) {
@@ -161,6 +163,7 @@ export class OpenRouterProvider implements AIProvider {
       text: json.choices[0]?.message.content ?? "",
       model: this.model,
       tokensUsed: json.usage?.total_tokens ?? null,
+      costUsd: json.usage?.cost ?? null,
     };
   }
 
@@ -193,6 +196,7 @@ export class OpenRouterProvider implements AIProvider {
       data,
       model: this.model,
       tokensUsed: json.usage?.total_tokens ?? null,
+      costUsd: json.usage?.cost ?? null,
     };
   }
 
@@ -220,7 +224,7 @@ export class OpenRouterProvider implements AIProvider {
       );
     }
 
-    return { imageDataUrl: imageUrl, model: this.model };
+    return { imageDataUrl: imageUrl, model: this.model, costUsd: json.usage?.cost ?? null };
   }
 
   async editImage(prompt: string, imageUrls: string[]): Promise<GenerateImageResult> {
@@ -241,7 +245,7 @@ export class OpenRouterProvider implements AIProvider {
     if (!imageUrl) {
       throw new Error(`Model did not return an image. Raw response: ${JSON.stringify(json)}`);
     }
-    return { imageDataUrl: imageUrl, model: this.model };
+    return { imageDataUrl: imageUrl, model: this.model, costUsd: json.usage?.cost ?? null };
   }
 
   async checkImageFidelity(
@@ -306,6 +310,7 @@ When in doubt on any axis, set it to false. Set passed=false if any axis is fals
       passed: result.passed && axesFailed.length === 0,
       issues: [...result.issues, ...axesFailed.filter((issue) => !result.issues.includes(issue))],
       failedAxes,
+      costUsd: json.usage?.cost ?? null,
     };
   }
 
@@ -431,6 +436,7 @@ Set passed=false if the image reads as generic, flat, "stock photo" boring, or f
       ...result,
       passed: result.passed && verdictIssues.length === 0,
       issues: [...result.issues, ...verdictIssues],
+      costUsd: json.usage?.cost ?? null,
     };
   }
 }

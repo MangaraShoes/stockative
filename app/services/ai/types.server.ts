@@ -16,21 +16,28 @@ export type AITaskType =
   | "product_color_classification"
   | "video";
 
+// costUsd: custo real da chamada em dólares, como o provedor cobrou
+// (OpenRouter devolve em usage.cost) — null quando o provedor não informa.
+// Vai pra GenerationLog.costEstimate (03/11/2026: o campo nunca era
+// preenchido, e a revisão de preço teve que estimar custo a partir de tokens).
 export interface GenerateTextResult {
   text: string;
   model: string;
   tokensUsed: number | null;
+  costUsd: number | null;
 }
 
 export interface GenerateStructuredResult<T> {
   data: T;
   model: string;
   tokensUsed: number | null;
+  costUsd: number | null;
 }
 
 export interface GenerateImageResult {
   imageDataUrl: string; // data:image/...;base64,...
   model: string;
+  costUsd?: number | null;
 }
 
 export interface FidelityCheckResult {
@@ -40,6 +47,7 @@ export interface FidelityCheckResult {
   // "details") — só cor reprovada = dá pra corrigir a imagem com uma edição
   // pontual em vez de refazer (ver generateProductImage.server.ts).
   failedAxes?: string[];
+  costUsd?: number | null;
 }
 
 // Classificação do que REALMENTE apareceu na imagem gerada, pra comparar

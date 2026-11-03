@@ -181,7 +181,7 @@ export function TikTokPostPanel(props: {
           maxLength={TIKTOK_TITLE_MAX_LENGTH}
           onChange={(e) => set({ title: e.target.value })}
           rows={3}
-          style={{ width: "100%", padding: 8, marginTop: 4 }}
+          style={{ width: "100%", padding: 8, marginTop: 4, boxSizing: "border-box", font: "inherit" }}
         />
       </label>
 

@@ -235,6 +235,17 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
   return { intent: "save" as const, saved: true };
 });
 
+// border-box: com width 100% + padding a caixa ficava 18px mais larga que o
+// cartão e vazava pela direita (03/11/2026, apontado pela checagem por IA da
+// listagem da App Store no print desta tela). font inherit: o padrão do
+// navegador para textarea é monoespaçado, destoando do resto do app.
+const TEXTAREA_STYLE = {
+  width: "100%",
+  padding: 8,
+  boxSizing: "border-box",
+  font: "inherit",
+} as const;
+
 export default function StoreVoice() {
   const data = useLoaderData<typeof loader>();
   const draftFetcher = useFetcher<typeof action>();
@@ -513,8 +524,8 @@ export default function StoreVoice() {
               value={brandDescription}
               onChange={(e) => setBrandDescription(e.target.value)}
               placeholder="Who are you, in a few sentences? What makes your products different?"
-              rows={3}
-              style={{ width: "100%", padding: 8 }}
+              rows={6}
+              style={TEXTAREA_STYLE}
             />
           </div>
 
@@ -524,8 +535,8 @@ export default function StoreVoice() {
               value={brandTone}
               onChange={(e) => setBrandTone(e.target.value)}
               placeholder="e.g. warm, confident, never pushy, no exclamation marks"
-              rows={2}
-              style={{ width: "100%", padding: 8 }}
+              rows={4}
+              style={TEXTAREA_STYLE}
             />
           </div>
 
@@ -535,8 +546,8 @@ export default function StoreVoice() {
               value={brandAvoid}
               onChange={(e) => setBrandAvoid(e.target.value)}
               placeholder="e.g. never say 'cheap', never use slang, no discount-focused language"
-              rows={2}
-              style={{ width: "100%", padding: 8 }}
+              rows={4}
+              style={TEXTAREA_STYLE}
             />
           </div>
 
@@ -597,7 +608,7 @@ export default function StoreVoice() {
                 onChange={(e) => setRegenerateFeedback(e.target.value)}
                 placeholder="e.g. make the tone warmer, mention we're a family business, don't focus on price"
                 rows={2}
-                style={{ width: "100%", padding: 8 }}
+                style={TEXTAREA_STYLE}
               />
               {/* Achado ao vivo, 26/09/2026: rodava ilimitado até aqui —
                   mostra a cota restante antes do clique, mesmo padrão já

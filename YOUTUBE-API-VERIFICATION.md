@@ -13,7 +13,7 @@ Processo mais simples que o Meta App Review/Tech Provider — sem estrutura de T
 ## Estado em 30/09/2026
 
 - Projeto `stockative-509811` (número 526797383147, na org stockative.com), que é o do `YOUTUBE_CLIENT_ID` no Railway.
-- Canal da Mangará ("M A N G A R Á | Women Shoes and Wishes") conectado com `patricia@mangara.be`, que foi adicionado como test user.
+- Canal da Mangará ("M A N G A R Á | Women Shoes and Wishes") conectado com o e-mail pessoal da Patricia, que foi adicionado como test user.
 - Branding preenchido sem logo (enviar logo obriga a verificação de marca) e app passado de **Testing** pra **In production**, ainda **não verificado**. Motivo: no modo Testing o refresh token expira em 7 dias e a conexão cairia toda semana. Em produção sem verificação continua a tela de "app não verificado" e o limite de 100 usuários, mas o token não expira mais.
 - O aviso "Your app requires verification" no painel é esperado. Só pedir a verificação quando for abrir pra outras lojistas.
 - Precisa reconectar o YouTube uma vez depois da troca pra produção, porque o token emitido no Testing continua vencendo em 7 dias.

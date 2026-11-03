@@ -103,6 +103,8 @@ Regras: mostrar a interface real, sem moldura de navegador, sem preço, sem dado
 | 5 | `5-performance.png` | `See which creative approaches work best for your audience` |
 | 6 | `6-home.png` | `Get set up in a few guided steps` |
 
+**03/11/2026: captura 3 refeita.** A checagem por IA da listagem reclamou de "browser or desktop content" nela: as caixas de texto vazavam do cartão (defeito real do app, corrigido no commit db4cb97) e mostravam texto cortado no meio da linha. A nova vem de um print do admin da Mangará depois da correção, recortada só no cartão Store voice (descrição e tom completos).
+
 Ficou de fora a comparação still × editorial: no app as imagens aparecem só como miniaturas pequenas no Weekly plan.
 
 ## Ícone

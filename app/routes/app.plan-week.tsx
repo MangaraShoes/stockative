@@ -2147,6 +2147,30 @@ export default function PlanWeek() {
                         </strong>
                       </s-paragraph>
                     )}
+                    {/* "failed" não volta pra fila do agendador nem mostra o
+                        Publish now (só draft/approved) — sem isso a lojista
+                        não tinha como publicar de novo depois de corrigir a
+                        causa, ex. reconectar o Instagram (03/11/2026, erro #10
+                        da Meta). Mesma ação do Publish now; a trava contra
+                        duplicado já aceita "failed". */}
+                    {slot.status === "failed" && (
+                      <s-stack direction="inline" gap="small" alignItems="center">
+                        <s-button
+                          variant="primary"
+                          onClick={() => publishNow(slot.contentItemId)}
+                          {...(isPublishing ? { loading: true } : {})}
+                          {...(publishBlockedReason || publishingContentItemId ? { disabled: true } : {})}
+                        >
+                          Try again
+                        </s-button>
+                        <s-text color="subdued">
+                          {publishBlockedReason ?? "Publishing failed. Fix the cause (for example, reconnect Instagram in Social) and try again."}
+                        </s-text>
+                      </s-stack>
+                    )}
+                    {slot.status === "failed" && isPublishing && (
+                      <GeneratingProgressBar label="Publishing to your connected accounts…" />
+                    )}
                     {scheduleAdjusted[slot.contentItemId] && (
                       <s-paragraph>{scheduleAdjusted[slot.contentItemId]}</s-paragraph>
                     )}

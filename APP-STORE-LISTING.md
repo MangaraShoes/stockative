@@ -200,6 +200,7 @@ If Facebook asks for a security code when you log in, email [CONTACT EMAIL] and 
 - [x] Planos criados no Shopify App Pricing **deste** app (BILLING-SETUP.md) e `BILLING_ENABLED=true` **só** no `app-public` (Shopify App Pricing ativado em 29/10/2026, os 3 planos e o App Events testados na dev store)
 - [x] Política de privacidade com URL pública: `https://stockative.com/#privacy` no listing (conferir se o texto cobre os dados da Shopify)
 - [ ] Conta de teste do revisor criada, com papel de Tester no app da Meta (marcada por engano em 28/10/2026; não confirmada em 29/10/2026)
+- [x] Checagens da página App Store review: API versions, configuração, contato de emergência, listagem em inglês, "Listing checked for common issues" (depois de refazer a captura 3), protected customer data, **Automated checks** (2ª tentativa; a 1ª deu erro do lado da Shopify) e Embedded app checks, todas ✅ em 03/11/2026. Faltam "Select your app's capabilities" e a AI self review.
 - [ ] Fluxo testado numa dev store com a conta de teste, 2FA desligado, credenciais coladas nas instruções do Partner Dashboard
 - [x] Screenshots, ícone, feature image e screencast prontos e subidos (03/11/2026)
 - [x] Contato de emergência no Partner Dashboard (03/11/2026)

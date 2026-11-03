@@ -205,6 +205,7 @@ If Facebook asks for a security code when you log in, email [CONTACT EMAIL] and 
 - [x] Fluxo testado numa dev store com a conta de teste (03/11/2026)
 - [x] Credenciais da conta de teste no bloco Test account do Partner Dashboard (03/11/2026)
 - [x] Recusar uma **troca** de plano (03/11/2026): Settings → Change plan → Plus → Cancel na tela "Approve charge" voltou ao app sem erro, plano seguiu Basic
-- [ ] Teste de recusar o plano (1.2.2) sem nenhuma assinatura ativa depois que o teste grátis da `stockative-public-test` acabar, 04/11/2026 08:03 (Bruxelas); depois marcar a AI self review como feita e submeter
+- [x] **03/11/2026, achado no teste:** depois de desinstalar e reinstalar, o app entrava sem pedir plano (a Partner API mantém a assinatura antiga "até o fim do ciclo"). Violava o 1.2.2 (pedir aprovação de novo na reinstalação). Corrigido no commit 37e0f4b: o app confere também a assinatura da instalação atual pela Admin API.
+- [ ] Teste de recusar o plano (1.2.2) sem nenhuma assinatura ativa: com a correção, já dá para fazer na `stockative-public-test` (a instalação atual não tem plano) depois que o teste grátis da `stockative-public-test` acabar, 04/11/2026 08:03 (Bruxelas); depois marcar a AI self review como feita e submeter
 - [x] Screenshots, ícone, feature image e screencast prontos e subidos (03/11/2026)
 - [x] Contato de emergência no Partner Dashboard (03/11/2026)

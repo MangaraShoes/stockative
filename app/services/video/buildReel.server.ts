@@ -2,12 +2,13 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { frameImageForReel, type ReelFrameKind } from "./reelFraming.server";
 
 // Monta um Reel (MP4 vertical) a partir de imagens JÁ geradas e aprovadas
 // pela checagem de fidelidade (ver generateProductImage.server.ts). Nunca
-// gera pixel novo — só corta e segura cada imagem existente por um tempo
-// fixo (sem pan/zoom animado, ver comentário de runFfmpeg abaixo pro
-// motivo), então não reabre o risco de fidelidade que já levou a abandonar
+// gera pixel novo — só enquadra cada imagem existente, com zoom leve e
+// transição (ver runMotionFfmpeg; runFfmpeg é o Reel estático de reserva), então
+// não reabre o risco de fidelidade que já levou a abandonar
 // stills gerados por IA na Mangará real (ver
 // /Users/patriciacossettin/Mangara-Nano-Banana/CLAUDE.md).
 
@@ -19,6 +20,18 @@ const FPS = 30;
 // o ffmpeg, ver comentário abaixo), 3.5s parado numa imagem estática ficava
 // lento de mais pro ritmo normal de Reel/TikTok.
 const SECONDS_PER_IMAGE = 1.8;
+// Reel com movimento (Patricia, 03/11/2026, em vez de API de vídeo paga): cada
+// imagem fica mais tempo porque agora se mexe e parte dela é transição.
+const MOTION_SECONDS_PER_IMAGE = 2.6;
+const CROSSFADE_SECONDS = 0.35;
+// Zoom bem leve. Na cena não dá pra garantir margem em volta do produto (é o
+// corte central de sempre), então o zoom é menor que no estúdio, onde
+// reelFraming.server.ts já deixou o produto com folga no quadro.
+const STUDIO_MAX_ZOOM = 1.07;
+const SCENE_MAX_ZOOM = 1.04;
+// Passou disso, desiste do movimento e cai pro Reel estático: um ffmpeg
+// travado não pode segurar a montagem do Reel nem a publicação.
+const MOTION_COMMAND_TIMEOUT_MS = 90_000;
 // Achado ao vivo, 22/09/2026, depois de 3 tentativas erradas (resolução,
 // paralelismo, zoompan): o stderr do x264 revelou "threads=60" — o ffmpeg
 // autodetecta o número de threads pela CONTAGEM DE CPU DA MÁQUINA FÍSICA
@@ -52,7 +65,15 @@ export async function buildReel({ images }: BuildReelParams): Promise<Buffer> {
     );
 
     const outputPath = path.join(workDir, "output.mp4");
-    await runFfmpeg(localImagePaths, outputPath);
+    const startedAt = Date.now();
+    try {
+      await runMotionFfmpeg(images, workDir, outputPath);
+      console.log(`[reel] built with motion: ${images.length} images in ${Date.now() - startedAt}ms`);
+    } catch (error) {
+      // Melhor um Reel parado do que nenhum Reel.
+      console.error("[reel] motion failed, falling back to static Reel:", error);
+      await runFfmpeg(localImagePaths, outputPath);
+    }
 
     return await readFile(outputPath);
   } finally {
@@ -82,15 +103,17 @@ async function resolveFfmpegPath(): Promise<string> {
   return ffmpegStatic.default as unknown as string;
 }
 
-function runFfmpegCommand(ffmpegPath: string, args: string[]): Promise<void> {
+function runFfmpegCommand(ffmpegPath: string, args: string[], timeoutMs?: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegPath, args);
+    const timeoutId = timeoutMs ? setTimeout(() => proc.kill("SIGKILL"), timeoutMs) : null;
     let stderr = "";
     proc.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
     proc.on("error", reject);
     proc.on("close", (code, signal) => {
+      if (timeoutId) clearTimeout(timeoutId);
       if (code === 0) resolve();
       // code=null + signal preenchido = processo morto por sinal externo
       // (o caso real de 22/09/2026 era SIGKILL, provável OOM) — sem logar o
@@ -104,6 +127,108 @@ function runFfmpegCommand(ffmpegPath: string, args: string[]): Promise<void> {
         );
     });
   });
+}
+
+// Reel com zoom suave e transição entre as imagens. Sem fade pra preto nem no
+// começo nem no fim (mesmo achado de 23/09/2026, ver runFfmpeg): o xfade só
+// funde uma imagem real na outra, e o vídeo começa e termina em imagem real.
+async function runMotionFfmpeg(images: Buffer[], workDir: string, outputPath: string): Promise<void> {
+  const ffmpegPath = await resolveFfmpegPath();
+  const frames = Math.round(MOTION_SECONDS_PER_IMAGE * FPS);
+
+  const clipPaths: string[] = [];
+  for (let index = 0; index < images.length; index++) {
+    const { jpeg, kind } = await frameImageForReel(images[index]);
+    const framedPath = path.join(workDir, `framed-${index}.jpg`);
+    await writeFile(framedPath, jpeg);
+
+    const clipPath = path.join(workDir, `motion-${index}.mp4`);
+    await runFfmpegCommand(
+      ffmpegPath,
+      [
+        "-i",
+        framedPath,
+        "-vf",
+        `setsar=1,zoompan=z='${zoomExpression(index, kind, frames)}':` +
+          `x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${CANVAS_WIDTH}x${CANVAS_HEIGHT}:fps=${FPS}`,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-threads",
+        String(FFMPEG_THREADS),
+        "-pix_fmt",
+        "yuv420p",
+        "-y",
+        clipPath,
+      ],
+      MOTION_COMMAND_TIMEOUT_MS,
+    );
+    clipPaths.push(clipPath);
+  }
+
+  const concatInputArgs: string[] = [];
+  clipPaths.forEach((clipPath) => concatInputArgs.push("-i", clipPath));
+
+  let filterComplex = "[0:v]null[vout]";
+  if (clipPaths.length > 1) {
+    const clipDuration = frames / FPS;
+    const steps: string[] = [];
+    let previous = "[0:v]";
+    for (let index = 1; index < clipPaths.length; index++) {
+      const offset = (index * (clipDuration - CROSSFADE_SECONDS)).toFixed(3);
+      const label = index === clipPaths.length - 1 ? "[vout]" : `[x${index}]`;
+      steps.push(
+        `${previous}[${index}:v]xfade=transition=fade:duration=${CROSSFADE_SECONDS}:offset=${offset}${label}`,
+      );
+      previous = label;
+    }
+    filterComplex = steps.join(";");
+  }
+
+  await runFfmpegCommand(
+    ffmpegPath,
+    [
+      ...concatInputArgs,
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=44100",
+      "-filter_complex",
+      filterComplex,
+      "-map",
+      "[vout]",
+      "-map",
+      `${clipPaths.length}:a`,
+      "-shortest",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-threads",
+      String(FFMPEG_THREADS),
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "128k",
+      "-movflags",
+      "+faststart",
+      "-y",
+      outputPath,
+    ],
+    MOTION_COMMAND_TIMEOUT_MS,
+  );
+}
+
+// Alterna aproximar/afastar. A 1ª imagem sempre começa sem zoom: esse frame
+// vira a capa automática do Reel.
+function zoomExpression(index: number, kind: ReelFrameKind, frames: number): string {
+  const extra = (kind === "studio" ? STUDIO_MAX_ZOOM : SCENE_MAX_ZOOM) - 1;
+  return index % 2 === 0
+    ? `1+${extra.toFixed(3)}*on/${frames}`
+    : `${(1 + extra).toFixed(3)}-${extra.toFixed(3)}*on/${frames}`;
 }
 
 // Histórico de 22/09/2026: 3 tentativas erradas antes de achar a causa raiz

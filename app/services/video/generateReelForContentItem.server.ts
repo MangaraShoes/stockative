@@ -2,10 +2,11 @@ import prisma from "../../db.server";
 import { getContentItemImageJpegBuffer } from "../imageMvp/contentItemImageSource.server";
 import { buildReel } from "./buildReel.server";
 
-// Reels mais longos que isso viram repetitivos pra só 3-4s de "novidade"
-// por imagem — o mesmo princípio de variar cena a cada produto do CLAUDE.md
-// da Mangará vale aqui: poucas imagens bem escolhidas, não a galeria toda.
-const MAX_IMAGES_IN_REEL = 3;
+// Reels mais longos que isso viram repetitivos — o mesmo princípio de variar
+// cena a cada produto do CLAUDE.md da Mangará vale aqui: poucas imagens bem
+// escolhidas, não a galeria toda. De 3 pra 4 em 03/11/2026, junto com o
+// movimento (~9s em vez de 5,4s).
+const MAX_IMAGES_IN_REEL = 4;
 
 // Monta e salva o Reel de um post já existente, a partir das imagens que
 // ele já tem (hero + stills, já geradas e aprovadas pela checagem de

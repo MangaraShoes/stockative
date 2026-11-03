@@ -96,7 +96,7 @@ Regras: mostrar a interface real, sem moldura de navegador, sem preço, sem dado
 
 | # | Arquivo | Alt text |
 |---|---|---|
-| 1 | `1-next-week-plan.png` | `Plan next week's posts and Reels by day, time and product` |
+| 1 | `1-next-week-plan.png` | `Schedule next week's posts and Reels by day, time and product` |
 | 2 | `2-post-caption.png` | `Every caption is written in your brand voice, ready to review` |
 | 3 | `3-store-voice.png` | `Your store voice, built by AI from your products and Instagram` |
 | 4 | `4-social-accounts.png` | `Publish to Instagram, Facebook, Pinterest, TikTok and YouTube` |

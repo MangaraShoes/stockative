@@ -171,22 +171,23 @@ Sem preço extra na tela: não clicar em "Regenerate image only" sem crédito, p
 >
 > As credenciais vão **só** no campo de instruções da submissão no Partner Dashboard, nunca neste arquivo (o repositório é público).
 
-Rascunho:
+Texto final (03/11/2026, 2.437 de 2.800 caracteres; nomes de botões conferidos no código). Colar em **App testing information → Testing instructions**. O login e a senha do Facebook vão no bloco **Test account** do mesmo formulário, nunca aqui. Trocar `[CONTACT EMAIL]` por um e-mail que a Patricia leia de verdade.
 ```
-Stockative builds a weekly social media plan from the store's products and sales, generates posts (AI editorial image + caption) and publishes them to the merchant's connected channels.
+Stockative reads a store's products, stock and sales, decides which products to promote each week, writes the captions, creates the images and Reels, and publishes them to Instagram (plus Facebook, Pinterest, TikTok and YouTube if connected). There is no separate Stockative login.
 
-1. Install the app. Products sync automatically on install; no setup needed for this step.
-2. Onboarding step 2 asks you to connect Instagram. It is required because every post is planned for Instagram first and the other channels mirror it. Click Connect, log in to Facebook with the test account below, then select the Page "[NOME DA PÁGINA]" and its Instagram account.
-   Our Meta app's Tech Provider access verification is still pending, so for now only accounts with a role in our Meta app can connect. The test account below has that role.
-   Facebook login: [PREENCHER NO PARTNER DASHBOARD]
-   Password: [PREENCHER NO PARTNER DASHBOARD]
-   If Facebook asks for a security code, email [CONTATO] and we reply within a few hours.
-3. Complete the rest of the onboarding (competitor accounts, store voice).
-4. Go to "Weekly plan", choose a weekly objective (or "Let AI decide") and generate the plan. Generation takes about [X] minutes.
-5. Open any post to see the decision behind it, the generated image and the caption. Approve it and click "Publish now" to publish immediately.
-6. Billing: a 7-day free trial starts on install. Development stores are not charged.
+Instagram is required: every post is created for Instagram first and the other channels mirror it. Our Meta app's access verification is still pending, so for now only Facebook accounts with a role in our Meta app can connect. Use the Facebook test account under "Test account". It manages the Facebook Page "Stockative Demo Store" and the Instagram professional account @stockative26, created only for this review.
 
-Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Settings (4.5.6)]
+1. Install the app and pick any plan. Every plan has a 7-day free trial, and development stores are not charged.
+2. Your development store needs at least one active product with a photo. Home shows 5 setup steps in order.
+3. Sync your stock: click "Go to Products", then "Sync stock".
+4. Connect your social accounts: click "Connect accounts", then Connect under Instagram & Facebook. A new tab shows which store the account will be linked to; click Continue, log in to Facebook with the test account and keep the "Stockative Demo Store" Page and @stockative26 selected. The tab confirms "Connected!" and can be closed. Pinterest, TikTok and YouTube are optional; no test accounts are provided for them.
+5. Add competitor accounts: optional, you can skip it.
+6. Set your store voice: Stockative drafts it from your products, your About Us page and the Instagram account. Edit anything, then save.
+7. Get your weekly plan: choose this week's objective, or leave all unchecked to let Stockative decide per product, then click "Generate this week's plan". Generation takes a few minutes.
+8. Each post shows the product, the objective, the caption and the image choices. You can ask for a new caption (a reason is required), choose the image, change the day and time, or click "Publish now". Publish now posts to @stockative26 and mirrors to the Facebook Page. Untouched posts go out automatically at their scheduled time.
+9. Also available: Next week's plan, Performance (engagement and link clicks once posts are published) and Settings (publishing schedule, photo style, notifications, current plan, export or delete all data).
+
+If Facebook asks for a security code when you log in, email [CONTACT EMAIL] and we reply within a few hours.
 ```
 
 ## Checklist antes de clicar em Submit
@@ -198,5 +199,5 @@ Emergency contact: [PREENCHER — também cadastrar em Partner Dashboard → Set
 - [x] Política de privacidade com URL pública: `https://stockative.com/#privacy` no listing (conferir se o texto cobre os dados da Shopify)
 - [ ] Conta de teste do revisor criada, com papel de Tester no app da Meta (marcada por engano em 28/10/2026; não confirmada em 29/10/2026)
 - [ ] Fluxo testado numa dev store com a conta de teste, 2FA desligado, credenciais coladas nas instruções do Partner Dashboard
-- [ ] Screenshots, ícone e screencast prontos
-- [ ] Contato de emergência no Partner Dashboard
+- [x] Screenshots, ícone, feature image e screencast prontos e subidos (03/11/2026)
+- [x] Contato de emergência no Partner Dashboard (03/11/2026)

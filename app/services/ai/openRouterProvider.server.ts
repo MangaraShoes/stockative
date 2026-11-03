@@ -385,6 +385,7 @@ HARD VETOES — check these first, on their own, before anything else. If any ap
 10. Outerwear indoors (Patricia, 28/10/2026 — the prompt already forbids it, but the rule was ignored): is the model wearing or carrying outerwear (a coat, trench, parka, puffer or any overcoat, including one draped over the shoulders) in an indoor scene? If yes, issue "coat indoors"${
       merchantDirection ? " — unless the merchant's direction above explicitly asks for a coat" : ""
     }. A fine knit, cardigan or tailored jacket worn with the arms in the sleeves is not outerwear and passes.
+11. Arm over the product (Patricia, 03/11/2026, after a seated model had her forearm lying across the bag on her lap): does an arm, forearm or hand lie across the front of the product and hide part of it? If yes, issue "arm covering product". A hand holding a bag by its handle, strap or side, with the front of the bag left clear, passes, and so does jewelry worn on the hand or wrist.
 
 If it clears all vetoes, then also assess:
 1. Light: warm, natural/soft golden light falling directly on the product — not flat, generic studio lighting.

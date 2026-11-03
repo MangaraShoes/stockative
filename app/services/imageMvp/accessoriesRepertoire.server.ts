@@ -55,7 +55,9 @@ const KIND_SCENES: Record<AccessoryKind, KindScene> = {
       // Braço por dentro da alça (Patricia, 28/10/2026): a bolsa saiu no
       // assento com a alça no ombro e o braço por fora dela — a posição em
       // si ela aprovou, o braço solto fora da alça é que ninguém usa.
-      { id: "bag_on_lap_seated", promptText: "seated with the bag resting on the lap or on the seat beside them, one hand lightly on it, front of the bag toward the camera; if the strap is over the shoulder, the arm passes through the strap, so the strap runs between the arm and the body" },
+      // Sem mão "em cima" (03/11/2026): "one hand lightly on it" virou um braço
+      // deitado sobre a bolsa, tapando a frente — ver veto 11 da composição.
+      { id: "bag_on_lap_seated", promptText: "seated with the bag resting on the lap or on the seat beside them, one hand holding it by the handle, strap or side, front of the bag toward the camera and completely clear, no arm or forearm lying across it; if the strap is over the shoulder, the arm passes through the strap, so the strap runs between the arm and the body" },
     ],
     framings: [
       // Nunca "no centro do quadro" (Patricia, 28/10/2026): o modelo lia como

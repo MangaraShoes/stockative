@@ -204,6 +204,7 @@ If Facebook asks for a security code when you log in, email [CONTACT EMAIL] and 
 - [x] Checagens da página App Store review: API versions, configuração, contato de emergência, listagem em inglês, "Listing checked for common issues" (depois de refazer a captura 3), protected customer data, **Automated checks** (2ª tentativa; a 1ª deu erro do lado da Shopify) e Embedded app checks, todas ✅ em 03/11/2026. Capacidade marcada: só **Embedded**. **AI self review** (03/11/2026, requisitos baixados ao vivo com `shopify doc fetch`): 29 ✅, 1 ❌ corrigido (2.3.1, campo "Shop domain" na página pública e em /auth/login, removido no commit 5a449ee), 1 ⚠️ (1.2.2, falta testar recusar o plano na tela de planos). Depois desse teste: marcar "I've reviewed all the App Store Requirements" e Mark as done.
 - [x] Fluxo testado numa dev store com a conta de teste (03/11/2026)
 - [x] Credenciais da conta de teste no bloco Test account do Partner Dashboard (03/11/2026)
-- [ ] Teste de recusar o plano (1.2.2) depois que o teste grátis da `stockative-public-test` acabar, 04/11/2026 08:03 (Bruxelas); depois marcar a AI self review como feita e submeter
+- [x] Recusar uma **troca** de plano (03/11/2026): Settings → Change plan → Plus → Cancel na tela "Approve charge" voltou ao app sem erro, plano seguiu Basic
+- [ ] Teste de recusar o plano (1.2.2) sem nenhuma assinatura ativa depois que o teste grátis da `stockative-public-test` acabar, 04/11/2026 08:03 (Bruxelas); depois marcar a AI self review como feita e submeter
 - [x] Screenshots, ícone, feature image e screencast prontos e subidos (03/11/2026)
 - [x] Contato de emergência no Partner Dashboard (03/11/2026)

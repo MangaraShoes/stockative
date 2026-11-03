@@ -72,6 +72,11 @@ export async function getConnectUrl(shopDomain: string, provider: OAuthProvider)
     await prisma.oAuthTransaction.deleteMany({
       where: { expiresAt: { lt: new Date(now - CLEANUP_AFTER_MS) } },
     });
+    // Token de uma escolha de conta abandonada não fica guardado além do prazo.
+    await prisma.oAuthTransaction.updateMany({
+      where: { expiresAt: { lt: new Date(now) }, pendingAccessToken: { not: null } },
+      data: { pendingAccessToken: null, pendingTokenExpiresAt: null },
+    });
     ticket = await prisma.oAuthTransaction.create({
       data: {
         id: randomToken(),
@@ -92,6 +97,20 @@ export async function findPendingTicket(ticketId: string, provider: OAuthProvide
     where: { id: ticketId, provider, startedAt: null, expiresAt: { gt: new Date() } },
     select: { shopDomain: true },
   });
+}
+
+// SameSite=Lax: o callback chega como navegação top-level vinda da rede
+// social, e Lax ainda manda o cookie nesse caso. Path restrito à rota
+// desta rede, pra não vazar pra nenhuma outra.
+function browserCookie(provider: OAuthProvider, nonce: string): string {
+  return [
+    `${cookieName(provider)}=${nonce}`,
+    `Path=/auth/${provider}`,
+    `Max-Age=${TRANSACTION_TTL_MS / 1000}`,
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+  ].join("; ");
 }
 
 // Consome o ticket de forma atômica (updateMany com startedAt: null — duas
@@ -116,19 +135,17 @@ export async function beginOAuthTransaction(
   });
   if (claimed.count !== 1) return null;
 
-  // SameSite=Lax: o callback chega como navegação top-level vinda da rede
-  // social, e Lax ainda manda o cookie nesse caso. Path restrito à rota
-  // desta rede, pra não vazar pra nenhuma outra.
-  const setCookie = [
-    `${cookieName(provider)}=${nonce}`,
-    `Path=/auth/${provider}`,
-    `Max-Age=${TRANSACTION_TTL_MS / 1000}`,
-    "HttpOnly",
-    "Secure",
-    "SameSite=Lax",
-  ].join("; ");
+  const setCookie = browserCookie(provider, nonce);
 
   return { state, setCookie };
+}
+
+function browserMatches(request: Request, provider: OAuthProvider, nonceHash: string): boolean {
+  const nonce = readCookie(request, cookieName(provider));
+  if (!nonce) return false;
+  const expected = Buffer.from(nonceHash);
+  const provided = Buffer.from(sha256(nonce));
+  return expected.length === provided.length && timingSafeEqual(expected, provided);
 }
 
 function readCookie(request: Request, name: string): string | null {
@@ -160,11 +177,7 @@ export async function completeOAuthTransaction(
     return null;
   }
 
-  const nonce = readCookie(request, cookieName(provider));
-  if (!nonce) return null;
-  const expected = Buffer.from(transaction.browserNonceHash);
-  const provided = Buffer.from(sha256(nonce));
-  if (expected.length !== provided.length || !timingSafeEqual(expected, provided)) return null;
+  if (!browserMatches(request, provider, transaction.browserNonceHash)) return null;
 
   const completed = await prisma.oAuthTransaction.updateMany({
     where: { id: transaction.id, completedAt: null },
@@ -173,4 +186,64 @@ export async function completeOAuthTransaction(
   if (completed.count !== 1) return null;
 
   return transaction.shopDomain;
+}
+
+// Quando o callback precisa que o merchant escolha uma conta (Meta com mais
+// de um Instagram), guarda o token de usuário na transação já concluída e
+// dá mais TRANSACTION_TTL_MS pra escolher. Devolve o Set-Cookie renovado
+// (mesmo nonce) pra o cookie não expirar antes da transação.
+export async function holdPendingSelection(
+  request: Request,
+  provider: OAuthProvider,
+  state: string,
+  accessToken: string,
+  tokenExpiresAt: Date,
+): Promise<string | null> {
+  const nonce = readCookie(request, cookieName(provider));
+  if (!nonce) return null;
+  const held = await prisma.oAuthTransaction.updateMany({
+    where: { state, provider, completedAt: { not: null } },
+    data: {
+      pendingAccessToken: accessToken,
+      pendingTokenExpiresAt: tokenExpiresAt,
+      expiresAt: new Date(Date.now() + TRANSACTION_TTL_MS),
+    },
+  });
+  if (held.count !== 1) return null;
+  return browserCookie(provider, nonce);
+}
+
+// Consome a escolha uma vez só, no mesmo navegador do início do fluxo e
+// dentro do prazo. O token sai da tabela aqui, qualquer que seja a conta
+// escolhida.
+export async function claimPendingSelection(
+  request: Request,
+  provider: OAuthProvider,
+  state: string,
+): Promise<{ shopDomain: string; accessToken: string; tokenExpiresAt: Date } | null> {
+  const transaction = await prisma.oAuthTransaction.findUnique({ where: { state } });
+  if (
+    !transaction ||
+    transaction.provider !== provider ||
+    !transaction.completedAt ||
+    !transaction.browserNonceHash ||
+    !transaction.pendingAccessToken ||
+    !transaction.pendingTokenExpiresAt ||
+    transaction.expiresAt.getTime() < Date.now()
+  ) {
+    return null;
+  }
+  if (!browserMatches(request, provider, transaction.browserNonceHash)) return null;
+
+  const claimed = await prisma.oAuthTransaction.updateMany({
+    where: { id: transaction.id, pendingAccessToken: { not: null } },
+    data: { pendingAccessToken: null, pendingTokenExpiresAt: null },
+  });
+  if (claimed.count !== 1) return null;
+
+  return {
+    shopDomain: transaction.shopDomain,
+    accessToken: transaction.pendingAccessToken,
+    tokenExpiresAt: transaction.pendingTokenExpiresAt,
+  };
 }

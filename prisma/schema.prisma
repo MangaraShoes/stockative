@@ -746,6 +746,11 @@ model OAuthTransaction {
   state            String?   @unique
   browserNonceHash String?
   completedAt      DateTime?
+  // Meta com mais de uma conta Instagram (02/11/2026): o token de usuário
+  // fica guardado aqui só até o merchant escolher a conta na própria aba do
+  // callback, e é apagado na escolha. Ver auth.meta.callback.tsx.
+  pendingAccessToken    String?
+  pendingTokenExpiresAt DateTime?
   createdAt        DateTime  @default(now())
 
   @@index([shopDomain, provider])

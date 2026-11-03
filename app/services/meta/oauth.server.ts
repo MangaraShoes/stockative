@@ -92,17 +92,19 @@ interface PagesResponse {
   paging?: { next?: string };
 }
 
-// Lista as Páginas do Facebook que o usuário administra e procura a primeira
-// que tenha uma conta Instagram Business/Creator ligada. Cada Página tem seu
-// próprio access_token (retornado junto em /me/accounts) — é esse token, não
-// o de usuário, que a Graph API espera pra publicar depois. Segue
-// paging.next (01/10/2026, auditoria Meta App Review) — antes só olhava a
-// primeira página de resultados, então quem administra muitas Páginas podia
-// não ter a sua encontrada. Escolher entre VÁRIAS contas Instagram ainda não
-// existe: continua pegando a primeira (follow-up).
-export async function getInstagramBusinessAccount(
+// Lista as Páginas do Facebook que o usuário administra que tenham uma conta
+// Instagram Business/Creator ligada. Cada Página tem seu próprio access_token
+// (retornado junto em /me/accounts) — é esse token, não o de usuário, que a
+// Graph API espera pra publicar depois. Segue paging.next (01/10/2026,
+// auditoria Meta App Review) — antes só olhava a primeira página de
+// resultados. Devolve TODAS (02/11/2026): antes pegava a primeira, e quem
+// administra mais de uma marca (ex.: a mesma pessoa com a Mangará e uma
+// loja de teste) conectava a conta errada sem perceber — o callback agora
+// pede pra escolher quando há mais de uma.
+export async function listInstagramBusinessAccounts(
   longLivedUserToken: string,
-): Promise<ConnectedInstagramAccount | null> {
+): Promise<ConnectedInstagramAccount[]> {
+  const accounts: ConnectedInstagramAccount[] = [];
   let pages = await graphApiRequest<PagesResponse>("/me/accounts", {
     access_token: longLivedUserToken,
   });
@@ -117,19 +119,19 @@ export async function getInstagramBusinessAccount(
       });
 
       if (pageWithIg.instagram_business_account) {
-        return {
+        accounts.push({
           pageId: page.id,
           pageName: page.name,
           pageAccessToken: page.access_token,
           igBusinessAccountId: pageWithIg.instagram_business_account.id,
           igUsername: pageWithIg.instagram_business_account.username,
-        };
+        });
       }
     }
 
-    if (!pages.paging?.next) return null;
+    if (!pages.paging?.next) return accounts;
     const response = await fetch(pages.paging.next);
-    if (!response.ok) return null;
+    if (!response.ok) return accounts;
     pages = (await response.json()) as PagesResponse;
   }
 }

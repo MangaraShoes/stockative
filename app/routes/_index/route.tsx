@@ -1,7 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { redirect, Form, useLoaderData } from "react-router";
-
-import { login } from "../../shopify.server";
+import { redirect } from "react-router";
 
 import styles from "./styles.module.css";
 
@@ -23,15 +21,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     throw redirect(`/app${url.search}`);
   }
 
-  return { showForm: Boolean(login) };
+  return null;
 };
 
 // Página pública de app.stockative.com — é o "Site URL" cadastrado no Meta
 // App Review, então é o que o revisor vê se abrir o link direto. Antes era o
 // texto de exemplo do template da Shopify ("A short heading about [your app]").
+//
+// Sem campo de domínio da loja (03/11/2026): a Shopify proíbe pedir que a
+// lojista digite o myshopify.com (requisito 2.3.1 da App Store). Instalar e
+// abrir o app acontece sempre pelo admin ou pela App Store.
 export default function App() {
-  const { showForm } = useLoaderData<typeof loader>();
-
   return (
     <div className={styles.index}>
       <div className={styles.content}>
@@ -45,18 +45,10 @@ export default function App() {
           product images and publishes to your connected Instagram, Facebook
           and other social accounts. It runs inside your Shopify admin.
         </p>
-        {showForm && (
-          <Form className={styles.form} method="post" action="/auth/login">
-            <label className={styles.label}>
-              <span>Open Stockative for your store</span>
-              <input className={styles.input} type="text" name="shop" />
-              <span>e.g. my-shop-domain.myshopify.com</span>
-            </label>
-            <button className={styles.button} type="submit">
-              Log in
-            </button>
-          </Form>
-        )}
+        <p className={styles.text}>
+          To use Stockative, install it from the Shopify App Store or open it
+          from the Apps section of your Shopify admin.
+        </p>
         <ul className={styles.list}>
           <li>
             <strong>Decides what to promote</strong>. Weekly plan built from

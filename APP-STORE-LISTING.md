@@ -1,6 +1,6 @@
 # Rascunho do listing na Shopify App Store (14/10/2026)
 
-> **29/10/2026: preenchido no formulário (rascunho salvo, não submetido).** Nome, categoria **Marketing and conversion → Marketing → Marketing - Other** (não existe categoria de social media; depois de submeter, só muda com apelação), idioma English, introdução, detalhes, 5 features, privacy `https://stockative.com/#privacy`, site `https://stockative.com`, subtítulo, 5 termos de busca, "não exige Online Store/POS", nomes dos medidores e dos planos. A checagem automática da Shopify pediu para tirar a palavra **"plan"** (confunde com plano de preço), por isso os textos abaixo usam "schedule"/"calendar". A feature "See reach, saves and link clicks" ficou de fora (máximo de 5). E-mails preenchidos em 29/10/2026: suporte `hello@stockative.com` (confirmar que recebe e-mail), review e submissão `patricia@mangara.be`. Faltam 5 pendências: feature media, screenshots, conta de teste, instruções de teste e screencast.
+> **29/10/2026: preenchido no formulário (rascunho salvo, não submetido).** Nome, categoria **Marketing and conversion → Marketing → Marketing - Other** (não existe categoria de social media; depois de submeter, só muda com apelação), idioma English, introdução, detalhes, 5 features, privacy `https://stockative.com/#privacy`, site `https://stockative.com`, subtítulo, 5 termos de busca, "não exige Online Store/POS", nomes dos medidores e dos planos. A checagem automática da Shopify pediu para tirar a palavra **"plan"** (confunde com plano de preço), por isso os textos abaixo usam "schedule"/"calendar". A feature "See reach, saves and link clicks" ficou de fora (máximo de 5). E-mails preenchidos em 29/10/2026: suporte `hello@stockative.com` (confirmar que recebe e-mail), review e submissão `patricia@mangara.be`. Faltam 5 pendências: feature media, screenshots, conta de teste, instruções de teste e screencast (feature media, screenshots e screencast prontos em 03/11/2026, faltando só subir no formulário).
 
 App: **Stockative (público)**, handle `stockative-2`. Ver [PUBLIC-APP.md](PUBLIC-APP.md). Onde preencher: Partner Dashboard → Stockative → Distribution → Manage submission.
 
@@ -83,6 +83,10 @@ Mesmos planos do [BILLING-SETUP.md](BILLING-SETUP.md) (USD, mesmos números do e
 Como o pricing é gerenciado pela Shopify (Shopify App Pricing), os planos vêm de lá. Conferir se a página de pricing do listing os reflete.
 
 ---
+
+## Feature media (1600×900, topo da página do app)
+
+**03/11/2026: imagem pronta, `~/Desktop/stockative-screenshots/stockative-feature-1600x900.png`** (escolher **Image** no formulário, não Video: não há vídeo de divulgação, e o screencast é só para o revisor). Frase "Your stock decides. We create the posts." em Instrument Serif, subtítulo "Posts and Reels planned from your Shopify inventory, every week." em Work Sans (as fontes da landing), ícone + nome à esquerda, a tela real de "Next week's plan" à direita. Sem preço, pouco texto. Gerada com PIL; o script ficou só no scratchpad da sessão.
 
 ## Screenshots (3 a 6, 1600×900, cada uma mostrando algo diferente)
 

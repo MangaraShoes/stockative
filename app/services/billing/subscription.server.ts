@@ -102,3 +102,39 @@ export async function fetchActiveSubscription(
   cache.set(shopGid, { value, expiresAt: Date.now() + CACHE_TTL_MS });
   return value;
 }
+
+// Assinatura da INSTALAÇÃO atual (03/11/2026). A Partner API acima responde
+// por loja, não por instalação: quem desinstala fica com a assinatura antiga
+// "ativa até o fim do ciclo" lá, e ao reinstalar entrava direto no app sem
+// aprovar plano nenhum. A Shopify exige pedir a aprovação de novo na
+// reinstalação (requisito 1.2.2 da App Store), e a Admin API
+// (currentAppInstallation) é a que sabe disso: depois da reinstalação ela
+// vem vazia até a lojista escolher um plano. Mesma regra de cache da Partner
+// API: só guarda o "sim", e a desinstalação apaga o da loja.
+const installationCache = new Map<string, number>();
+
+export async function hasInstallationSubscription(
+  shopDomain: string,
+  admin: { graphql: (query: string) => Promise<Response> },
+): Promise<boolean> {
+  const cachedUntil = installationCache.get(shopDomain);
+  if (cachedUntil && cachedUntil > Date.now()) return true;
+  installationCache.delete(shopDomain);
+
+  const response = await admin.graphql(`#graphql
+    query InstallationSubscriptions {
+      currentAppInstallation { activeSubscriptions { id } }
+    }`);
+  const json = (await response.json()) as {
+    data?: { currentAppInstallation?: { activeSubscriptions: { id: string }[] } };
+  };
+  const subscriptions = json.data?.currentAppInstallation?.activeSubscriptions;
+  if (!subscriptions) throw new Error("Admin API request for currentAppInstallation failed.");
+  if (subscriptions.length === 0) return false;
+  installationCache.set(shopDomain, Date.now() + CACHE_TTL_MS);
+  return true;
+}
+
+export function forgetInstallationSubscription(shopDomain: string): void {
+  installationCache.delete(shopDomain);
+}

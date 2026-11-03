@@ -8,7 +8,12 @@ import { authenticate } from "../shopify.server";
 import { ensureShopContentLanguage, ensureShopEmail, ensureShopTimezone, getOrCreateShop } from "../services/syncProducts.server";
 import { getOnboardingStatus } from "../services/onboardingStatus.server";
 import prisma from "../db.server";
-import { fetchActiveSubscription, isBillingEnabled, planSelectionUrl } from "../services/billing/subscription.server";
+import {
+  fetchActiveSubscription,
+  hasInstallationSubscription,
+  isBillingEnabled,
+  planSelectionUrl,
+} from "../services/billing/subscription.server";
 import { startLoaderTimer } from "../utils/loaderTiming.server";
 
 // As mesmas fases do checklist da Home, na mesma ordem — usado aqui pra
@@ -61,7 +66,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
   let billing: { trialEndsAt: string | null } | null = null;
   if (isBillingEnabled() && shopGid) {
-    const subscription = await fetchActiveSubscription(shopGid);
+    // Partner API diz qual plano e até quando vai o teste; a instalação atual
+    // diz se ele foi aprovado DEPOIS da última instalação (reinstalar pede
+    // plano de novo, ver hasInstallationSubscription).
+    const partnerSubscription = await fetchActiveSubscription(shopGid);
+    const subscription =
+      partnerSubscription && (await hasInstallationSubscription(session.shop, admin))
+        ? partnerSubscription
+        : null;
     // Grava pro cron do serviço antigo (ver billingRequired no schema).
     const active = Boolean(subscription);
     if (!shop.billingRequired || shop.subscriptionActive !== active) {

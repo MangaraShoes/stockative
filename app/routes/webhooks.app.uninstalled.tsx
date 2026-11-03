@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import db from "../db.server";
+import { forgetInstallationSubscription } from "../services/billing/subscription.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, session, topic } = await authenticate.webhook(request);
@@ -22,9 +23,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // não há motivo pra guardar credencial de publicação de uma loja que saiu.
   // O resto dos dados da loja é apagado ~48h depois, pelo webhook
   // shop/redact (ver webhooks.compliance.tsx).
+  //
+  // A assinatura pertence à instalação que saiu (03/11/2026): ao reinstalar,
+  // a lojista aprova um plano de novo antes de o cron gerar qualquer coisa
+  // (ver hasInstallationSubscription). Lojas sem cobrança (Mangará) têm
+  // billingRequired false e o cron ignora subscriptionActive nelas.
+  forgetInstallationSubscription(shop);
   const shopRow = await db.shop.findUnique({ where: { shopifyDomain: shop } });
   if (shopRow) {
-    await db.shop.update({ where: { id: shopRow.id }, data: { uninstalledAt: new Date() } });
+    await db.shop.update({
+      where: { id: shopRow.id },
+      data: { uninstalledAt: new Date(), subscriptionActive: false },
+    });
     await db.contentItem.updateMany({
       where: { shopId: shopRow.id, status: { notIn: ["published", "cancelled"] } },
       data: { status: "cancelled" },

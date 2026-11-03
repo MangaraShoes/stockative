@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { apiVersion } from "../shopify.server";
 
 // Apaga TODOS os dados de uma loja (Patricia, 01/10/2026 — auditoria pro
 // Meta App Review: a política promete apagar os dados depois da
@@ -57,4 +58,33 @@ export async function deleteAllShopData(shopifyDomain: string): Promise<{ delete
   }, { timeout: 60_000 });
 
   return { deleted: true };
+}
+
+// Loja que reinstalou (03/11/2026): o shop/redact chega ~48h depois da
+// desinstalação mesmo que a loja tenha voltado nesse meio-tempo, e apagar
+// aí destruiria os dados (e a sessão) de uma instalação ativa. Só o webhook
+// usa isto — o "Delete all data" de Settings apaga com o app instalado, de
+// propósito.
+//
+// uninstalledAt preenchido = o app/uninstalled chegou e nenhuma reinstalação
+// passou por getOrCreateShop depois — não está instalada. uninstalledAt
+// vazio é ambíguo: ou a loja reinstalou, ou o webhook de desinstalação se
+// perdeu. Aí pergunta à própria Shopify se o token ainda vale: 200 =
+// instalada; 401/402/403/404 = não está. Qualquer outra resposta lança
+// erro, o webhook devolve 500 e a Shopify tenta de novo.
+export async function isShopStillInstalled(shopifyDomain: string): Promise<boolean> {
+  const shop = await prisma.shop.findUnique({
+    where: { shopifyDomain },
+    select: { uninstalledAt: true, accessToken: true },
+  });
+  if (!shop || shop.uninstalledAt) return false;
+
+  const response = await fetch(`https://${shopifyDomain}/admin/api/${apiVersion}/graphql.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": shop.accessToken },
+    body: JSON.stringify({ query: "{ shop { id } }" }),
+  });
+  if (response.ok) return true;
+  if ([401, 402, 403, 404].includes(response.status)) return false;
+  throw new Error(`Could not check whether ${shopifyDomain} is installed: HTTP ${response.status}`);
 }

@@ -7,6 +7,7 @@ import {
   publishReel,
   publishSingleImage,
   publishStory,
+  publishVideoStory,
   publishToFacebookPage,
 } from "./publish.server";
 import { buildFinalCaption, parseStoredHashtags } from "../decisionEngine/captionFormat";
@@ -227,16 +228,29 @@ export async function publishContentItemToInstagram(
       });
     }
 
-    // Story usa a mesma imagem hero (posição 1) do feed — best-effort, nunca
+    // Story usa o vídeo quando o post é Reel e, sem ele, a mesma imagem hero
+    // (posição 1) do feed — best-effort, nunca
     // falha a publicação principal se der errado. Se um retry anterior já
     // conseguiu, reaproveita em vez de publicar um Story duplicado.
     let story: StoryPublishOutcome = contentItem.storyExternalPostId
       ? { status: "published", igMediaId: contentItem.storyExternalPostId }
       : { status: "not_attempted" };
     const heroImageUrl = imageUrls[0];
-    if (story.status === "not_attempted" && heroImageUrl) {
+    const storyVideoUrl =
+      contentItem.format === "reel" && contentItem.videoUrl
+        ? `${appUrl}/media/content-item-video/${contentItem.id}`
+        : null;
+    if (story.status === "not_attempted" && (storyVideoUrl || heroImageUrl)) {
       try {
-        const storyMediaId = await publishStory(target, heroImageUrl);
+        let storyMediaId: string;
+        try {
+          if (!storyVideoUrl) throw new Error("No video for this Story.");
+          storyMediaId = await publishVideoStory(target, storyVideoUrl);
+        } catch (videoStoryError) {
+          if (!heroImageUrl) throw videoStoryError;
+          if (storyVideoUrl) console.error("Video Story failed, using the image:", videoStoryError);
+          storyMediaId = await publishStory(target, heroImageUrl);
+        }
         story = { status: "published", igMediaId: storyMediaId };
       } catch (storyError) {
         story = {

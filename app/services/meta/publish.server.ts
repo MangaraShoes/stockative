@@ -154,6 +154,18 @@ export async function publishReel(
   return publishContainer(target, containerId);
 }
 
+// Story em vídeo para posts com vídeo (Patricia, 04/11/2026), mesma espera do Reel.
+export async function publishVideoStory(target: PublishTarget, videoUrl: string): Promise<string> {
+  const containerId = await createContainer(target, { media_type: "STORIES", video_url: videoUrl });
+  await waitForContainerReady(
+    target,
+    containerId,
+    VIDEO_CONTAINER_POLL_INTERVAL_MS,
+    VIDEO_CONTAINER_POLL_TIMEOUT_MS,
+  );
+  return publishContainer(target, containerId);
+}
+
 export interface FacebookPageTarget {
   pageId: string;
   pageAccessToken: string;

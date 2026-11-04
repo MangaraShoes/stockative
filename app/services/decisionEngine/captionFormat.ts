@@ -52,7 +52,7 @@ export function parseStoredHashtags(hashtagsField: string | null): string[] {
 // caption was too long" (FR completo + NL completo passava de 2200).
 export const INSTAGRAM_CAPTION_LIMIT = 2200;
 // Margem reservada pra CTA + hashtags + separadores, fora do texto principal.
-const CTA_HASHTAGS_OVERHEAD = 300;
+export const CTA_HASHTAGS_OVERHEAD = 300;
 
 // Orçamento de caracteres pro Estágio 2 mirar na legenda no idioma
 // PRINCIPAL — quando há segundo idioma, a legenda final é a soma das duas

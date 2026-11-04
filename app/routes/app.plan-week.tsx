@@ -15,6 +15,7 @@ import {
   resetApprovalAfterEdit,
   regenerateWeeklyPlanSlotImage,
   regenerateWeeklyPlanSlotCaption,
+  editWeeklyPlanSlotCaption,
   getActivePromotion,
   planPromotionalWeek,
   createPromotion,
@@ -487,6 +488,17 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  if (intent === "edit-caption") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await editWeeklyPlanSlotCaption({
+      shopId: shop.id,
+      contentItemId,
+      captionText: String(formData.get("captionText") ?? ""),
+    });
+    if (result.status === "success") await resetApprovalAfterEdit(shop.id, contentItemId);
+    return { intent: "edit-caption" as const, contentItemId, result };
+  }
+
   if (intent === "regenerate-caption") {
     const contentItemId = String(formData.get("contentItemId"));
     let result;
@@ -931,6 +943,24 @@ export default function PlanWeek() {
   const tiktokFetcher = useFetcher<typeof action>();
   const publishFetcher = useFetcher<typeof action>();
   const captionFetcher = useFetcher<typeof action>();
+  const captionEditFetcher = useFetcher<typeof action>();
+  const [captionEdit, setCaptionEdit] = useState<{ contentItemId: string; text: string } | null>(null);
+  const [syncedCaptionEdit, setSyncedCaptionEdit] = useState(captionEditFetcher.data);
+  if (captionEditFetcher.data !== syncedCaptionEdit) {
+    setSyncedCaptionEdit(captionEditFetcher.data);
+    if (
+      captionEditFetcher.data?.intent === "edit-caption" &&
+      captionEditFetcher.data.result.status === "success"
+    ) {
+      setCaptionEdit(null);
+    }
+  }
+  const captionEditError =
+    captionEditFetcher.state === "idle" &&
+    captionEditFetcher.data?.intent === "edit-caption" &&
+    captionEditFetcher.data.result.status === "error"
+      ? captionEditFetcher.data.result.reason
+      : null;
   const reelFetcher = useFetcher<typeof action>();
   const savingTikTokContentItemId =
     tiktokFetcher.state !== "idle" ? String(tiktokFetcher.formData?.get("contentItemId") ?? "") : null;
@@ -1591,12 +1621,63 @@ export default function PlanWeek() {
                       </s-paragraph>
                     )}
 
-                    {slot.captionText && (
+                    {slot.captionText && captionEdit?.contentItemId !== slot.contentItemId && (
                       <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
                         <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
                           {slot.captionText}
                         </pre>
                       </s-box>
+                    )}
+                    {editable && captionEdit?.contentItemId === slot.contentItemId && (
+                      <div>
+                        <textarea
+                          value={captionEdit.text}
+                          onChange={(e) =>
+                            setCaptionEdit({ contentItemId: slot.contentItemId, text: e.target.value })
+                          }
+                          aria-label="Caption"
+                          rows={14}
+                          style={{ width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box", font: "inherit" }}
+                        />
+                        {captionEditError && (
+                          <p style={{ fontSize: 13, color: "#d72c0d", marginTop: 0, marginBottom: 8 }}>
+                            {captionEditError}
+                          </p>
+                        )}
+                        <s-stack direction="inline" gap="small" alignItems="center">
+                          <s-button
+                            variant="secondary"
+                            onClick={() =>
+                              captionEditFetcher.submit(
+                                {
+                                  intent: "edit-caption",
+                                  contentItemId: slot.contentItemId,
+                                  captionText: captionEdit.text,
+                                },
+                                { method: "POST" },
+                              )
+                            }
+                            {...(captionEditFetcher.state !== "idle" ? { loading: true } : {})}
+                          >
+                            Save caption
+                          </s-button>
+                          <s-button variant="tertiary" onClick={() => setCaptionEdit(null)}>
+                            Cancel
+                          </s-button>
+                        </s-stack>
+                      </div>
+                    )}
+                    {editable && slot.captionText && captionEdit?.contentItemId !== slot.contentItemId && (
+                      <div>
+                        <s-button
+                          variant="secondary"
+                          onClick={() =>
+                            setCaptionEdit({ contentItemId: slot.contentItemId, text: slot.captionText ?? "" })
+                          }
+                        >
+                          Edit caption
+                        </s-button>
+                      </div>
                     )}
                     {editable && (() => {
                       const captionFeedbackValue = captionFeedback[slot.contentItemId] ?? "";

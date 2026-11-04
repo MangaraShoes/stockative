@@ -20,7 +20,7 @@ import { buildCarousel } from "../imageMvp/buildCarousel.server";
 import { generateReelForContentItem } from "../video/generateReelForContentItem.server";
 import { getProductUsageStats } from "./contentHistory.server";
 import { translateCaption, buildBilingualCaption } from "./translateCaption.server";
-import { maxPrimaryCaptionChars, buildFinalCaption, parseStoredHashtags, stripFrameworkLabels } from "./captionFormat";
+import { CTA_HASHTAGS_OVERHEAD, INSTAGRAM_CAPTION_LIMIT, maxPrimaryCaptionChars, buildFinalCaption, parseStoredHashtags, stripFrameworkLabels } from "./captionFormat";
 import { parseStoredTikTokSettings, TIKTOK_TITLE_MAX_LENGTH, type TikTokPostSettings } from "../tiktok/postSettings";
 import {
   COMMERCIAL_OBJECTIVES,
@@ -1697,6 +1697,43 @@ export async function regenerateWeeklyPlanSlotImage(params: {
 export type RegenerateCaptionResult =
   | { status: "success" }
   | { status: "error"; reason: string };
+
+// Correção à mão da legenda (Patricia, 04/11/2026: um nativo corrigiu o
+// neerlandês da Linda e não havia onde colar). Sem IA, sem gastar tentativa e
+// sem a checagem de alegações: o texto é da própria lojista.
+const MAX_EDITED_CAPTION_CHARS = INSTAGRAM_CAPTION_LIMIT - CTA_HASHTAGS_OVERHEAD;
+
+export async function editWeeklyPlanSlotCaption(params: {
+  shopId: string;
+  contentItemId: string;
+  captionText: string;
+}): Promise<RegenerateCaptionResult> {
+  const captionText = params.captionText.trim();
+  if (!captionText) {
+    return { status: "error", reason: "The caption can't be empty." };
+  }
+  if (captionText.length > MAX_EDITED_CAPTION_CHARS) {
+    return {
+      status: "error",
+      reason: `The caption has ${captionText.length} characters. The limit is ${MAX_EDITED_CAPTION_CHARS}, so Instagram has room for the call to action and hashtags.`,
+    };
+  }
+  const { count } = await prisma.contentItem.updateMany({
+    where: {
+      id: params.contentItemId,
+      shopId: params.shopId,
+      status: { in: ["draft", "approved"] },
+    },
+    data: { captionText },
+  });
+  if (count === 0) {
+    return {
+      status: "error",
+      reason: "This post has already been scheduled or published, so its caption can no longer change here.",
+    };
+  }
+  return { status: "success" };
+}
 
 // Regenera SÓ a legenda de um post (Patricia, 30/09/2026: "não temos a opção
 // de regenerar somente o texto" — a tabela de planos promete "Regenerar

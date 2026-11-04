@@ -19,21 +19,37 @@ export async function translateCaption(
   const languageLabel =
     CONTENT_LANGUAGES.find((l) => l.code === targetLanguage)?.label ?? targetLanguage;
 
-  const prompt = `Translate this social media caption into ${languageLabel}. This is a professional marketing translation — preserve the tone, structure, and persuasive intent exactly, and keep it as one single continuous paragraph with no line breaks; don't translate word-for-word if that would sound stiff. Don't add or remove content, don't add hashtags.
-
-Never use an em dash (—) anywhere in the translation, even if the original caption has one. Use a comma, period, colon, or parentheses instead.
-
-Caption:
-${captionText}`;
+  const prompt = buildTranslationPrompt(captionText, languageLabel);
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const result = await generateStructuredForTask("translation", translationSchema, prompt);
+    // Modelo às vezes devolve o texto puro em vez de JSON: conta como tentativa
+    // falha, não pode derrubar o plano da semana.
+    const result = await generateStructuredForTask("translation", translationSchema, prompt).catch(
+      (error: unknown) => {
+        console.warn(`[translation] attempt ${attempt + 1} failed:`, error);
+        return null;
+      },
+    );
+    if (!result) continue;
     const translated = toSingleParagraph(result.translatedText);
     if (targetLanguage === "en" || !looksEnglish(translated)) return translated;
     console.warn(`[translation] came back in English instead of ${languageLabel}, attempt ${attempt + 1}`);
   }
   // Melhor só o idioma principal do que um bloco no idioma errado.
   return null;
+}
+
+export function buildTranslationPrompt(captionText: string, languageLabel: string): string {
+  return `Translate this social media caption into ${languageLabel}. This is a professional marketing translation — preserve the tone, structure, and persuasive intent exactly, and keep it as one single continuous paragraph with no line breaks; don't translate word-for-word if that would sound stiff. Don't add or remove content, don't add hashtags.
+
+Never use an em dash (—) anywhere in the translation, even if the original caption has one. Use a comma, period, colon, or parentheses instead.
+
+Use only real, everyday words of ${languageLabel}. Never coin or borrow a word: if there is no natural equivalent, rephrase.
+
+Caption:
+${captionText}
+
+Respond with only the JSON object, with the translation in "translatedText". No plain text.`;
 }
 
 // Monta a legenda final — só o idioma principal, ou principal seguido do

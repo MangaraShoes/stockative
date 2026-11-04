@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -5,6 +6,7 @@ import sharp from "sharp";
 import { resolveFfmpegPath, runFfmpegCommand } from "./buildReel.server";
 import { frameImageForReel } from "./reelFraming.server";
 import { readVideoInfo } from "./uploadedVideo.server";
+import { parseSilences, segmentsFromShots, sentenceSpans, splitSentences } from "./avatarShots.server";
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
@@ -96,10 +98,26 @@ async function renderHook(lines: string[], size: number, outputPath: string): Pr
   await sharp(Buffer.from(svg)).png().toFile(outputPath);
 }
 
+// Pausas da fala no próprio áudio do vídeo.
+function readSilences(ffmpegPath: string, inputPath: string): Promise<number[]> {
+  return new Promise((resolve) => {
+    const proc = spawn(ffmpegPath, ["-hide_banner", "-i", inputPath, "-af", "silencedetect=n=-35dB:d=0.2", "-vn", "-f", "null", "-"]);
+    let stderr = "";
+    proc.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    proc.on("error", () => resolve([]));
+    proc.on("close", () => resolve(parseSilences(stderr)));
+  });
+}
+
 export async function buildAvatarReel(params: {
   avatarVideo: Buffer;
   images: Buffer[];
   script: string;
+  // Foto de cada frase (índice em images, null = avatar), ver planAvatarShots.
+  // Sem isso, os cortes são em tempos fixos.
+  sentenceShots?: Array<number | null> | null;
 }): Promise<Buffer> {
   const ffmpegPath = await resolveFfmpegPath();
   const workDir = await mkdtemp(path.join(tmpdir(), "avatar-reel-"));
@@ -110,7 +128,21 @@ export async function buildAvatarReel(params: {
     const info = await readVideoInfo(ffmpegPath, avatarPath);
     if (!info) throw new Error("Could not read the avatar video.");
 
-    const segments = planAvatarSegments(info.durationSec, params.images.length);
+    let segments = planAvatarSegments(info.durationSec, params.images.length);
+    if (params.sentenceShots) {
+      const spans = sentenceSpans(
+        splitSentences(params.script),
+        info.durationSec,
+        await readSilences(ffmpegPath, avatarPath),
+      );
+      const aligned = segmentsFromShots(spans, params.sentenceShots);
+      // Fecha com o avatar acima do produto, como nos cortes fixos.
+      const last = aligned[aligned.length - 1];
+      if (aligned.some((segment) => segment.kind === "image") && last?.kind === "avatar") {
+        last.kind = "split";
+        segments = aligned;
+      }
+    }
     const inputs = ["-i", avatarPath];
     const filters = [
       `[0:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},format=yuv420p,setsar=1,split=${segments.length}${segments.map((_, i) => `[a${i}]`).join("")}`,

@@ -7,6 +7,7 @@ export type AITaskType =
   | "creative_copy"
   | "translation"
   | "claim_check"
+  | "reel_shot_planning"
   | "brand_analysis"
   | "content_pillars"
   | "image"

@@ -2,12 +2,13 @@ import prisma from "../../db.server";
 import { getContentItemImageJpegBuffer } from "../imageMvp/contentItemImageSource.server";
 import { isAvatarVideoEnabled, MAX_AVATAR_SCRIPT_CHARS, MAX_AVATAR_VIDEO_ATTEMPTS } from "./avatarVideoConfig";
 import { buildAvatarReel } from "./buildAvatarReel.server";
+import { planAvatarShots } from "./avatarShots.server";
 import { createHeyGenAvatarVideo, getHeyGenVideo, HeyGenError } from "./heygen.server";
 
 // Passado disso a montagem caiu no meio (redeploy) e pode ser retomada.
 const STUCK_COMPOSING_MS = 10 * 60 * 1000;
 const GIVE_UP_AFTER_MS = 2 * 60 * 60 * 1000;
-const MAX_IMAGES = 3;
+const MAX_IMAGES = 4;
 
 export type AvatarVideoResult = { status: "success" } | { status: "error"; reason: string };
 
@@ -112,7 +113,8 @@ async function finishAvatarVideo(contentItemId: string, videoUrl: string, script
     select: { id: true },
   });
   const buffers = await Promise.all(images.map((image) => getContentItemImageJpegBuffer(image.id)));
-  const video = await buildAvatarReel({ avatarVideo, images: buffers, script });
+  const sentenceShots = await planAvatarShots(script, buffers);
+  const video = await buildAvatarReel({ avatarVideo, images: buffers, script, sentenceShots });
 
   // Post publicado ou cancelado enquanto gerava: o vídeo é descartado.
   const saved = await prisma.contentItem.updateMany({

@@ -15,6 +15,7 @@ const TASK_MODEL_CONFIG: Record<
     | "creative_copy"
     | "translation"
     | "claim_check"
+    | "reel_shot_planning"
     | "brand_analysis"
     | "content_pillars"
     | "image"
@@ -29,6 +30,7 @@ const TASK_MODEL_CONFIG: Record<
   decision_engine: { model: "anthropic/claude-haiku-4.5" }, // barato, forte em structured output
   creative_copy: { model: "anthropic/claude-sonnet-5" }, // forte em linguagem/branding
   translation: { model: "anthropic/claude-sonnet-5" }, // o Haiku inventou "leercordels" e devolveu inglês em posts publicados (achados de 04/11/2026)
+  reel_shot_planning: { model: "anthropic/claude-sonnet-5" }, // precisa ver as fotos para combinar com a fala
   claim_check: { model: "anthropic/claude-sonnet-5" }, // julgamento que decide o que vai a público, mesmo critério do fidelity check
   brand_analysis: { model: "anthropic/claude-opus-5.5" }, // o mais capaz (Patricia, 28/10/2026): roda uma vez por loja e define a voz de tudo que vem depois
   content_pillars: { model: "anthropic/claude-sonnet-5" }, // estratégia de marca, mesma exigência de julgamento do brand_analysis

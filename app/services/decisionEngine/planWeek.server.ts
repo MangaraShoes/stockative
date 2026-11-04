@@ -90,6 +90,7 @@ export interface WeeklyPlanSlot {
   format: string; // post | reel — ver ContentItem.format em prisma/schema.prisma
   videoUrl: string | null; // só quando format="reel" (ver generateReelForContentItem.server.ts)
   videoUploaded: boolean; // vídeo enviado pela lojista (ver uploadedVideo.server.ts)
+  heroSavedToShopify: boolean; // imagem principal já na galeria do produto
   avatarScript: string | null;
   avatarVideoStatus: string | null; // ver avatarVideo.server.ts
   avatarVideoError: string | null;
@@ -648,6 +649,7 @@ export async function planOneSlot(
     format: itemFormat,
     videoUrl,
     videoUploaded: false,
+    heroSavedToShopify: false,
     avatarScript: null,
     avatarVideoStatus: null,
     avatarVideoError: null,
@@ -1366,6 +1368,10 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
       ? `/media/content-item-video/${item.id}?v=${item.videoGeneratedAt?.getTime() ?? 0}`
       : null,
     videoUploaded: Boolean(item.videoUploadedAt),
+    heroSavedToShopify: Boolean(
+      item.galleryImageUploadedAt ||
+        item.images.find((image) => image.position === 1)?.creativeAsset?.savedToShopifyAt,
+    ),
     avatarScript: item.avatarScript,
     avatarVideoStatus: item.avatarVideoStatus,
     avatarVideoError: item.avatarVideoError,

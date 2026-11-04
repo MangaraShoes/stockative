@@ -1,3 +1,5 @@
+import prisma from "../../db.server";
+
 interface AdminGraphqlClient {
   graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response>;
 }
@@ -97,3 +99,44 @@ export async function uploadGeneratedImageToProduct(
 
   return { status: "success" };
 }
+
+// Botão "Save image to Shopify" (Patricia, 04/11/2026): a imagem principal do
+// post vai à galeria sem esperar a publicação, e a publicação não a repete.
+export async function saveHeroImageToShopify(
+  admin: AdminGraphqlClient,
+  params: { shopId: string; contentItemId: string },
+): Promise<{ status: "success" } | { status: "error"; reason: string }> {
+  const item = await prisma.contentItem.findFirst({
+    where: { id: params.contentItemId, shopId: params.shopId },
+    include: {
+      product: true,
+      images: { where: { position: 1 }, include: { creativeAsset: true } },
+    },
+  });
+  const asset = item?.images[0]?.creativeAsset;
+  if (!item?.product || !asset) {
+    return { status: "error", reason: "This post has no AI image to save." };
+  }
+
+  // Reserva antes de enviar: um clique duplo não duplica a foto na loja.
+  const claimed = await prisma.creativeAsset.updateMany({
+    where: { id: asset.id, savedToShopifyAt: null },
+    data: { savedToShopifyAt: new Date() },
+  });
+  if (claimed.count === 0) return { status: "success" };
+
+  const result = await uploadGeneratedImageToProduct(admin, {
+    shopifyProductId: item.product.shopifyProductId,
+    imageDataUrl: asset.imageUrl,
+    filename: `${item.product.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-ai-editorial.jpg`,
+    alt: `${item.product.title} — AI-generated editorial photo`,
+  }).catch((error: unknown) => {
+    console.error(`Failed to save image of content item ${item.id} to Shopify:`, error);
+    return { status: "error" as const, reason: "We couldn't save this image to Shopify. Please try again." };
+  });
+  if (result.status === "error") {
+    await prisma.creativeAsset.update({ where: { id: asset.id }, data: { savedToShopifyAt: null } });
+  }
+  return result;
+}
+

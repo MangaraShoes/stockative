@@ -1,6 +1,7 @@
 import { ensurePlannedReel, generateReelForContentItem } from "../services/video/generateReelForContentItem.server";
 import { applyUploadedVideoToPost, removeUploadedVideoFromPost } from "../services/video/uploadedVideo.server";
 import { startAvatarVideo } from "../services/video/avatarVideo.server";
+import { saveHeroImageToShopify } from "../services/shopify/uploadProductImage.server";
 import {
   estimateAvatarVideoCostUsd,
   isAvatarVideoEnabled,
@@ -321,7 +322,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // nunca deixar passar uma chamada direta ao endpoint sem a conta conectada.
 // Conta como trabalho em andamento: o redeploy espera terminar (inFlightWork.server.ts).
 export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
 
   const shop = await prisma.shop.findUnique({
     where: { shopifyDomain: session.shop },
@@ -330,6 +331,12 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
 
   const formData = await request.formData();
   const intent = formData.get("intent");
+
+  if (intent === "save-image-to-shopify") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await saveHeroImageToShopify(admin, { shopId: shop.id, contentItemId });
+    return { intent: "save-image-to-shopify" as const, contentItemId, result };
+  }
 
   // As 3 ações abaixo chamam planOneSlot/buildCarousel por baixo (IA +
   // geração de imagem), que podem lançar exceção não tratada (achado ao
@@ -1144,6 +1151,13 @@ export default function PlanWeek() {
   const publishFetcher = useFetcher<typeof action>();
   const captionFetcher = useFetcher<typeof action>();
   const reelFetcher = useFetcher<typeof action>();
+  const shopifyImageFetcher = useFetcher<typeof action>();
+  const shopifyImageFailure =
+    shopifyImageFetcher.state === "idle" &&
+    shopifyImageFetcher.data?.intent === "save-image-to-shopify" &&
+    shopifyImageFetcher.data.result.status === "error"
+      ? { contentItemId: shopifyImageFetcher.data.contentItemId, reason: shopifyImageFetcher.data.result.reason }
+      : null;
   const videoFetcher = useFetcher<typeof action>();
   const videoFailure =
     videoFetcher.state === "idle" &&
@@ -1543,6 +1557,7 @@ export default function PlanWeek() {
     publishFetcher.submit({ intent: "publish-now", contentItemId }, { method: "POST" });
   };
 
+  const savingShopifyImageContentItemId = submittingContentItemId(shopifyImageFetcher);
   const videoBusyContentItemId = submittingContentItemId(videoFetcher);
   const makingReelContentItemId = submittingContentItemId(reelFetcher);
   const reelOutcome =
@@ -2070,6 +2085,31 @@ export default function PlanWeek() {
                           </button>
                         ))}
                       </s-stack>
+                    )}
+                    {slot.images.find((image) => image.position === 1)?.source === "ai_generated" && (
+                      <div>
+                        {slot.heroSavedToShopify ? (
+                          <s-text color="subdued">This image is in your Shopify product gallery.</s-text>
+                        ) : (
+                          <s-button
+                            variant="secondary"
+                            onClick={() =>
+                              shopifyImageFetcher.submit(
+                                { intent: "save-image-to-shopify", contentItemId: slot.contentItemId },
+                                { method: "POST" },
+                              )
+                            }
+                            {...(savingShopifyImageContentItemId === slot.contentItemId ? { loading: true } : {})}
+                          >
+                            Save image to Shopify
+                          </s-button>
+                        )}
+                        {shopifyImageFailure?.contentItemId === slot.contentItemId && (
+                          <p style={{ fontSize: 13, color: "#d72c0d", margin: "4px 0 0" }}>
+                            {shopifyImageFailure.reason}
+                          </p>
+                        )}
+                      </div>
                     )}
 
                     {editable && slot.imageRegenerationsLeft > 0 && (() => {

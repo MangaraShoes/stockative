@@ -469,19 +469,32 @@ export async function publishContentItemToInstagram(
     // item "partial" (Instagram publicou, uma etapa seguinte falhou e este
     // bloco roda outra vez) — sem essa checagem, cada retry duplicava a foto
     // na galeria do produto (achado de revisão de código, 13/09/2026).
-    if (heroImage?.creativeAsset && contentItem.product && !contentItem.galleryImageUploadedAt) {
+    if (
+      heroImage?.creativeAsset &&
+      contentItem.product &&
+      !contentItem.galleryImageUploadedAt &&
+      !heroImage.creativeAsset.savedToShopifyAt
+    ) {
       try {
         const { admin } = await unauthenticated.admin(contentItem.shop.shopifyDomain);
-        await uploadGeneratedImageToProduct(admin, {
+        const upload = await uploadGeneratedImageToProduct(admin, {
           shopifyProductId: contentItem.product.shopifyProductId,
           imageDataUrl: heroImage.creativeAsset.imageUrl,
           filename: `${contentItem.product.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-ai-editorial.jpg`,
           alt: `${contentItem.product.title} — AI-generated editorial photo`,
         });
-        await prisma.contentItem.update({
-          where: { id: contentItemId },
-          data: { galleryImageUploadedAt: new Date() },
-        });
+        // Antes o erro devolvido era ignorado e a imagem constava como enviada.
+        if (upload.status === "error") throw new Error(upload.reason);
+        await prisma.$transaction([
+          prisma.contentItem.update({
+            where: { id: contentItemId },
+            data: { galleryImageUploadedAt: new Date() },
+          }),
+          prisma.creativeAsset.update({
+            where: { id: heroImage.creativeAsset.id },
+            data: { savedToShopifyAt: new Date() },
+          }),
+        ]);
       } catch (uploadError) {
         console.error("Failed to add published image to product gallery:", uploadError);
       }

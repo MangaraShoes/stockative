@@ -669,6 +669,9 @@ model GenerationLog {
 }
 
 model CreativeAsset {
+  // Já enviada à galeria do produto: a mesma editorial pode aparecer em vários
+  // posts e nunca deve ser duplicada na loja.
+  savedToShopifyAt DateTime?
   id              String         @id @default(cuid())
   shopId          String
   shop            Shop           @relation(fields: [shopId], references: [id])

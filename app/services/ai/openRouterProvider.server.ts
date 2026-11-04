@@ -194,15 +194,34 @@ export class OpenRouterProvider implements AIProvider {
       { role: "system", content: systemPrompt },
       { role: "user", content: userContent },
     ]);
+    const content = json.choices[0]?.message.content ?? "{}";
 
-    const data = parseJsonResponse(json.choices[0]?.message.content ?? "{}", schema);
-
-    return {
-      data,
-      model: this.model,
-      tokensUsed: json.usage?.total_tokens ?? null,
-      costUsd: json.usage?.cost ?? null,
-    };
+    try {
+      return {
+        data: parseJsonResponse(content, schema),
+        model: this.model,
+        tokensUsed: json.usage?.total_tokens ?? null,
+        costUsd: json.usage?.cost ?? null,
+      };
+    } catch {
+      // Às vezes o modelo devolve só o texto, sem o JSON (achado em tradução e no
+      // roteiro do avatar, 04/11/2026). Pede de novo uma vez, em vez de falhar.
+      const retry = await this.chat([
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+        { role: "assistant", content },
+        {
+          role: "user",
+          content: "Return that as the single JSON object required by the schema, with nothing else.",
+        },
+      ]);
+      return {
+        data: parseJsonResponse(retry.choices[0]?.message.content ?? "{}", schema),
+        model: this.model,
+        tokensUsed: (json.usage?.total_tokens ?? 0) + (retry.usage?.total_tokens ?? 0),
+        costUsd: (json.usage?.cost ?? 0) + (retry.usage?.cost ?? 0),
+      };
+    }
   }
 
   async generateImage(

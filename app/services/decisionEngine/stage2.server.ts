@@ -160,7 +160,7 @@ export async function generateVerifiedAvatarScript(
 
 The first sentence is a hook of at most 50 characters that makes someone stop scrolling: a real situation, a question or an honest opinion. Then say what this product does for the viewer, using concrete details, and end with a short call to action.
 
-Write as natural speech, in plain words. No hashtags, emojis, stage directions, labels or em dashes.
+Write as natural speech, in plain words. No hashtags, emojis, stage directions, labels or em dashes. Never say the speaker personally owns or uses the product, since that isn't known. The call to action points to the link in bio, never to a physical store.
 
 Product: ${claimSources.productTitle}
 Product description: ${claimSources.productDescription ?? "(none)"}
@@ -172,7 +172,9 @@ ${evidenceSummary}
 
 Brand description: ${brand.brandDescription ?? "(none)"}
 ${brand.productLineNote}
-${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}${feedback}`;
+${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}${feedback}
+
+Respond with only the JSON object, with the spoken text in "script".`;
     const { script } = await generateStructuredForTask("creative_copy", avatarScriptSchema, prompt);
     const cleaned = toSingleParagraph(script);
     const violations = await findUnsupportedClaims({ captionText: cleaned, hashtags: [], cta: "" }, sources);

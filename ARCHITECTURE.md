@@ -264,3 +264,8 @@ Segue fora do MVP: Pinterest/TikTok, multi-mercado, criação automática de pro
 - Billing via Shopify (assinatura + compra pontual de créditos): 2-3 dias
 
 Total: ~6-7 semanas de trabalho focado, rodando em paralelo com a submissão do App Review da Meta (maior lead time, não maior esforço).
+
+## Fatos por linha de produto e checagem de alegações (04/11/2026)
+
+`Shop.productLines` guarda origem e autoria por linha, casadas pelo `productType` (`decisionEngine/productLines.ts`, editável em Store voice). Os Estágios 1 e 2 recebem só os fatos da linha do produto, e `founder_story` sai da lista de arquétipos quando a fundadora não desenhou a linha. `generateVerifiedCopy` confere toda legenda e hashtag em `claimCheck.server.ts` (tarefa `claim_check`, ~$0,005 por checagem) e reescreve até 2 vezes; se continuar reprovada, dá erro em vez de salvar. A tradução é refeita quando volta em inglês (`looksEnglish`) e, se insistir, o post sai só no idioma principal.
+

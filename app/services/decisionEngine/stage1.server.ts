@@ -2,6 +2,7 @@ import { z } from "zod";
 import { generateStructuredForTask } from "../ai/index.server";
 import { NARRATIVE_FRAMEWORKS, type CommercialObjective } from "./constants";
 import { getEligibleArchetypes, type ArchetypeEvidence } from "./archetypes.server";
+import { describeProductLine, type ProductLineContext } from "./productLines";
 
 const LOW_STOCK_THRESHOLD = 5; // escassez real — ver MARKETING-KNOWLEDGE.md seção 4
 const NEWNESS_WINDOW_DAYS = 21;
@@ -21,6 +22,8 @@ interface Stage1Input {
   // isso, esses arquétipos não podem citar fato nenhum, só o que já está no
   // cadastro do produto (ver regras de evidência abaixo).
   brandDescription: string | null;
+  // Origem e autoria da linha deste produto (ver productLines.ts).
+  productLine: ProductLineContext;
   // Pilar (Fase 1, ver MARKETING-KNOWLEDGE.md) que este post deve servir —
   // opcional: nem toda loja tem pilares salvos ainda, nem todo post precisa
   // vir de um (Patricia, 11/09/2026: "implementa os pilares influenciando o
@@ -53,7 +56,10 @@ interface Stage1Input {
 
 function computeEvidence(input: Stage1Input): ArchetypeEvidence {
   return {
-    hasFounderFact: Boolean(input.brandDescription?.trim()),
+    // Sem isso uma bolsa que a fundadora não desenhou podia virar founder_story.
+    hasFounderFact:
+      Boolean(input.brandDescription?.trim()) &&
+      (!input.productLine.configured || input.productLine.line?.founderDesigned === true),
     hasVerifiableSales: input.unitsSold30d > 0,
     isLowStock: input.inventoryQuantity > 0 && input.inventoryQuantity <= LOW_STOCK_THRESHOLD,
     isRecentProduct: input.daysSinceCreated !== null && input.daysSinceCreated <= NEWNESS_WINDOW_DAYS,
@@ -74,7 +80,7 @@ function computeEvidence(input: Stage1Input): ArchetypeEvidence {
 export function describeEvidence(input: Stage1Input): string {
   const evidence = computeEvidence(input);
   const lines = [
-    `- Founder/brand facts: ${evidence.hasFounderFact ? "available — the brand description below is real and can be cited" : "NOT available — do not state any founder or brand-history fact"}`,
+    `- Founder/brand facts: ${evidence.hasFounderFact ? "available — the brand description below is real and can be cited" : "NOT available for this product — do not tell a founder story or tie this product to the founder"}`,
     `- Verifiable sales: ${evidence.hasVerifiableSales ? `available — ${input.unitsSold30d} unit(s) sold in the last 30 days, may be cited as a real number` : "NOT available — do not imply the product is popular or selling well"}`,
     `- Real scarcity: ${evidence.isLowStock ? `available — only ${input.inventoryQuantity} unit(s) left, may be cited as real urgency` : "NOT available — never imply the product is running out"}`,
     `- Product recency: ${evidence.isRecentProduct ? `available — listed ${input.daysSinceCreated} day(s) ago, may be called new/recent` : "NOT available — do not call this a new or recent arrival"}`,
@@ -135,6 +141,7 @@ Product:
 
 Brand description (source of truth for founder_story and behind_the_scenes claims — do NOT state anything beyond what's written here):
 ${input.brandDescription?.trim() || "(not set — founder_story and behind_the_scenes must stay fully generic, no specific unverified detail)"}
+${describeProductLine(input.productLine)}
 
 ${
   input.pillar

@@ -88,6 +88,9 @@ model Shop {
   brandDescription String? // quem é a marca, em poucas frases
   brandTone        String? // tom de voz, ex.: "warm, confident, never pushy"
   brandAvoid       String? // palavras/tom que a marca nunca deve usar
+  // Origem e autoria por linha de produto, casadas pelo productType: ver
+  // decisionEngine/productLines.ts (04/11/2026).
+  productLines     Json?
 
   // Trava a aprovação do store voice até a lojista confirmar o idioma de
   // publicação pelo menos uma vez (mesmo que aceite o padrão em inglês) —

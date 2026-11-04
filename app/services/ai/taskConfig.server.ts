@@ -14,6 +14,7 @@ const TASK_MODEL_CONFIG: Record<
     | "decision_engine"
     | "creative_copy"
     | "translation"
+    | "claim_check"
     | "brand_analysis"
     | "content_pillars"
     | "image"
@@ -28,6 +29,7 @@ const TASK_MODEL_CONFIG: Record<
   decision_engine: { model: "anthropic/claude-haiku-4.5" }, // barato, forte em structured output
   creative_copy: { model: "anthropic/claude-sonnet-5" }, // forte em linguagem/branding
   translation: { model: "anthropic/claude-haiku-4.5" },
+  claim_check: { model: "anthropic/claude-sonnet-5" }, // julgamento que decide o que vai a público, mesmo critério do fidelity check
   brand_analysis: { model: "anthropic/claude-opus-5.5" }, // o mais capaz (Patricia, 28/10/2026): roda uma vez por loja e define a voz de tudo que vem depois
   content_pillars: { model: "anthropic/claude-sonnet-5" }, // estratégia de marca, mesma exigência de julgamento do brand_analysis
   image: { model: "google/gemini-2.5-flash-image" }, // Nano Banana — mesmo modelo do projeto da Mangará

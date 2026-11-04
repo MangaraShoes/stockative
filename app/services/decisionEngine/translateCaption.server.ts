@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { toSingleParagraph } from "./captionFormat";
+import { looksEnglish, toSingleParagraph } from "./captionFormat";
 import { generateStructuredForTask } from "../ai/index.server";
 import { CONTENT_LANGUAGES, type ContentLanguageCode } from "./constants";
 
@@ -15,7 +15,7 @@ const translationSchema = z.object({
 export async function translateCaption(
   captionText: string,
   targetLanguage: ContentLanguageCode,
-): Promise<string> {
+): Promise<string | null> {
   const languageLabel =
     CONTENT_LANGUAGES.find((l) => l.code === targetLanguage)?.label ?? targetLanguage;
 
@@ -26,8 +26,14 @@ Never use an em dash (—) anywhere in the translation, even if the original cap
 Caption:
 ${captionText}`;
 
-  const result = await generateStructuredForTask("translation", translationSchema, prompt);
-  return toSingleParagraph(result.translatedText);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await generateStructuredForTask("translation", translationSchema, prompt);
+    const translated = toSingleParagraph(result.translatedText);
+    if (targetLanguage === "en" || !looksEnglish(translated)) return translated;
+    console.warn(`[translation] came back in English instead of ${languageLabel}, attempt ${attempt + 1}`);
+  }
+  // Melhor só o idioma principal do que um bloco no idioma errado.
+  return null;
 }
 
 // Monta a legenda final — só o idioma principal, ou principal seguido do

@@ -21,6 +21,7 @@ import { getOnboardingStatus, type OnboardingStatus } from "../services/onboardi
 import { OnboardingStepper } from "../components/OnboardingStepper";
 import { GeneratingProgressBar } from "../components/GeneratingProgressBar";
 import { withInFlight } from "../services/inFlightWork.server";
+import { parseProductLines } from "../services/decisionEngine/productLines";
 
 const EMPTY_ONBOARDING_STATUS: OnboardingStatus = {
   hasStock: false,
@@ -56,6 +57,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     brandDescription: shop?.brandDescription ?? "",
     brandTone: shop?.brandTone ?? "",
     brandAvoid: shop?.brandAvoid ?? "",
+    productLines: parseProductLines(shop?.productLines),
+    productTypes: shop
+      ? (
+          await prisma.productCache.findMany({
+            where: { shopId: shop.id, productType: { not: null } },
+            select: { productType: true },
+            distinct: ["productType"],
+          })
+        ).flatMap((product) => product.productType?.trim() || [])
+      : [],
     imageStylePreference: shop?.imageStylePreference ?? "ai_decide",
     hasPhotoProfile: (() => {
       const profile = parseModelProfile(shop?.modelProfile);
@@ -198,6 +209,12 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
   const brandDescription = String(formData.get("brandDescription") ?? "").trim();
   const brandTone = String(formData.get("brandTone") ?? "").trim();
   const brandAvoid = String(formData.get("brandAvoid") ?? "").trim();
+  let productLines = parseProductLines(null);
+  try {
+    productLines = parseProductLines(JSON.parse(String(formData.get("productLines") ?? "[]")));
+  } catch {
+    productLines = [];
+  }
   const applyLogoOverlay = formData.get("applyLogoOverlay") === "true";
   const imageStylePreference = String(formData.get("imageStylePreference") ?? "ai_decide");
   // Perfil de foto sugerido pela análise da marca — só aplica se a lojista
@@ -217,6 +234,7 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
       brandDescription,
       brandTone,
       brandAvoid,
+      productLines: productLines as unknown as object,
       applyLogoOverlay,
       imageStylePreference,
       ...(suggestedPhotoProfile ? { modelProfile: suggestedPhotoProfile as unknown as object } : {}),
@@ -254,6 +272,17 @@ export default function StoreVoice() {
   const languageFetcher = useFetcher<typeof action>();
 
   const [brandDescription, setBrandDescription] = useState(data.brandDescription);
+  const [productLineRows, setProductLineRows] = useState(
+    data.productLines.map((line) => ({ ...line, productTypes: line.productTypes.join(", ") })),
+  );
+  const updateProductLine = (index: number, patch: Partial<(typeof productLineRows)[number]>) =>
+    setProductLineRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const coveredProductTypes = new Set(
+    productLineRows.flatMap((row) => row.productTypes.split(",").map((type) => type.trim().toLowerCase())),
+  );
+  const uncoveredProductTypes = data.productTypes.filter(
+    (type) => !coveredProductTypes.has(type.toLowerCase()),
+  );
   const [brandTone, setBrandTone] = useState(data.brandTone);
   const [brandAvoid, setBrandAvoid] = useState(data.brandAvoid);
   const [imageStylePreference, setImageStylePreference] = useState(data.imageStylePreference);
@@ -322,6 +351,12 @@ export default function StoreVoice() {
         brandDescription,
         brandTone,
         brandAvoid,
+        productLines: JSON.stringify(
+          productLineRows.map((row) => ({
+            ...row,
+            productTypes: row.productTypes.split(",").map((type) => type.trim()).filter(Boolean),
+          })),
+        ),
         imageStylePreference,
         applyLogoOverlay: String(applyLogoOverlay),
         ...(suggestedPhotoProfile && applyPhotoProfile
@@ -549,6 +584,76 @@ export default function StoreVoice() {
               rows={4}
               style={TEXTAREA_STYLE}
             />
+          </div>
+
+          <div>
+            <s-paragraph>Where each product line comes from (optional)</s-paragraph>
+            <p style={{ fontSize: 13, margin: "4px 0 8px", color: "#616161" }}>
+              Sell lines with different stories? Posts only use the facts of their own line, so a
+              claim about your shoes never ends up on your bags. Once you add a line, products
+              outside it get no origin or design claims.
+            </p>
+            {productLineRows.map((row, index) => (
+              <div
+                key={index}
+                style={{ padding: 12, border: "1px solid #e1e3e5", borderRadius: 8, marginBottom: 8 }}
+              >
+                <input
+                  value={row.name}
+                  onChange={(e) => updateProductLine(index, { name: e.target.value })}
+                  placeholder="Line name, e.g. Bags"
+                  aria-label="Line name"
+                  style={{ ...TEXTAREA_STYLE, marginBottom: 8 }}
+                />
+                <input
+                  value={row.productTypes}
+                  onChange={(e) => updateProductLine(index, { productTypes: e.target.value })}
+                  placeholder="Shopify product types, separated by commas"
+                  aria-label="Shopify product types"
+                  style={{ ...TEXTAREA_STYLE, marginBottom: 8 }}
+                />
+                <textarea
+                  value={row.facts}
+                  onChange={(e) => updateProductLine(index, { facts: e.target.value })}
+                  placeholder="e.g. Made in Italy in Italian leather. Designed in Belgium."
+                  aria-label="Facts about this line"
+                  rows={3}
+                  style={TEXTAREA_STYLE}
+                />
+                <label style={{ fontSize: 13, display: "flex", gap: 6, alignItems: "center", margin: "8px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={row.founderDesigned}
+                    onChange={(e) => updateProductLine(index, { founderDesigned: e.target.checked })}
+                  />
+                  Designed by the brand&apos;s founder
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setProductLineRows((rows) => rows.filter((_, i) => i !== index))}
+                  style={{ fontSize: 13, background: "none", border: "none", padding: 0, color: "#d72c0d", cursor: "pointer" }}
+                >
+                  Remove line
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() =>
+                setProductLineRows((rows) => [
+                  ...rows,
+                  { name: "", productTypes: "", facts: "", founderDesigned: false },
+                ])
+              }
+              style={{ padding: "8px 16px", border: "1px solid #a8abae", borderRadius: 8, background: "#c9cccf", color: "#202223", fontWeight: 500, cursor: "pointer" }}
+            >
+              Add product line
+            </button>
+            {productLineRows.length > 0 && uncoveredProductTypes.length > 0 && (
+              <p style={{ fontSize: 13, margin: "8px 0 0", color: "#616161" }}>
+                No line yet for: {uncoveredProductTypes.join(", ")}
+              </p>
+            )}
           </div>
 
           {suggestedPhotoProfile && (() => {

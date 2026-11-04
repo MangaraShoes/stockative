@@ -14,7 +14,8 @@ import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
 import { getArchetypePerformance, describeArchetypePerformance } from "./performanceLearning.server";
 import { decideContentBrief, describeEvidence, type Stage1Output } from "./stage1.server";
-import { generateCreativeCopy } from "./stage2.server";
+import { generateVerifiedCopy } from "./stage2.server";
+import { describeProductLine, resolveProductLine } from "./productLines";
 import { buildCarousel } from "../imageMvp/buildCarousel.server";
 import { generateReelForContentItem } from "../video/generateReelForContentItem.server";
 import { getProductUsageStats } from "./contentHistory.server";
@@ -403,7 +404,7 @@ async function loadSlotImages(contentItemId: string): Promise<WeeklyPlanImage[]>
 // exatamente a mesma evidência que gerou o post original.
 async function buildStage1Input(params: {
   shopId: string;
-  shop: { brandDescription: string | null };
+  shop: { brandDescription: string | null; productLines: unknown };
   product: Awaited<ReturnType<typeof loadProductWithSignal>>;
   objective: CommercialObjective;
   effectivePillar: Pick<
@@ -426,6 +427,7 @@ async function buildStage1Input(params: {
       ? Math.floor((Date.now() - product.shopifyCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
       : null,
     brandDescription: shop.brandDescription,
+    productLine: resolveProductLine(shop.productLines, product.productType),
     objective,
     pillar: effectivePillar
       ? {
@@ -512,16 +514,18 @@ export async function planOneSlot(
   });
   const brief = await decideContentBrief(stage1Input);
 
-  const copy = await generateCreativeCopy(
+  const copy = await generateVerifiedCopy(
     brief,
     shop.contentLanguagePrimary as ContentLanguageCode,
     {
       brandDescription: shop.brandDescription,
       brandTone: shop.brandTone,
       brandAvoid: shop.brandAvoid,
+      productLineNote: describeProductLine(stage1Input.productLine),
     },
     describeEvidence(stage1Input),
     maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
+    { productTitle: product.title, productDescription: product.description },
   );
 
   const secondaryCaption = shop.contentLanguageSecondary
@@ -1765,16 +1769,18 @@ async function rewriteCaption(
     promotion: item.promotion,
   });
 
-  const copy = await generateCreativeCopy(
+  const copy = await generateVerifiedCopy(
     brief,
     shop.contentLanguagePrimary as ContentLanguageCode,
     {
       brandDescription: shop.brandDescription,
       brandTone: shop.brandTone,
       brandAvoid: shop.brandAvoid,
+      productLineNote: describeProductLine(stage1Input.productLine),
     },
     describeEvidence(stage1Input),
     maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
+    { productTitle: product.title, productDescription: product.description },
     { previousCaption: item.captionText ?? "", feedback },
   );
   const secondaryCaption = shop.contentLanguageSecondary

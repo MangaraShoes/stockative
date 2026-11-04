@@ -101,3 +101,14 @@ export function buildFinalCaption(params: {
   const parts = [trimmedMainText, ctaPart || null, hashtagsPart || null];
   return parts.filter((part): part is string => Boolean(part)).join("\n\n");
 }
+
+const ENGLISH_FUNCTION_WORDS =
+  /\b(the|and|with|that|this|you|your|from|for|are|its|of|to|without|thanks|has|have|just|only)\b/gi;
+
+// O tradutor às vezes devolve inglês em vez do idioma pedido (achado real:
+// blocos "neerlandeses" da Mademoiselle e da Rosanne, 28/10/2026, publicados).
+export function looksEnglish(text: string): boolean {
+  const words = text.split(/\s+/).filter(Boolean).length;
+  if (words < 8) return false;
+  return (text.match(ENGLISH_FUNCTION_WORDS)?.length ?? 0) / words >= 0.15;
+}

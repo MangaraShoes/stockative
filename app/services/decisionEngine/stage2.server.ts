@@ -3,6 +3,7 @@ import { generateStructuredForTask } from "../ai/index.server";
 import type { Stage1Output } from "./stage1.server";
 import { CONTENT_LANGUAGES, type ContentLanguageCode } from "./constants";
 import { stripFrameworkLabels, toSingleParagraph } from "./captionFormat";
+import { findUnsupportedClaims, type ClaimSources } from "./claimCheck.server";
 
 const stage2Schema = z.object({
   captionText: z.string().describe("The full social media caption, ready to post"),
@@ -16,6 +17,8 @@ export interface BrandVoice {
   brandDescription: string | null;
   brandTone: string | null;
   brandAvoid: string | null;
+  // describeProductLine(): vazio quando a loja não configurou linhas.
+  productLineNote: string;
 }
 
 const DEFAULT_BRAND_TONE =
@@ -68,6 +71,7 @@ ${evidenceSummary}
 
 Brand voice: ${brandVoiceText}
 ${brand.brandDescription?.trim() ? `Brand description: ${brand.brandDescription}` : ""}
+${brand.productLineNote}
 ${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}
 
 Write the caption in ${languageLabel}. Follow the narrative framework's structure (${brief.narrativeFramework}), but never write the names of its stages in the caption (no "Before:", "After:", "Hook:" or their equivalents in any language) — the reader should feel the structure, not see it labeled. Write captionText as one single continuous paragraph, with no line breaks or blank lines. Stay within the strength and scope of the sourced claims above — don't expand a specific, bounded claim (e.g. "supports extended wear") into a broader unbounded one (e.g. "all-day comfort" or "built to last for years") unless the evidence above actually supports that scope.
@@ -85,4 +89,47 @@ ${revision.previousCaption}`
 
   const copy = await generateStructuredForTask("creative_copy", stage2Schema, prompt);
   return { ...copy, captionText: toSingleParagraph(stripFrameworkLabels(copy.captionText)) };
+}
+
+const MAX_CLAIM_REWRITES = 2;
+
+// Toda legenda passa por aqui: reprovada na checagem de origem/autoria, é
+// reescrita com o motivo. Nunca devolve legenda reprovada, porque o post pode
+// sair sozinho depois. Melhor o erro aparecer do que publicar alegação falsa.
+export async function generateVerifiedCopy(
+  brief: Stage1Output,
+  language: ContentLanguageCode,
+  brand: BrandVoice,
+  evidenceSummary: string,
+  maxCaptionChars: number,
+  claimSources: Omit<ClaimSources, "brandDescription" | "productLineNote">,
+  revision?: { previousCaption: string; feedback: string },
+): Promise<Stage2Output> {
+  const sources: ClaimSources = {
+    ...claimSources,
+    brandDescription: brand.brandDescription,
+    productLineNote: brand.productLineNote,
+  };
+  let currentRevision = revision;
+  for (let attempt = 0; attempt <= MAX_CLAIM_REWRITES; attempt++) {
+    const copy = await generateCreativeCopy(
+      brief,
+      language,
+      brand,
+      evidenceSummary,
+      maxCaptionChars,
+      currentRevision,
+    );
+    const violations = await findUnsupportedClaims(copy, sources);
+    if (violations.length === 0) return copy;
+
+    console.warn(`[claim-check] ${claimSources.productTitle}: ${violations.join(" | ")}`);
+    currentRevision = {
+      previousCaption: copy.captionText,
+      feedback: `${revision ? `${revision.feedback} Also: ` : ""}remove these unsupported claims, from the caption and the hashtags, and do not replace them with other origin or authorship claims: ${violations.join("; ")}`,
+    };
+  }
+  throw new Error(
+    `Could not write a caption for "${claimSources.productTitle}" without unsupported origin or design claims. Check this product's facts in Store voice.`,
+  );
 }

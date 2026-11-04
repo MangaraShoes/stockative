@@ -112,8 +112,8 @@ export async function buildAvatarReel(params: {
         filters.push(`[t${index}]null[s${index}]`);
         continue;
       }
-      const source = params.images[segment.imageIndex ?? 0];
       if (segment.kind === "image") {
+        const source = params.images[segment.imageIndex ?? 0];
         const framed = await frameImageForReel(source);
         const imagePath = path.join(workDir, `image${index}.jpg`);
         await writeFile(imagePath, framed.jpeg);
@@ -124,11 +124,14 @@ export async function buildAvatarReel(params: {
           `[${nextInput}:v]zoompan=z='1+0.04*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${FPS},format=yuv420p,setsar=1[s${index}]`,
         );
       } else {
-        const framed = await frameImageForReel(source);
-        const fit = framed.kind === "studio" ? "contain" : "cover";
+        // Foto de estúdio mostra o produto inteiro; cortar uma cena arrancava a
+        // cabeça da modelo. Sem estúdio, a cena entra inteira, sem corte.
+        const framedAll = await Promise.all(params.images.map((image) => frameImageForReel(image)));
+        const studioIndex = framedAll.findIndex((framed) => framed.kind === "studio");
+        const source = params.images[studioIndex >= 0 ? studioIndex : 0];
         const lowerPath = path.join(workDir, `lower${index}.jpg`);
         await sharp(source)
-          .resize(WIDTH, SPLIT_BOTTOM_HEIGHT, { fit, background: "#ffffff" })
+          .resize(WIDTH, SPLIT_BOTTOM_HEIGHT, { fit: "contain", background: "#ffffff" })
           .flatten({ background: "#ffffff" })
           .jpeg({ quality: 92 })
           .toFile(lowerPath);

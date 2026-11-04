@@ -914,8 +914,8 @@ function CaptionEditor({ contentItemId, captionText }: { contentItemId: string; 
           padding: 12,
           boxSizing: "border-box",
           font: "inherit",
-          background: "#f6f6f7",
-          border: "1px solid #c9cccf",
+          background: "#ffffff",
+          border: "1px solid #8c9196",
           borderRadius: 8,
         }}
       />

@@ -1,4 +1,5 @@
 import { ensurePlannedReel, generateReelForContentItem } from "../services/video/generateReelForContentItem.server";
+import { applyUploadedVideoToPost, removeUploadedVideoFromPost } from "../services/video/uploadedVideo.server";
 import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs, ShouldRevalidateFunction } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
@@ -486,6 +487,19 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
         result: { status: "error" as const, reason: "Something went wrong building the Reel. Please try again." },
       };
     }
+  }
+
+  if (intent === "upload-video" || intent === "remove-video") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const file = formData.get("video");
+    const result =
+      intent === "remove-video"
+        ? await removeUploadedVideoFromPost({ shopId: shop.id, contentItemId })
+        : file instanceof File
+          ? await applyUploadedVideoToPost({ shopId: shop.id, contentItemId, file })
+          : { status: "error" as const, reason: "Choose a video first." };
+    if (result.status === "success") await resetApprovalAfterEdit(shop.id, contentItemId);
+    return { intent: "upload-video" as const, contentItemId, result };
   }
 
   if (intent === "edit-caption") {
@@ -1005,6 +1019,20 @@ export default function PlanWeek() {
   const publishFetcher = useFetcher<typeof action>();
   const captionFetcher = useFetcher<typeof action>();
   const reelFetcher = useFetcher<typeof action>();
+  const videoFetcher = useFetcher<typeof action>();
+  const videoFailure =
+    videoFetcher.state === "idle" &&
+    videoFetcher.data?.intent === "upload-video" &&
+    videoFetcher.data.result.status === "error"
+      ? { contentItemId: videoFetcher.data.contentItemId, reason: videoFetcher.data.result.reason }
+      : null;
+  const uploadPostVideo = (contentItemId: string, file: File) => {
+    const form = new FormData();
+    form.set("intent", "upload-video");
+    form.set("contentItemId", contentItemId);
+    form.set("video", file);
+    videoFetcher.submit(form, { method: "POST", encType: "multipart/form-data" });
+  };
   const savingTikTokContentItemId =
     tiktokFetcher.state !== "idle" ? String(tiktokFetcher.formData?.get("contentItemId") ?? "") : null;
   const tiktokFailure =
@@ -1379,6 +1407,7 @@ export default function PlanWeek() {
     publishFetcher.submit({ intent: "publish-now", contentItemId }, { method: "POST" });
   };
 
+  const videoBusyContentItemId = submittingContentItemId(videoFetcher);
   const makingReelContentItemId = submittingContentItemId(reelFetcher);
   const reelOutcome =
     reelFetcher.state === "idle" && reelFetcher.data?.intent === "make-reel" ? reelFetcher.data : null;
@@ -1780,6 +1809,59 @@ export default function PlanWeek() {
                         controls
                         style={{ width: 160, borderRadius: 4, display: "block" }}
                       />
+                    )}
+                    {editable && (
+                      <div>
+                        <s-stack direction="inline" gap="small" alignItems="center">
+                          <label
+                            style={{
+                              padding: "6px 12px",
+                              border: "1px solid #a8abae",
+                              borderRadius: 8,
+                              fontSize: 13,
+                              fontWeight: 500,
+                              cursor: "pointer",
+                              opacity: videoBusyContentItemId === slot.contentItemId ? 0.5 : 1,
+                            }}
+                          >
+                            {slot.videoUploaded ? "Replace my video" : "Upload my own video"}
+                            <input
+                              type="file"
+                              accept="video/mp4,video/quicktime,.mp4,.mov"
+                              disabled={videoBusyContentItemId === slot.contentItemId}
+                              style={{ display: "none" }}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = "";
+                                if (file) uploadPostVideo(slot.contentItemId, file);
+                              }}
+                            />
+                          </label>
+                          {slot.videoUploaded && (
+                            <s-button
+                              variant="tertiary"
+                              onClick={() =>
+                                videoFetcher.submit(
+                                  { intent: "remove-video", contentItemId: slot.contentItemId },
+                                  { method: "POST" },
+                                )
+                              }
+                            >
+                              Remove my video
+                            </s-button>
+                          )}
+                        </s-stack>
+                        <p style={{ fontSize: 13, color: "#616161", margin: "4px 0 0" }}>
+                          Vertical video, 3 to 60 seconds. It goes out with this post&apos;s caption. If it&apos;s
+                          AI-generated, check each network&apos;s AI label rules.
+                        </p>
+                        {videoFailure?.contentItemId === slot.contentItemId && (
+                          <p style={{ fontSize: 13, color: "#d72c0d", margin: "4px 0 0" }}>{videoFailure.reason}</p>
+                        )}
+                      </div>
+                    )}
+                    {videoBusyContentItemId === slot.contentItemId && (
+                      <GeneratingProgressBar label="Uploading and preparing your video…" />
                     )}
 
                     {slot.format === "reel" && (

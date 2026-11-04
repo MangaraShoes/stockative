@@ -89,6 +89,7 @@ export interface WeeklyPlanSlot {
   images: WeeklyPlanImage[];
   format: string; // post | reel — ver ContentItem.format em prisma/schema.prisma
   videoUrl: string | null; // só quando format="reel" (ver generateReelForContentItem.server.ts)
+  videoUploaded: boolean; // vídeo enviado pela lojista (ver uploadedVideo.server.ts)
   // Direct Post no TikTok (só Reel) — configuração confirmada pela lojista
   // (null = ainda não confirmou, não vai pro TikTok), último status do
   // envio, e a legenda sugerida pra pré-preencher o campo do TikTok.
@@ -641,6 +642,7 @@ export async function planOneSlot(
     status: contentItem.status,
     format: itemFormat,
     videoUrl,
+    videoUploaded: false,
     captionText: stripFrameworkLabels(captionText ?? ""),
     captionRegenerationCount: 0,
     images,
@@ -1349,7 +1351,11 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
     publishedAt: item.publishedAt ? item.publishedAt.toISOString() : null,
     status: item.status,
     format: item.format,
-    videoUrl: item.videoUrl,
+    // Link em vez do arquivo: um vídeo enviado pesa dezenas de MB na página.
+    videoUrl: item.videoUrl
+      ? `/media/content-item-video/${item.id}?v=${item.videoGeneratedAt?.getTime() ?? 0}`
+      : null,
+    videoUploaded: Boolean(item.videoUploadedAt),
     captionText: stripFrameworkLabels(item.captionText ?? ""),
     captionRegenerationCount: item.captionRegenerationCount,
     tiktokSettings: parseStoredTikTokSettings(item.tiktokSettings),

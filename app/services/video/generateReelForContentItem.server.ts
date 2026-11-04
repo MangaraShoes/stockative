@@ -39,7 +39,7 @@ export async function generateReelForContentItem(
 
   await prisma.contentItem.update({
     where: { id: contentItemId },
-    data: { videoUrl: videoDataUrl, videoGeneratedAt: new Date(), format: "reel" },
+    data: { videoUrl: videoDataUrl, videoGeneratedAt: new Date(), videoUploadedAt: null, format: "reel" },
   });
 
   // 1 crédito = 1 Reel entregue (mesmo princípio já usado pra imagem, ver
@@ -70,9 +70,10 @@ export async function ensurePlannedReel(
 ): Promise<void> {
   const item = await prisma.contentItem.findFirst({
     where: { id: contentItemId, shopId },
-    select: { plannedAsReel: true, videoUrl: true, videoGeneratedAt: true },
+    select: { plannedAsReel: true, videoUrl: true, videoGeneratedAt: true, videoUploadedAt: true },
   });
   if (!item?.plannedAsReel) return;
+  if (item.videoUploadedAt) return; // vídeo da própria lojista: nunca substituir
   if (onlyIfMissing && item.videoUrl) return;
   try {
     await generateReelForContentItem(contentItemId, shopId, { countsAsCredit: !item.videoGeneratedAt });

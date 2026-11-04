@@ -142,7 +142,7 @@ export async function publishContentItemToInstagram(
     };
   }
 
-  if (contentItem.images.length === 0) {
+  if (contentItem.images.length === 0 && !contentItem.videoUploadedAt) {
     await prisma.contentItem.update({ where: { id: contentItemId }, data: { status: "draft" } });
     return {
       status: "error",

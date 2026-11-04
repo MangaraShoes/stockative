@@ -81,7 +81,7 @@ export async function buildReel({ images }: BuildReelParams): Promise<Buffer> {
   }
 }
 
-async function resolveFfmpegPath(): Promise<string> {
+export async function resolveFfmpegPath(): Promise<string> {
   if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
   // Só usado em dev local (fora do Docker) — no Docker, FFMPEG_PATH sempre
   // aponta pro binário real instalado via apk, porque o binário baixado por
@@ -103,7 +103,7 @@ async function resolveFfmpegPath(): Promise<string> {
   return ffmpegStatic.default as unknown as string;
 }
 
-function runFfmpegCommand(ffmpegPath: string, args: string[], timeoutMs?: number): Promise<void> {
+export function runFfmpegCommand(ffmpegPath: string, args: string[], timeoutMs?: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegPath, args);
     const timeoutId = timeoutMs ? setTimeout(() => proc.kill("SIGKILL"), timeoutMs) : null;

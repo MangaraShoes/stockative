@@ -217,6 +217,7 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
   }
   const applyLogoOverlay = formData.get("applyLogoOverlay") === "true";
   const imageStylePreference = String(formData.get("imageStylePreference") ?? "ai_decide");
+  const isAutosave = formData.get("autosave") === "1";
   // Perfil de foto sugerido pela análise da marca — só aplica se a lojista
   // deixou marcado "use this photo profile" (ver photoProfile no rascunho).
   let suggestedPhotoProfile = null;
@@ -241,6 +242,11 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
     },
   });
 
+  // Salvar sozinho nunca tira a lojista da tela.
+  if (isAutosave) {
+    return { intent: "autosave" as const, saved: true };
+  }
+
   // Leva direto pra próxima tela quando é a única coisa que falta pra essa
   // etapa — o aviso de "next step" ficava escondido lá embaixo, depois do
   // Logo (Patricia, 12/09/2026: "ficou bem escondidinho... deveria abrir
@@ -252,6 +258,8 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
 
   return { intent: "save" as const, saved: true };
 });
+
+const AUTOSAVE_DELAY_MS = 800;
 
 // border-box: com width 100% + padding a caixa ficava 18px mais larga que o
 // cartão e vazava pela direita (03/11/2026, apontado pela checagem por IA da
@@ -268,6 +276,7 @@ export default function StoreVoice() {
   const data = useLoaderData<typeof loader>();
   const draftFetcher = useFetcher<typeof action>();
   const saveFetcher = useFetcher<typeof action>();
+  const autosaveFetcher = useFetcher<typeof action>();
   const logoFetcher = useFetcher<typeof action>();
   const languageFetcher = useFetcher<typeof action>();
 
@@ -300,6 +309,7 @@ export default function StoreVoice() {
   // react-hooks/set-state-in-effect aponta) — ajuste de estado durante a
   // própria renderização, como recomendado pelo React pra "adjusting state
   // when a prop changes".
+  const [draftAwaitingApproval, setDraftAwaitingApproval] = useState(false);
   const [syncedDraft, setSyncedDraft] = useState(draftFetcher.data);
   if (draftFetcher.data !== syncedDraft) {
     setSyncedDraft(draftFetcher.data);
@@ -310,6 +320,7 @@ export default function StoreVoice() {
       const { reason, ...profile } = draftFetcher.data.draft.photoProfile;
       setSuggestedPhotoProfile({ profile: { ...profile, notes: "" }, reason });
       setRegenerateFeedback("");
+      setDraftAwaitingApproval(true);
     }
   }
 
@@ -345,26 +356,80 @@ export default function StoreVoice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canDraft, hasSavedBefore]);
 
-  const save = () =>
+  const formValues = {
+    brandDescription,
+    brandTone,
+    brandAvoid,
+    productLines: JSON.stringify(
+      productLineRows.map((row) => ({
+        ...row,
+        productTypes: row.productTypes.split(",").map((type) => type.trim()).filter(Boolean),
+      })),
+    ),
+    imageStylePreference,
+    applyLogoOverlay: String(applyLogoOverlay),
+  };
+
+  // Salva sozinho depois de cada alteração (Patricia, 04/11/2026: "pode
+  // acontecer de esquecer de salvar"). Só para quem já aprovou a store voice:
+  // no onboarding e num rascunho novo da IA, salvar continua sendo a aprovação
+  // da lojista, e um rascunho não pode substituir o texto já salvo sem ela ver.
+  const currentSnapshot = JSON.stringify(formValues);
+  const [savedSnapshot, setSavedSnapshot] = useState(currentSnapshot);
+  const [submittedSnapshot, setSubmittedSnapshot] = useState(currentSnapshot);
+  const canAutosave =
+    hasSavedBefore &&
+    data.languageConfirmed &&
+    !draftAwaitingApproval &&
+    Boolean(brandDescription.trim());
+
+  const [syncedAutosave, setSyncedAutosave] = useState(autosaveFetcher.data);
+  if (autosaveFetcher.data !== syncedAutosave) {
+    setSyncedAutosave(autosaveFetcher.data);
+    if (autosaveFetcher.data?.intent === "autosave") setSavedSnapshot(submittedSnapshot);
+  }
+  const [syncedSave, setSyncedSave] = useState(saveFetcher.data);
+  if (saveFetcher.data !== syncedSave) {
+    setSyncedSave(saveFetcher.data);
+    if (saveFetcher.data?.intent === "save") {
+      setSavedSnapshot(submittedSnapshot);
+      setDraftAwaitingApproval(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!canAutosave || currentSnapshot === savedSnapshot || currentSnapshot === submittedSnapshot) return;
+    const timer = setTimeout(() => {
+      setSubmittedSnapshot(currentSnapshot);
+      autosaveFetcher.submit({ ...formValues, autosave: "1" }, { method: "POST" });
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAutosave, currentSnapshot, savedSnapshot, submittedSnapshot]);
+
+  const hasUnsavedChanges = currentSnapshot !== savedSnapshot;
+  const autosaveStatus = !canAutosave
+    ? null
+    : autosaveFetcher.state !== "idle"
+      ? "Saving…"
+      : !hasUnsavedChanges
+        ? "All changes saved."
+        : currentSnapshot === submittedSnapshot
+          ? "Your last change wasn't saved. Please use the button below."
+          : "Saving…";
+
+  const save = () => {
+    setSubmittedSnapshot(currentSnapshot);
     saveFetcher.submit(
       {
-        brandDescription,
-        brandTone,
-        brandAvoid,
-        productLines: JSON.stringify(
-          productLineRows.map((row) => ({
-            ...row,
-            productTypes: row.productTypes.split(",").map((type) => type.trim()).filter(Boolean),
-          })),
-        ),
-        imageStylePreference,
-        applyLogoOverlay: String(applyLogoOverlay),
+        ...formValues,
         ...(suggestedPhotoProfile && applyPhotoProfile
           ? { applyPhotoProfile: "1", photoProfile: JSON.stringify(suggestedPhotoProfile.profile) }
           : {}),
       },
       { method: "POST" },
     );
+  };
 
   const isSavingLanguage = languageFetcher.state !== "idle";
   const saveLanguage = () =>
@@ -551,6 +616,12 @@ export default function StoreVoice() {
                   : "— none added"}
               .
             </s-paragraph>
+          )}
+
+          {autosaveStatus && (
+            <p style={{ fontSize: 13, margin: 0, color: "#616161" }} aria-live="polite">
+              {autosaveStatus}
+            </p>
           )}
 
           <div>
@@ -816,6 +887,10 @@ export default function StoreVoice() {
                 required before you can approve your store voice.
               </strong>
             </s-paragraph>
+          )}
+
+          {autosaveStatus && (
+            <p style={{ fontSize: 13, margin: 0, color: "#616161" }}>{autosaveStatus}</p>
           )}
 
           {/* Preto, não cinza — é a ação obrigatória pra destravar o próximo

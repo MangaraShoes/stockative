@@ -13,7 +13,7 @@ import { Prisma, type ContentPillar, type Promotion } from "@prisma/client";
 import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
 import { getArchetypePerformance, describeArchetypePerformance } from "./performanceLearning.server";
-import { decideContentBrief, describeEvidence, type Stage1Output } from "./stage1.server";
+import { decideContentBrief, describeEvidence, isStockClaimFresh, type Stage1Output } from "./stage1.server";
 import { generateVerifiedCopy } from "./stage2.server";
 import { describeProductLine, resolveProductLine } from "./productLines";
 import { buildCarousel } from "../imageMvp/buildCarousel.server";
@@ -412,8 +412,9 @@ async function buildStage1Input(params: {
     "name" | "function" | "problemExplored" | "promise" | "idealFormat" | "cta" | "growthCategory"
   > | null;
   promotion: Promotion | null | undefined;
+  scheduledAt: Date | null;
 }) {
-  const { shopId, shop, product, objective, effectivePillar, promotion } = params;
+  const { shopId, shop, product, objective, effectivePillar, promotion, scheduledAt } = params;
   return {
     productTitle: product.title,
     productDescription: product.description,
@@ -426,6 +427,9 @@ async function buildStage1Input(params: {
     daysSinceCreated: product.shopifyCreatedAt
       ? Math.floor((Date.now() - product.shopifyCreatedAt.getTime()) / (24 * 60 * 60 * 1000))
       : null,
+    daysUntilPublish: scheduledAt
+      ? Math.max(0, Math.ceil((scheduledAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+      : 0,
     brandDescription: shop.brandDescription,
     productLine: resolveProductLine(shop.productLines, product.productType),
     objective,
@@ -511,6 +515,7 @@ export async function planOneSlot(
     objective,
     effectivePillar,
     promotion,
+    scheduledAt,
   });
   const brief = await decideContentBrief(stage1Input);
 
@@ -525,7 +530,11 @@ export async function planOneSlot(
     },
     describeEvidence(stage1Input),
     maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
-    { productTitle: product.title, productDescription: product.description },
+    {
+      productTitle: product.title,
+      productDescription: product.description,
+      stockClaimAllowed: isStockClaimFresh(stage1Input.daysUntilPublish),
+    },
   );
 
   const secondaryCaption = shop.contentLanguageSecondary
@@ -1767,6 +1776,7 @@ async function rewriteCaption(
     objective: item.commercialObjective as CommercialObjective,
     effectivePillar,
     promotion: item.promotion,
+    scheduledAt: item.scheduledAt,
   });
 
   const copy = await generateVerifiedCopy(
@@ -1780,7 +1790,11 @@ async function rewriteCaption(
     },
     describeEvidence(stage1Input),
     maxPrimaryCaptionChars(Boolean(shop.contentLanguageSecondary)),
-    { productTitle: product.title, productDescription: product.description },
+    {
+      productTitle: product.title,
+      productDescription: product.description,
+      stockClaimAllowed: isStockClaimFresh(stage1Input.daysUntilPublish),
+    },
     { previousCaption: item.captionText ?? "", feedback },
   );
   const secondaryCaption = shop.contentLanguageSecondary

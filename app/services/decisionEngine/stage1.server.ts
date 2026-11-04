@@ -6,6 +6,14 @@ import { describeProductLine, type ProductLineContext } from "./productLines";
 
 const LOW_STOCK_THRESHOLD = 5; // escassez real — ver MARKETING-KNOWLEDGE.md seção 4
 const NEWNESS_WINDOW_DAYS = 21;
+// Legenda é escrita dias antes de sair (Patricia, 04/11/2026: Laurence sai em
+// 12/11 dizendo "arrivé il y a un jour"). Estoque muda nesse meio-tempo, então
+// só vale como escassez se o post sair logo depois de criado.
+const STOCK_CLAIM_MAX_DAYS_AHEAD = 2;
+
+export function isStockClaimFresh(daysUntilPublish: number): boolean {
+  return daysUntilPublish <= STOCK_CLAIM_MAX_DAYS_AHEAD;
+}
 
 interface Stage1Input {
   productTitle: string;
@@ -17,6 +25,9 @@ interface Stage1Input {
   salesVelocity: number;
   daysSinceLastSale: number | null;
   daysSinceCreated: number | null;
+  // Dias entre hoje e a publicação agendada: recência e escassez valem na
+  // data em que o post sai, não na data em que foi escrito.
+  daysUntilPublish: number;
   objective: CommercialObjective;
   // Única fonte real pra fundamentar founder_story/behind_the_scenes — sem
   // isso, esses arquétipos não podem citar fato nenhum, só o que já está no
@@ -61,8 +72,13 @@ function computeEvidence(input: Stage1Input): ArchetypeEvidence {
       Boolean(input.brandDescription?.trim()) &&
       (!input.productLine.configured || input.productLine.line?.founderDesigned === true),
     hasVerifiableSales: input.unitsSold30d > 0,
-    isLowStock: input.inventoryQuantity > 0 && input.inventoryQuantity <= LOW_STOCK_THRESHOLD,
-    isRecentProduct: input.daysSinceCreated !== null && input.daysSinceCreated <= NEWNESS_WINDOW_DAYS,
+    isLowStock:
+      input.inventoryQuantity > 0 &&
+      input.inventoryQuantity <= LOW_STOCK_THRESHOLD &&
+      isStockClaimFresh(input.daysUntilPublish),
+    isRecentProduct:
+      input.daysSinceCreated !== null &&
+      input.daysSinceCreated + input.daysUntilPublish <= NEWNESS_WINDOW_DAYS,
     hasActivePromotion: Boolean(input.promotion),
   };
 }
@@ -82,8 +98,8 @@ export function describeEvidence(input: Stage1Input): string {
   const lines = [
     `- Founder/brand facts: ${evidence.hasFounderFact ? "available — the brand description below is real and can be cited" : "NOT available for this product — do not tell a founder story or tie this product to the founder"}`,
     `- Verifiable sales: ${evidence.hasVerifiableSales ? `available — ${input.unitsSold30d} unit(s) sold in the last 30 days, may be cited as a real number` : "NOT available — do not imply the product is popular or selling well"}`,
-    `- Real scarcity: ${evidence.isLowStock ? `available — only ${input.inventoryQuantity} unit(s) left, may be cited as real urgency` : "NOT available — never imply the product is running out"}`,
-    `- Product recency: ${evidence.isRecentProduct ? `available — listed ${input.daysSinceCreated} day(s) ago, may be called new/recent` : "NOT available — do not call this a new or recent arrival"}`,
+    `- Real scarcity: ${evidence.isLowStock ? `available — only ${input.inventoryQuantity} unit(s) left, may be cited as real urgency` : "NOT available — never state a stock count or imply the product is running out"}`,
+    `- Product recency: ${evidence.isRecentProduct ? "available — may be called new or recent, but this post publishes later than it is written, so never say how long ago it arrived (no number of days, today, yesterday, this week)" : "NOT available — do not call this a new or recent arrival"}`,
     `- Active promotion: ${evidence.hasActivePromotion && input.promotion ? `available — real "${input.promotion.name}" promotion, ${input.promotion.discountPct}% off, ends ${input.promotion.endsAt.toDateString()}, may be cited as a real, time-limited offer` : "NOT available — never mention a discount, sale, or expiring offer"}`,
     `- Days since last sale (${input.daysSinceLastSale ?? "no recorded sale"}) and days since listed (${input.daysSinceCreated ?? "unknown"}) are DIFFERENT numbers measuring different things — never combine them into one figure or one claim (e.g. never say "no sales in N days" using the listing age).`,
   ];
@@ -138,6 +154,7 @@ Product:
 - Sales velocity: ${input.salesVelocity.toFixed(2)} units/day
 - Days since last sale: ${input.daysSinceLastSale ?? "no recorded sale"}
 - Days since listed: ${input.daysSinceCreated ?? "unknown"}
+- This post publishes in ${input.daysUntilPublish} day(s). Never mention how long ago the product arrived, in the reason, the angle or anywhere else.
 
 Brand description (source of truth for founder_story and behind_the_scenes claims — do NOT state anything beyond what's written here):
 ${input.brandDescription?.trim() || "(not set — founder_story and behind_the_scenes must stay fully generic, no specific unverified detail)"}

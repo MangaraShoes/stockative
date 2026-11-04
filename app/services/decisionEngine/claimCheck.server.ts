@@ -12,6 +12,7 @@ export interface ClaimSources {
   productDescription: string | null;
   brandDescription: string | null;
   productLineNote: string;
+  stockClaimAllowed: boolean;
 }
 
 // Regra escrita no prompt não segura sozinha (o Estágio 2 já tinha a ordem de
@@ -22,8 +23,9 @@ export function buildClaimCheckPrompt(
   post: { captionText: string; hashtags: string[]; cta: string },
   sources: ClaimSources,
 ): string {
-  return `You check one social media post for false origin and authorship claims before it is published. Check only these kinds of claim, in any language:
-- where the product or its materials are made or come from (including hashtags such as "made in X")
+  return `You check one social media post for false or outdated claims before it is published. Check only these kinds of claim, in any language:
+- how long ago the product arrived or was listed (a number of days, today, yesterday, this week). This is always a violation, because the post publishes later than it is written. Simply calling it new or recent is fine.
+${sources.stockClaimAllowed ? "" : "- how many units are left, or that the product is running out or nearly sold out. This is always a violation for this post, because stock will have changed by the time it publishes.\n"}- where the product or its materials are made or come from (including hashtags such as "made in X")
 - how it is made (handmade, handcrafted and equivalents)
 - who designed, signed, chose or personally made it, or any link between this product and the founder's biography or roots
 

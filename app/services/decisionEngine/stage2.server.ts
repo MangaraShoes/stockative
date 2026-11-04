@@ -126,10 +126,10 @@ export async function generateVerifiedCopy(
     console.warn(`[claim-check] ${claimSources.productTitle}: ${violations.join(" | ")}`);
     currentRevision = {
       previousCaption: copy.captionText,
-      feedback: `${revision ? `${revision.feedback} Also: ` : ""}remove these unsupported claims, from the caption and the hashtags, and do not replace them with other origin or authorship claims: ${violations.join("; ")}`,
+      feedback: `${revision ? `${revision.feedback} Also: ` : ""}remove these claims, from the caption and the hashtags, and do not replace them with similar ones: ${violations.join("; ")}`,
     };
   }
   throw new Error(
-    `Could not write a caption for "${claimSources.productTitle}" without unsupported origin or design claims. Check this product's facts in Store voice.`,
+    `Could not write a caption for "${claimSources.productTitle}" without unsupported claims. Check this product's facts in Store voice.`,
   );
 }

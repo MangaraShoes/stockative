@@ -13,7 +13,10 @@ const MAX_CUTAWAYS = 3;
 const SPLIT_TOP_HEIGHT = 1060;
 const SPLIT_BOTTOM_HEIGHT = HEIGHT - SPLIT_TOP_HEIGHT;
 const COMPOSE_TIMEOUT_MS = 240_000;
-const MAX_HOOK_LINE_CHARS = 26;
+const HOOK_SIZES = [
+  { maxChars: 26, fontSize: 56 },
+  { maxChars: 34, fontSize: 44 },
+];
 
 export interface AvatarSegment {
   kind: "avatar" | "image" | "split";
@@ -43,13 +46,11 @@ export function planAvatarSegments(durationSec: number, imageCount: number): Ava
   return segments;
 }
 
-// Primeira frase do roteiro em até 2 linhas, ou nada se for longa demais.
-export function hookLines(script: string): string[] {
-  const sentence = /^[^.!?]+[.!?]?/.exec(script.trim())?.[0].trim() ?? "";
+function wrapWords(sentence: string, maxChars: number): string[] {
   const lines: string[] = [];
   let current = "";
   for (const word of sentence.split(/\s+/).filter(Boolean)) {
-    if (current && `${current} ${word}`.length > MAX_HOOK_LINE_CHARS) {
+    if (current && `${current} ${word}`.length > maxChars) {
       lines.push(current);
       current = word;
     } else {
@@ -57,16 +58,29 @@ export function hookLines(script: string): string[] {
     }
   }
   if (current) lines.push(current);
-  return lines.length > 0 && lines.length <= 2 ? lines : [];
+  return lines;
+}
+
+// Primeira frase do roteiro. Frase longa usa letra menor em vez de sumir da
+// tela (a primeira frase da Laurence, com 54 caracteres, ficou sem gancho).
+export function hookLayout(script: string): { lines: string[]; fontSize: number } | null {
+  const sentence = /^[^.!?]+[.!?]?/.exec(script.trim())?.[0].trim() ?? "";
+  if (!sentence) return null;
+  for (const { maxChars, fontSize } of HOOK_SIZES) {
+    const lines = wrapWords(sentence, maxChars);
+    if (lines.length <= 2) return { lines, fontSize };
+  }
+  const { maxChars, fontSize } = HOOK_SIZES[HOOK_SIZES.length - 1];
+  const lines = wrapWords(sentence, maxChars);
+  return lines.length <= 3 ? { lines, fontSize } : null;
 }
 
 function escapeXml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-async function renderHook(lines: string[], outputPath: string): Promise<void> {
-  const size = 56;
-  const lineHeight = 72;
+async function renderHook(lines: string[], size: number, outputPath: string): Promise<void> {
+  const lineHeight = Math.round(size * 1.28);
   const padding = 26;
   const boxX = 70;
   const boxWidth = WIDTH - 210; // os botões das redes ficam à direita
@@ -147,10 +161,10 @@ export async function buildAvatarReel(params: {
     filters.push(`${segments.map((_, i) => `[s${i}]`).join("")}concat=n=${segments.length}:v=1:a=0[base]`);
 
     let lastLabel = "base";
-    const lines = hookLines(params.script);
-    if (lines.length > 0) {
+    const hook = hookLayout(params.script);
+    if (hook) {
       const hookPath = path.join(workDir, "hook.png");
-      await renderHook(lines, hookPath);
+      await renderHook(hook.lines, hook.fontSize, hookPath);
       inputs.push("-loop", "1", "-framerate", String(FPS), "-i", hookPath);
       filters.push(`[base][${nextInput}:v]overlay=0:0:enable='between(t,0.15,3.3)':shortest=1[video]`);
       lastLabel = "video";

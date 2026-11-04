@@ -269,3 +269,7 @@ Total: ~6-7 semanas de trabalho focado, rodando em paralelo com a submissão do 
 
 `Shop.productLines` guarda origem e autoria por linha, casadas pelo `productType` (`decisionEngine/productLines.ts`, editável em Store voice). Os Estágios 1 e 2 recebem só os fatos da linha do produto, e `founder_story` sai da lista de arquétipos quando a fundadora não desenhou a linha. `generateVerifiedCopy` confere toda legenda e hashtag em `claimCheck.server.ts` (tarefa `claim_check`, ~$0,005 por checagem) e reescreve até 2 vezes; se continuar reprovada, dá erro em vez de salvar. A tradução é refeita quando volta em inglês (`looksEnglish`) e, se insistir, o post sai só no idioma principal.
 
+## Vídeo com avatar via HeyGen (04/11/2026)
+
+Só a Mangará por enquanto (`avatarVideoConfig.ts`). Cada loja usa a própria chave (`Shop.heygenApiKey`, escolha de avatar e voz em Settings) e paga o próprio uso; medido ~$0,04/s. No post do Weekly plan, a lojista escreve ou pede o roteiro (`generateVerifiedAvatarScript`, com a checagem de alegações) e gera. O job roda no HeyGen e o agendador consulta a cada minuto (`pollAvatarVideos`); `buildAvatarReel` junta as fotos reais do post, sem redesenhar o produto, e o gancho no idioma principal. `ContentItem.requiresApproval` retém o post desde o pedido até a lojista aprovar, mesmo com a aprovação da loja desligada. Limite de 3 tentativas por post.
+

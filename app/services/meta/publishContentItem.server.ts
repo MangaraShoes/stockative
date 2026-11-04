@@ -101,6 +101,14 @@ export async function publishContentItemToInstagram(
 ): Promise<PublishResult> {
   // Slot reservado como Reel que ficou sem vídeo (imagem resolvida tarde
   // demais, ex.: escolhida depois do horário) — monta agora, antes de sair.
+  const avatarHold = await prisma.contentItem.findFirst({
+    where: { id: contentItemId, shopId, avatarVideoStatus: { in: ["processing", "composing"] } },
+    select: { id: true },
+  });
+  if (avatarHold) {
+    return { status: "error", reason: "The avatar video for this post is still being generated." };
+  }
+
   await ensurePlannedReel(contentItemId, shopId, { onlyIfMissing: true });
 
   // Trava contra publicação duplicada: só segue se conseguir marcar como
@@ -551,8 +559,10 @@ export async function publishDueContentItems(): Promise<DueContentItemOutcome[]>
       // 03/10/2026) — com aprovação ligada, draft espera a lojista aprovar.
       OR: [
         { status: { in: ["approved", "partial"] } },
-        { status: "draft", shop: { requireApproval: false } },
+        { status: "draft", requiresApproval: false, shop: { requireApproval: false } },
       ],
+      // Vídeo com avatar ainda gerando: nunca sai sem ele.
+      AND: [{ OR: [{ avatarVideoStatus: null }, { avatarVideoStatus: { notIn: ["processing", "composing"] } }] }],
       scheduledAt: { lte: new Date() },
       // Corrigido em 12/09/2026 (achado de revisão externa: "the uninstall
       // handler... does not deactivate the shop... queued publication could

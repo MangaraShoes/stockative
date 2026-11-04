@@ -1,6 +1,7 @@
 import { publishDueContentItems } from "./meta/publishContentItem.server";
 import { generateDueWeeklyPlans } from "./decisionEngine/planWeek.server";
 import { inFlightCount, trackInFlight, waitForInFlight } from "./inFlightWork.server";
+import { pollAvatarVideos } from "./video/avatarVideo.server";
 
 // Agendador dentro do próprio processo do app (Patricia, 30/09/2026) —
 // substitui o cron do GitHub Actions pra publicar e gerar plano. O cron do
@@ -30,6 +31,14 @@ const FIRST_RUN_DELAY_MS = 30 * 1000;
 type Job = { name: string; intervalMs: number; run: () => Promise<unknown> };
 
 const jobs: Job[] = [
+  {
+    name: "poll-avatar-videos",
+    intervalMs: 60 * 1000,
+    run: async () => {
+      const finished = await pollAvatarVideos();
+      if (finished > 0) console.log(`[scheduler] poll-avatar-videos: ${finished} finished`);
+    },
+  },
   {
     name: "publish-scheduled",
     intervalMs: PUBLISH_INTERVAL_MS,

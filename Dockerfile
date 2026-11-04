@@ -1,5 +1,6 @@
 FROM node:20-alpine
-RUN apk add --no-cache openssl ffmpeg
+# Fonte para o texto na tela dos Reels: sem ela o Alpine desenha quadradinhos.
+RUN apk add --no-cache openssl ffmpeg fontconfig ttf-dejavu
 
 EXPOSE 3000
 

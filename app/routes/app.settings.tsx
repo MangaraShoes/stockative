@@ -35,6 +35,8 @@ import {
   DEFAULT_WEEKLY_SCHEDULE,
   normalizeCustomSchedule,
 } from "../services/decisionEngine/planWeek.server";
+import { isAvatarVideoEnabled } from "../services/video/avatarVideoConfig";
+import { listHeyGenLooks, listHeyGenVoices, type HeyGenLook, type HeyGenVoice } from "../services/video/heygen.server";
 
 // Página de Settings (Patricia, 03/10/2026). Tudo aqui tem default que
 // mantém o comportamento de sempre — "tem gente que nem abre o settings".
@@ -83,7 +85,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? normalizeCustomSchedule(shop.customPostingSchedule, postsPerWeek)
       : DEFAULT_WEEKLY_SCHEDULE.slice(0, postsPerWeek);
 
+  const avatarEnabled = isAvatarVideoEnabled(session.shop);
+  let avatarLooks: HeyGenLook[] = [];
+  let avatarVoices: HeyGenVoice[] = [];
+  let avatarLoadError = false;
+  if (avatarEnabled && shop?.heygenApiKey) {
+    try {
+      [avatarLooks, avatarVoices] = await Promise.all([
+        listHeyGenLooks(shop.heygenApiKey),
+        listHeyGenVoices(shop.heygenApiKey),
+      ]);
+    } catch (error) {
+      console.error("Failed to load HeyGen avatars:", error);
+      avatarLoadError = true;
+    }
+  }
+
   return {
+    // A chave nunca vai para o navegador, só se ela existe.
+    avatarVideo: {
+      enabled: avatarEnabled,
+      hasKey: Boolean(shop?.heygenApiKey),
+      avatarId: shop?.heygenAvatarId ?? "",
+      voiceId: shop?.heygenVoiceId ?? "",
+      looks: avatarLooks,
+      voices: avatarVoices,
+      loadError: avatarLoadError,
+    },
     plan: shop?.plan ?? "basic",
     // Com a cobrança ligada, o plano é escolhido e pago na tela de planos da
     // própria Shopify (Shopify App Pricing) — aqui só mostra e leva pra lá.
@@ -122,6 +150,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // ver plano de implementação) — trocar de plano aqui só muda a cadência e
   // a cota que o app usa pra decidir e gerar conteúdo, do mesmo jeito que o
   // piloto já testa hoje direto no banco.
+  if (intent.startsWith("heygen-") && !isAvatarVideoEnabled(session.shop)) {
+    return fail("Avatar videos aren't available for this store.");
+  }
+  if (intent === "heygen-save-key") {
+    const apiKey = String(formData.get("apiKey") ?? "").trim();
+    if (!apiKey) return fail("Paste your HeyGen API key.");
+    try {
+      await listHeyGenLooks(apiKey);
+    } catch (error) {
+      console.error("HeyGen key check failed:", error instanceof Error ? error.message : "unknown");
+      return fail("HeyGen didn't accept this key. Check it and try again.");
+    }
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { heygenApiKey: apiKey, heygenAvatarId: null, heygenVoiceId: null },
+    });
+    return ok;
+  }
+  if (intent === "heygen-remove-key") {
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { heygenApiKey: null, heygenAvatarId: null, heygenVoiceId: null },
+    });
+    return ok;
+  }
+  if (intent === "heygen-save-avatar") {
+    if (!shop.heygenApiKey) return fail("Add your HeyGen API key first.");
+    const avatarId = String(formData.get("avatarId") ?? "");
+    const voiceId = String(formData.get("voiceId") ?? "");
+    const [looks, voices] = await Promise.all([
+      listHeyGenLooks(shop.heygenApiKey),
+      listHeyGenVoices(shop.heygenApiKey),
+    ]);
+    if (!looks.some((look) => look.id === avatarId) || !voices.some((voice) => voice.id === voiceId)) {
+      return fail("Choose an avatar and a voice from your HeyGen account.");
+    }
+    await prisma.shop.update({
+      where: { id: shop.id },
+      data: { heygenAvatarId: avatarId, heygenVoiceId: voiceId },
+    });
+    return ok;
+  }
+
   if (intent === "save-plan") {
     if (isBillingEnabled()) return fail("Change your plan on Shopify's plan page.");
     const plan = String(formData.get("plan") ?? "basic");
@@ -334,6 +405,111 @@ const buttonStyle = (disabled: boolean): CSSProperties => ({
 });
 
 const selectStyle: CSSProperties = { padding: "6px 8px", borderRadius: 8, border: "1px solid #ccc" };
+
+type AvatarVideoSettingsData = Awaited<ReturnType<typeof loader>>["avatarVideo"];
+
+function AvatarVideoSettings({ data }: { data: AvatarVideoSettingsData }) {
+  const keyFetcher = useFetcher<typeof action>();
+  const avatarFetcher = useFetcher<typeof action>();
+  const [apiKey, setApiKey] = useState("");
+  const [avatarId, setAvatarId] = useState(data.avatarId);
+  const [voiceId, setVoiceId] = useState(data.voiceId);
+  const preview = data.looks.find((look) => look.id === avatarId)?.previewImageUrl;
+  return (
+    <s-section heading="Avatar videos">
+      <s-stack direction="block" gap="base">
+        <s-paragraph>
+          <s-text color="subdued">
+            Connect your own HeyGen account to make Reels with your avatar. Each video is charged to your HeyGen
+            balance. Only use an avatar of someone who agreed to it.
+          </s-text>
+        </s-paragraph>
+        {data.hasKey ? (
+          <div>
+            <s-paragraph>HeyGen is connected.</s-paragraph>
+            <button
+              type="button"
+              onClick={() => keyFetcher.submit({ intent: "heygen-remove-key" }, { method: "POST" })}
+              style={{ fontSize: 13, background: "none", border: "none", padding: 0, color: "#d72c0d", cursor: "pointer" }}
+            >
+              Remove key
+            </button>
+          </div>
+        ) : (
+          <div>
+            <s-paragraph>HeyGen API key</s-paragraph>
+            <input
+              type="password"
+              autoComplete="off"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              aria-label="HeyGen API key"
+              style={{ ...selectStyle, width: "100%", maxWidth: 360 }}
+            />
+            <SaveButton
+              label="Connect HeyGen"
+              disabled={!apiKey.trim()}
+              saving={keyFetcher.state !== "idle"}
+              onClick={() => keyFetcher.submit({ intent: "heygen-save-key", apiKey }, { method: "POST" })}
+            />
+          </div>
+        )}
+        <FetcherResult fetcher={keyFetcher} />
+        {data.loadError && (
+          <s-paragraph>
+            <strong>We couldn&apos;t load your avatars from HeyGen. Check your key and balance.</strong>
+          </s-paragraph>
+        )}
+        {data.hasKey && !data.loadError && (
+          <div>
+            <s-paragraph>Avatar</s-paragraph>
+            <select
+              value={avatarId}
+              onChange={(event) => setAvatarId(event.target.value)}
+              aria-label="Avatar"
+              style={{ ...selectStyle, maxWidth: 360 }}
+            >
+              <option value="">Choose an avatar</option>
+              {data.looks.map((look) => (
+                <option key={look.id} value={look.id}>
+                  {look.name}
+                </option>
+              ))}
+            </select>
+            {preview && (
+              <img src={preview} alt="" style={{ display: "block", width: 120, borderRadius: 8, marginTop: 8 }} />
+            )}
+            <div style={{ marginTop: 12 }}>
+              <s-paragraph>Voice</s-paragraph>
+              <select
+                value={voiceId}
+                onChange={(event) => setVoiceId(event.target.value)}
+                aria-label="Voice"
+                style={{ ...selectStyle, maxWidth: 360 }}
+              >
+                <option value="">Choose a voice</option>
+                {data.voices.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name} ({voice.language})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <SaveButton
+              label="Save avatar"
+              disabled={!avatarId || !voiceId || (avatarId === data.avatarId && voiceId === data.voiceId)}
+              saving={avatarFetcher.state !== "idle"}
+              onClick={() =>
+                avatarFetcher.submit({ intent: "heygen-save-avatar", avatarId, voiceId }, { method: "POST" })
+              }
+            />
+            <FetcherResult fetcher={avatarFetcher} />
+          </div>
+        )}
+      </s-stack>
+    </s-section>
+  );
+}
 
 function SaveButton({ onClick, disabled, saving, label }: { onClick: () => void; disabled: boolean; saving: boolean; label: string }) {
   return (
@@ -595,6 +771,8 @@ export default function Settings() {
         />
         <FetcherResult fetcher={photoProfileFetcher} />
       </s-section>
+
+      {data.avatarVideo.enabled && <AvatarVideoSettings data={data.avatarVideo} />}
 
       <s-section heading="Email notifications">
         <s-stack direction="block" gap="base">

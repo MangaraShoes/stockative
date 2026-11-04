@@ -133,3 +133,52 @@ export async function generateVerifiedCopy(
     `Could not write a caption for "${claimSources.productTitle}" without unsupported claims. Check this product's facts in Store voice.`,
   );
 }
+
+const avatarScriptSchema = z.object({
+  script: z.string().describe("The exact words the presenter says, as plain spoken text"),
+});
+
+// Roteiro falado (vídeo com avatar). Mesma checagem da legenda: é a voz de uma
+// pessoa real dizendo isso em público.
+export async function generateVerifiedAvatarScript(
+  brief: Stage1Output,
+  language: ContentLanguageCode,
+  brand: BrandVoice,
+  evidenceSummary: string,
+  claimSources: Omit<ClaimSources, "brandDescription" | "productLineNote">,
+): Promise<string> {
+  const languageLabel =
+    CONTENT_LANGUAGES.find((l) => l.code === language)?.label ?? "English";
+  const sources: ClaimSources = {
+    ...claimSources,
+    brandDescription: brand.brandDescription,
+    productLineNote: brand.productLineNote,
+  };
+  let feedback = "";
+  for (let attempt = 0; attempt <= MAX_CLAIM_REWRITES; attempt++) {
+    const prompt = `Write what the brand's founder says on camera in a vertical social video of about 20 seconds, in ${languageLabel}. At most 280 characters, 3 to 5 short spoken sentences.
+
+The first sentence is a hook of at most 50 characters that makes someone stop scrolling: a real situation, a question or an honest opinion. Then say what this product does for the viewer, using concrete details, and end with a short call to action.
+
+Write as natural speech, in plain words. No hashtags, emojis, stage directions, labels or em dashes.
+
+Product: ${claimSources.productTitle}
+Product description: ${claimSources.productDescription ?? "(none)"}
+Audience: ${brief.audience}
+Creative angle: ${brief.creativeAngle}
+
+Evidence available for this post. Do not state anything beyond it:
+${evidenceSummary}
+
+Brand description: ${brand.brandDescription ?? "(none)"}
+${brand.productLineNote}
+${brand.brandAvoid?.trim() ? `Never say or imply: ${brand.brandAvoid}` : ""}${feedback}`;
+    const { script } = await generateStructuredForTask("creative_copy", avatarScriptSchema, prompt);
+    const cleaned = toSingleParagraph(script);
+    const violations = await findUnsupportedClaims({ captionText: cleaned, hashtags: [], cta: "" }, sources);
+    if (violations.length === 0) return cleaned;
+    feedback = `\n\nA previous version was rejected. Remove these claims and do not replace them with similar ones: ${violations.join("; ")}`;
+  }
+  throw new Error(`Could not write a script for "${claimSources.productTitle}" without unsupported claims.`);
+}
+

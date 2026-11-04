@@ -28,7 +28,7 @@ export interface VideoInfo {
 }
 
 // "ffmpeg -i" sempre sai com erro por não ter saída: o que interessa é o stderr.
-function readFfmpegInfo(ffmpegPath: string, inputPath: string): Promise<string> {
+function readFfmpegOutput(ffmpegPath: string, inputPath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegPath, ["-hide_banner", "-i", inputPath]);
     let stderr = "";
@@ -56,6 +56,10 @@ export function parseVideoInfo(ffmpegOutput: string): VideoInfo | null {
   };
 }
 
+export async function readVideoInfo(ffmpegPath: string, inputPath: string): Promise<VideoInfo | null> {
+  return parseVideoInfo(await readFfmpegOutput(ffmpegPath, inputPath));
+}
+
 export function validateVideoInfo(info: VideoInfo): string | null {
   if (info.durationSec < MIN_DURATION_SEC) {
     return `This video is too short. It needs at least ${MIN_DURATION_SEC} seconds.`;
@@ -79,7 +83,7 @@ export async function normalizeUploadedVideo(input: Buffer): Promise<Buffer> {
     const outputPath = path.join(workDir, "output.mp4");
     await writeFile(inputPath, input);
 
-    const info = parseVideoInfo(await readFfmpegInfo(ffmpegPath, inputPath));
+    const info = await readVideoInfo(ffmpegPath, inputPath);
     if (!info) throw new InvalidVideoError("That file isn't a video we can read. Please upload an MP4.");
     const invalidReason = validateVideoInfo(info);
     if (invalidReason) throw new InvalidVideoError(invalidReason);
@@ -139,6 +143,9 @@ export async function applyUploadedVideoToPost(params: {
   if (!editable) {
     return { status: "error", reason: "This post has already been scheduled or published." };
   }
+  if (editable.avatarVideoStatus === "processing" || editable.avatarVideoStatus === "composing") {
+    return { status: "error", reason: "An avatar video is still being generated for this post." };
+  }
   if (params.file.size === 0) return { status: "error", reason: "Choose a video first." };
   if (params.file.size > MAX_UPLOADED_VIDEO_BYTES) {
     return { status: "error", reason: "This video is larger than 200 MB. Please export a smaller file." };
@@ -163,6 +170,9 @@ export async function applyUploadedVideoToPost(params: {
       videoGeneratedAt: new Date(),
       videoUploadedAt: new Date(),
       format: "reel",
+      requiresApproval: false,
+      avatarVideoStatus: null,
+      avatarVideoError: null,
     },
   });
   return { status: "success" };
@@ -183,6 +193,9 @@ export async function removeUploadedVideoFromPost(params: {
     data: {
       videoUrl: null,
       videoUploadedAt: null,
+      requiresApproval: false,
+      avatarVideoStatus: null,
+      avatarVideoError: null,
       ...(editable.plannedAsReel ? {} : { format: "post", videoGeneratedAt: null }),
     },
   });

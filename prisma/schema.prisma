@@ -92,6 +92,12 @@ model Shop {
   // decisionEngine/productLines.ts (04/11/2026).
   productLines     Json?
 
+  // Vídeo com avatar (HeyGen): cada loja usa a própria chave e paga o próprio
+  // uso. Ver video/avatarVideo.server.ts. A chave nunca vai para o navegador.
+  heygenApiKey     String?
+  heygenAvatarId   String?
+  heygenVoiceId    String?
+
   // Trava a aprovação do store voice até a lojista confirmar o idioma de
   // publicação pelo menos uma vez (mesmo que aceite o padrão em inglês) —
   // Patricia, 12/09/2026: "precisa ser passo obrigatório salvar a
@@ -513,6 +519,16 @@ model ContentItem {
   // Preenchido quando o vídeo foi enviado pela lojista (uploadedVideo.server.ts):
   // o app nunca o substitui por um Reel montado automaticamente.
   videoUploadedAt       DateTime?
+  // Vídeo com avatar: processing | composing | ready | failed (avatarVideo.server.ts).
+  avatarScript           String?
+  avatarVideoJobId       String?
+  avatarVideoStatus      String?
+  avatarVideoError       String?
+  avatarVideoAttempts    Int       @default(0)
+  avatarVideoRequestedAt DateTime?
+  // Post que só sai com aprovação, mesmo com a aprovação da loja desligada: é a
+  // imagem de uma pessoa falando em público.
+  requiresApproval       Boolean   @default(false)
   // Slot reservado como Reel no plano semanal (Patricia, 07/10/2026: "3
   // posts e nenhum reel") — antes, se a imagem do slot falhasse na geração,
   // o Reel nunca era montado e o post saía como imagem comum. Com isso o

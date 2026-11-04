@@ -1,5 +1,12 @@
 import { ensurePlannedReel, generateReelForContentItem } from "../services/video/generateReelForContentItem.server";
 import { applyUploadedVideoToPost, removeUploadedVideoFromPost } from "../services/video/uploadedVideo.server";
+import { startAvatarVideo } from "../services/video/avatarVideo.server";
+import {
+  estimateAvatarVideoCostUsd,
+  isAvatarVideoEnabled,
+  MAX_AVATAR_SCRIPT_CHARS,
+  MAX_AVATAR_VIDEO_ATTEMPTS,
+} from "../services/video/avatarVideoConfig";
 import { useEffect, useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs, ShouldRevalidateFunction } from "react-router";
 import { useFetcher, useLoaderData, useRevalidator } from "react-router";
@@ -17,6 +24,7 @@ import {
   regenerateWeeklyPlanSlotImage,
   regenerateWeeklyPlanSlotCaption,
   editWeeklyPlanSlotCaption,
+  suggestAvatarScript,
   getActivePromotion,
   planPromotionalWeek,
   createPromotion,
@@ -295,6 +303,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // loader raiz de /app) garante que isso já existe quando chega aqui.
     shopTimezone: shop?.ianaTimezone ?? "UTC",
     requireApproval: shop?.requireApproval ?? false,
+    avatarVideoReady: Boolean(
+      shop && isAvatarVideoEnabled(shop.shopifyDomain) && shop.heygenApiKey && shop.heygenAvatarId && shop.heygenVoiceId,
+    ),
     onboardingStatus,
     slots,
     nextWeek,
@@ -500,6 +511,22 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
           : { status: "error" as const, reason: "Choose a video first." };
     if (result.status === "success") await resetApprovalAfterEdit(shop.id, contentItemId);
     return { intent: "upload-video" as const, contentItemId, result };
+  }
+
+  if (intent === "suggest-avatar-script") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await suggestAvatarScript({ shopId: shop.id, contentItemId });
+    return { intent: "suggest-avatar-script" as const, contentItemId, result };
+  }
+
+  if (intent === "start-avatar-video") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await startAvatarVideo({
+      shopId: shop.id,
+      contentItemId,
+      script: String(formData.get("script") ?? ""),
+    });
+    return { intent: "start-avatar-video" as const, contentItemId, result };
   }
 
   if (intent === "edit-caption") {
@@ -886,6 +913,103 @@ const formatEuroCents = (cents: number) => `€${(cents / 100).toFixed(2)}`;
 
 // Legenda sempre editável (Patricia, 04/11/2026). Salva ao sair do campo, não a
 // cada pausa: o post pode sair sozinho e não pode publicar um texto pela metade.
+function AvatarVideoPanel({
+  contentItemId,
+  savedScript,
+  status,
+  error,
+  attempts,
+}: {
+  contentItemId: string;
+  savedScript: string | null;
+  status: string | null;
+  error: string | null;
+  attempts: number;
+}) {
+  const scriptFetcher = useFetcher<typeof action>();
+  const startFetcher = useFetcher<typeof action>();
+  const [script, setScript] = useState(savedScript ?? "");
+  const [syncedResult, setSyncedResult] = useState(scriptFetcher.data);
+  if (scriptFetcher.data !== syncedResult) {
+    setSyncedResult(scriptFetcher.data);
+    if (scriptFetcher.data?.intent === "suggest-avatar-script" && scriptFetcher.data.result.status === "success") {
+      setScript(scriptFetcher.data.result.script);
+    }
+  }
+  const failure =
+    scriptFetcher.data?.intent === "suggest-avatar-script" && scriptFetcher.data.result.status === "error"
+      ? scriptFetcher.data.result.reason
+      : startFetcher.data?.intent === "start-avatar-video" && startFetcher.data.result.status === "error"
+        ? startFetcher.data.result.reason
+        : status === "failed"
+          ? error
+          : null;
+  const isGenerating = status === "processing" || status === "composing";
+  const isOutOfAttempts = attempts >= MAX_AVATAR_VIDEO_ATTEMPTS;
+  const cost = estimateAvatarVideoCostUsd(script);
+
+  if (isGenerating) {
+    return (
+      <div>
+        <GeneratingProgressBar label="Making your avatar video. This can take 10 minutes or more, and you can leave this page." />
+        <p style={{ fontSize: 13, color: "#616161", margin: "4px 0 0" }}>
+          This post won&apos;t publish until the video is ready and you approve it.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div style={{ padding: 12, border: "1px solid #e1e3e5", borderRadius: 8 }}>
+      <s-paragraph>
+        <strong>Avatar video</strong>
+      </s-paragraph>
+      <textarea
+        value={script}
+        onChange={(event) => setScript(event.target.value)}
+        placeholder="What your avatar says, in your post's language."
+        aria-label="Avatar script"
+        maxLength={MAX_AVATAR_SCRIPT_CHARS}
+        rows={4}
+        style={{ width: "100%", padding: 8, margin: "8px 0", boxSizing: "border-box", font: "inherit" }}
+      />
+      <s-stack direction="inline" gap="small" alignItems="center">
+        <s-button
+          variant="secondary"
+          onClick={() =>
+            scriptFetcher.submit({ intent: "suggest-avatar-script", contentItemId }, { method: "POST" })
+          }
+          {...(scriptFetcher.state !== "idle" ? { loading: true } : {})}
+        >
+          {script.trim() ? "Write a new script" : "Write the script"}
+        </s-button>
+        <s-button
+          variant="secondary"
+          onClick={() => {
+            const message = `Generate this video? It costs about $${cost.toFixed(2)} from your HeyGen balance.`;
+            if (window.confirm(message)) {
+              startFetcher.submit({ intent: "start-avatar-video", contentItemId, script }, { method: "POST" });
+            }
+          }}
+          {...(startFetcher.state !== "idle" ? { loading: true } : {})}
+          {...(!script.trim() || isOutOfAttempts ? { disabled: true } : {})}
+        >
+          Generate avatar video
+        </s-button>
+        <s-text color="subdued">
+          {isOutOfAttempts
+            ? `You've used all ${MAX_AVATAR_VIDEO_ATTEMPTS} attempts for this post.`
+            : `Attempt ${attempts + 1} of ${MAX_AVATAR_VIDEO_ATTEMPTS}`}
+        </s-text>
+      </s-stack>
+      <p style={{ fontSize: 13, color: "#616161", margin: "8px 0 0" }}>
+        Replaces this post&apos;s video. Your real product images are added automatically, and the post waits for your
+        approval.
+      </p>
+      {failure && <p style={{ fontSize: 13, color: "#d72c0d", margin: "4px 0 0" }}>{failure}</p>}
+    </div>
+  );
+}
+
 function CaptionEditor({ contentItemId, captionText }: { contentItemId: string; captionText: string }) {
   const fetcher = useFetcher<typeof action>();
   const [text, setText] = useState(captionText);
@@ -953,6 +1077,7 @@ export default function PlanWeek() {
     productCollections,
     shopTimezone,
     requireApproval,
+    avatarVideoReady,
     onboardingStatus,
     slots,
     nextWeek: nextWeekPromise,
@@ -1266,6 +1391,17 @@ export default function PlanWeek() {
     }, 8000);
     return () => clearInterval(interval);
   }, [isBackgroundGenerating, revalidator]);
+
+  const isAvatarVideoGenerating = slots.some(
+    (slot) => slot.avatarVideoStatus === "processing" || slot.avatarVideoStatus === "composing",
+  );
+  useEffect(() => {
+    if (!isAvatarVideoGenerating) return;
+    const interval = setInterval(() => {
+      if (revalidator.state === "idle") revalidator.revalidate();
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [isAvatarVideoGenerating, revalidator]);
 
   const generatingLabel =
     isGenerating && slots.length > 0
@@ -1638,11 +1774,13 @@ export default function PlanWeek() {
               const isPublishing = publishingContentItemId === slot.contentItemId;
               const isRegeneratingCaption = regeneratingCaptionContentItemId === slot.contentItemId;
               const publishBlockedReason =
-                slot.images.length === 0
+                slot.images.length === 0 && !slot.videoUploaded
                   ? "Generate an image first."
-                  : slot.format === "reel" && !slot.videoUrl
-                    ? "The reel video isn't ready yet."
-                    : null;
+                  : slot.avatarVideoStatus === "processing" || slot.avatarVideoStatus === "composing"
+                    ? "The avatar video isn't ready yet."
+                    : slot.format === "reel" && !slot.videoUrl
+                      ? "The reel video isn't ready yet."
+                      : null;
               const swapOptions = products.filter(
                 (product) =>
                   product.id !== slot.productId &&
@@ -1651,7 +1789,7 @@ export default function PlanWeek() {
               const currentWeekday = scheduleChoices[slot.contentItemId]?.weekday ?? slotWeekday(slot, shopTimezone);
               const currentTime = scheduleChoices[slot.contentItemId]?.time ?? slotTime(slot, shopTimezone);
               const statusInfo =
-                requireApproval && slot.status === "draft"
+                (requireApproval || slot.requiresApproval) && slot.status === "draft"
                   ? { label: "Waiting for approval", tone: "critical" as const }
                   : (STATUS_LABELS[slot.status] ?? { label: slot.status, tone: "neutral" as const });
 
@@ -1862,6 +2000,15 @@ export default function PlanWeek() {
                     )}
                     {videoBusyContentItemId === slot.contentItemId && (
                       <GeneratingProgressBar label="Uploading and preparing your video…" />
+                    )}
+                    {editable && avatarVideoReady && (
+                      <AvatarVideoPanel
+                        contentItemId={slot.contentItemId}
+                        savedScript={slot.avatarScript}
+                        status={slot.avatarVideoStatus}
+                        error={slot.avatarVideoError}
+                        attempts={slot.avatarVideoAttempts}
+                      />
                     )}
 
                     {slot.format === "reel" && (
@@ -2440,7 +2587,7 @@ export default function PlanWeek() {
                           </s-button>
                         </s-stack>
 
-                        {requireApproval && (
+                        {(requireApproval || slot.requiresApproval) && (
                           <s-stack direction="inline" gap="small" alignItems="center">
                             <s-button
                               variant={slot.status === "draft" ? "primary" : "secondary"}

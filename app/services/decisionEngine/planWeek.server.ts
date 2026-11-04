@@ -14,7 +14,7 @@ import prisma from "../../db.server";
 import { inferObjective, computeSlowMoverSignal } from "./archetypes.server";
 import { getArchetypePerformance, describeArchetypePerformance } from "./performanceLearning.server";
 import { decideContentBrief, describeEvidence, isStockClaimFresh, type Stage1Output } from "./stage1.server";
-import { generateVerifiedCopy } from "./stage2.server";
+import { generateVerifiedCopy, generateVerifiedAvatarScript } from "./stage2.server";
 import { describeProductLine, resolveProductLine } from "./productLines";
 import { buildCarousel } from "../imageMvp/buildCarousel.server";
 import { generateReelForContentItem } from "../video/generateReelForContentItem.server";
@@ -90,6 +90,11 @@ export interface WeeklyPlanSlot {
   format: string; // post | reel — ver ContentItem.format em prisma/schema.prisma
   videoUrl: string | null; // só quando format="reel" (ver generateReelForContentItem.server.ts)
   videoUploaded: boolean; // vídeo enviado pela lojista (ver uploadedVideo.server.ts)
+  avatarScript: string | null;
+  avatarVideoStatus: string | null; // ver avatarVideo.server.ts
+  avatarVideoError: string | null;
+  avatarVideoAttempts: number;
+  requiresApproval: boolean;
   // Direct Post no TikTok (só Reel) — configuração confirmada pela lojista
   // (null = ainda não confirmou, não vai pro TikTok), último status do
   // envio, e a legenda sugerida pra pré-preencher o campo do TikTok.
@@ -643,6 +648,11 @@ export async function planOneSlot(
     format: itemFormat,
     videoUrl,
     videoUploaded: false,
+    avatarScript: null,
+    avatarVideoStatus: null,
+    avatarVideoError: null,
+    avatarVideoAttempts: 0,
+    requiresApproval: false,
     captionText: stripFrameworkLabels(captionText ?? ""),
     captionRegenerationCount: 0,
     images,
@@ -1356,6 +1366,11 @@ export async function getCurrentWeekBatch(shopId: string): Promise<WeeklyPlanSlo
       ? `/media/content-item-video/${item.id}?v=${item.videoGeneratedAt?.getTime() ?? 0}`
       : null,
     videoUploaded: Boolean(item.videoUploadedAt),
+    avatarScript: item.avatarScript,
+    avatarVideoStatus: item.avatarVideoStatus,
+    avatarVideoError: item.avatarVideoError,
+    avatarVideoAttempts: item.avatarVideoAttempts,
+    requiresApproval: item.requiresApproval,
     captionText: stripFrameworkLabels(item.captionText ?? ""),
     captionRegenerationCount: item.captionRegenerationCount,
     tiktokSettings: parseStoredTikTokSettings(item.tiktokSettings),
@@ -1703,6 +1718,54 @@ export async function regenerateWeeklyPlanSlotImage(params: {
 export type RegenerateCaptionResult =
   | { status: "success" }
   | { status: "error"; reason: string };
+
+// Roteiro falado do vídeo com avatar, a partir da mesma decisão do post e com a
+// mesma checagem de alegações da legenda. A lojista pode editar antes de gerar.
+export async function suggestAvatarScript(params: {
+  shopId: string;
+  contentItemId: string;
+}): Promise<{ status: "success"; script: string } | { status: "error"; reason: string }> {
+  const item = await prisma.contentItem.findFirst({
+    where: { id: params.contentItemId, shopId: params.shopId },
+    include: { contentPillar: true, promotion: true },
+  });
+  if (!item?.productId || !item.decisionBrief) {
+    return { status: "error", reason: "This post has no content decision to write from." };
+  }
+  const shop = await prisma.shop.findUniqueOrThrow({ where: { id: params.shopId } });
+  const product = await loadProductWithSignal(item.productId);
+  const stage1Input = await buildStage1Input({
+    shopId: params.shopId,
+    shop,
+    product,
+    objective: item.commercialObjective as CommercialObjective,
+    effectivePillar: item.contentPillar,
+    promotion: item.promotion,
+    scheduledAt: item.scheduledAt,
+  });
+  try {
+    const script = await generateVerifiedAvatarScript(
+      item.decisionBrief as unknown as Stage1Output,
+      shop.contentLanguagePrimary as ContentLanguageCode,
+      {
+        brandDescription: shop.brandDescription,
+        brandTone: shop.brandTone,
+        brandAvoid: shop.brandAvoid,
+        productLineNote: describeProductLine(stage1Input.productLine),
+      },
+      describeEvidence(stage1Input),
+      {
+        productTitle: product.title,
+        productDescription: product.description,
+        stockClaimAllowed: isStockClaimFresh(stage1Input.daysUntilPublish),
+      },
+    );
+    return { status: "success", script };
+  } catch (error) {
+    console.error(`Failed to write avatar script for content item ${item.id}:`, error);
+    return { status: "error", reason: "We couldn't write the script. Please try again." };
+  }
+}
 
 // Correção à mão da legenda (Patricia, 04/11/2026: um nativo corrigiu o
 // neerlandês da Linda e não havia onde colar). Sem IA, sem gastar tentativa e

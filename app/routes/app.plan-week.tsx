@@ -870,6 +870,67 @@ function useClearPendingActionOnSettle(fetcherState: string) {
 
 const formatEuroCents = (cents: number) => `€${(cents / 100).toFixed(2)}`;
 
+// Legenda sempre editável (Patricia, 04/11/2026). Salva ao sair do campo, não a
+// cada pausa: o post pode sair sozinho e não pode publicar um texto pela metade.
+function CaptionEditor({ contentItemId, captionText }: { contentItemId: string; captionText: string }) {
+  const fetcher = useFetcher<typeof action>();
+  const [text, setText] = useState(captionText);
+  // Regenerar a legenda troca o texto vindo do servidor.
+  const [syncedCaption, setSyncedCaption] = useState(captionText);
+  if (captionText !== syncedCaption) {
+    setSyncedCaption(captionText);
+    setText(captionText);
+  }
+
+  const outcome =
+    fetcher.state === "idle" && fetcher.data?.intent === "edit-caption" ? fetcher.data.result : null;
+  const isUnchanged = text.trim() === captionText.trim();
+  const status =
+    fetcher.state !== "idle"
+      ? "Saving…"
+      : outcome?.status === "error"
+        ? null
+        : outcome?.status === "success" && isUnchanged
+          ? "Saved."
+          : null;
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          if (!isUnchanged) {
+            fetcher.submit(
+              { intent: "edit-caption", contentItemId, captionText: text },
+              { method: "POST" },
+            );
+          }
+        }}
+        aria-label="Caption"
+        rows={Math.max(6, Math.ceil(text.length / 90) + text.split("\n").length)}
+        style={{
+          width: "100%",
+          padding: 12,
+          boxSizing: "border-box",
+          font: "inherit",
+          background: "#f6f6f7",
+          border: "1px solid #c9cccf",
+          borderRadius: 8,
+        }}
+      />
+      {status && (
+        <p style={{ fontSize: 13, color: "#616161", margin: "4px 0 0" }} aria-live="polite">
+          {status}
+        </p>
+      )}
+      {outcome?.status === "error" && (
+        <p style={{ fontSize: 13, color: "#d72c0d", margin: "4px 0 0" }}>{outcome.reason}</p>
+      )}
+    </div>
+  );
+}
+
 export default function PlanWeek() {
   const {
     hasShop,
@@ -943,24 +1004,6 @@ export default function PlanWeek() {
   const tiktokFetcher = useFetcher<typeof action>();
   const publishFetcher = useFetcher<typeof action>();
   const captionFetcher = useFetcher<typeof action>();
-  const captionEditFetcher = useFetcher<typeof action>();
-  const [captionEdit, setCaptionEdit] = useState<{ contentItemId: string; text: string } | null>(null);
-  const [syncedCaptionEdit, setSyncedCaptionEdit] = useState(captionEditFetcher.data);
-  if (captionEditFetcher.data !== syncedCaptionEdit) {
-    setSyncedCaptionEdit(captionEditFetcher.data);
-    if (
-      captionEditFetcher.data?.intent === "edit-caption" &&
-      captionEditFetcher.data.result.status === "success"
-    ) {
-      setCaptionEdit(null);
-    }
-  }
-  const captionEditError =
-    captionEditFetcher.state === "idle" &&
-    captionEditFetcher.data?.intent === "edit-caption" &&
-    captionEditFetcher.data.result.status === "error"
-      ? captionEditFetcher.data.result.reason
-      : null;
   const reelFetcher = useFetcher<typeof action>();
   const savingTikTokContentItemId =
     tiktokFetcher.state !== "idle" ? String(tiktokFetcher.formData?.get("contentItemId") ?? "") : null;
@@ -1621,63 +1664,15 @@ export default function PlanWeek() {
                       </s-paragraph>
                     )}
 
-                    {slot.captionText && captionEdit?.contentItemId !== slot.contentItemId && (
+                    {slot.captionText && !editable && (
                       <s-box padding="base" borderWidth="base" borderRadius="base" background="subdued">
                         <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
                           {slot.captionText}
                         </pre>
                       </s-box>
                     )}
-                    {editable && captionEdit?.contentItemId === slot.contentItemId && (
-                      <div>
-                        <textarea
-                          value={captionEdit.text}
-                          onChange={(e) =>
-                            setCaptionEdit({ contentItemId: slot.contentItemId, text: e.target.value })
-                          }
-                          aria-label="Caption"
-                          rows={14}
-                          style={{ width: "100%", padding: 8, marginBottom: 8, boxSizing: "border-box", font: "inherit" }}
-                        />
-                        {captionEditError && (
-                          <p style={{ fontSize: 13, color: "#d72c0d", marginTop: 0, marginBottom: 8 }}>
-                            {captionEditError}
-                          </p>
-                        )}
-                        <s-stack direction="inline" gap="small" alignItems="center">
-                          <s-button
-                            variant="secondary"
-                            onClick={() =>
-                              captionEditFetcher.submit(
-                                {
-                                  intent: "edit-caption",
-                                  contentItemId: slot.contentItemId,
-                                  captionText: captionEdit.text,
-                                },
-                                { method: "POST" },
-                              )
-                            }
-                            {...(captionEditFetcher.state !== "idle" ? { loading: true } : {})}
-                          >
-                            Save caption
-                          </s-button>
-                          <s-button variant="tertiary" onClick={() => setCaptionEdit(null)}>
-                            Cancel
-                          </s-button>
-                        </s-stack>
-                      </div>
-                    )}
-                    {editable && slot.captionText && captionEdit?.contentItemId !== slot.contentItemId && (
-                      <div>
-                        <s-button
-                          variant="secondary"
-                          onClick={() =>
-                            setCaptionEdit({ contentItemId: slot.contentItemId, text: slot.captionText ?? "" })
-                          }
-                        >
-                          Edit caption
-                        </s-button>
-                      </div>
+                    {slot.captionText && editable && (
+                      <CaptionEditor contentItemId={slot.contentItemId} captionText={slot.captionText} />
                     )}
                     {editable && (() => {
                       const captionFeedbackValue = captionFeedback[slot.contentItemId] ?? "";

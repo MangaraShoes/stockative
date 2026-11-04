@@ -153,12 +153,15 @@ export async function generateVerifiedAvatarScript(
     ...claimSources,
     brandDescription: brand.brandDescription,
     productLineNote: brand.productLineNote,
+    checkProductFacts: true,
   };
   let feedback = "";
   for (let attempt = 0; attempt <= MAX_CLAIM_REWRITES; attempt++) {
     const prompt = `Write what the brand's founder says on camera in a vertical social video of about 20 seconds, in ${languageLabel}. At most 280 characters, 3 to 5 short spoken sentences.
 
-The first sentence is a hook of at most 50 characters that makes someone stop scrolling: a real situation, a question or an honest opinion. Then say what this product does for the viewer, using concrete details, and end with a short call to action.
+The first sentence is a hook of at most 50 characters that makes someone stop scrolling: a real situation, a question or an honest opinion. When the description says what the product does for an outfit or a moment, build the hook from that. Then give concrete details and end with a very short call to action to the link in bio.
+
+Describe the product exactly as the description does: keep its words for materials and construction, and never add a function it doesn't state. If the sources say where it is made, say so once.
 
 Write as natural speech, in plain words. No hashtags, emojis, stage directions, labels or em dashes. Never say the speaker personally owns or uses the product, since that isn't known. The call to action points to the link in bio, never to a physical store.
 

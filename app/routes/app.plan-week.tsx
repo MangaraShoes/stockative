@@ -1010,8 +1010,14 @@ function AvatarVideoPanel({
       </s-stack>
       <p style={{ fontSize: 13, color: "#616161", margin: "8px 0 0" }}>
         Replaces this post&apos;s video. Your real product images are added automatically, and the post waits for your
-        approval.
+        approval. Each generation is charged by HeyGen.
       </p>
+      <ul style={{ fontSize: 13, color: "#616161", margin: "8px 0 0", paddingLeft: 18 }}>
+        <li>Check that every detail is true: materials, how it closes, what fits inside.</li>
+        <li>Keep the first sentence short. It also appears on screen.</li>
+        <li>Read it out loud in your language before you generate.</li>
+        <li>Watch the finished video before you approve or publish.</li>
+      </ul>
       {failure && <p style={{ fontSize: 13, color: "#d72c0d", margin: "4px 0 0" }}>{failure}</p>}
     </div>
   );

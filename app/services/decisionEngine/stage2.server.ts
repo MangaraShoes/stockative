@@ -157,13 +157,22 @@ export async function generateVerifiedAvatarScript(
   };
   let feedback = "";
   for (let attempt = 0; attempt <= MAX_CLAIM_REWRITES; attempt++) {
-    const prompt = `Write what the brand's founder says on camera in a vertical social video of about 20 seconds, in ${languageLabel}. At most 280 characters, 3 to 5 short spoken sentences.
+    // Patricia, 08/11/2026: o avatar soava como quem lê a ficha do produto.
+    // Agora fala como uma amiga recomendando, uma ideia visível por frase (o
+    // corte para a foto certa depende disso), e cria desejo pelo momento de uso.
+    const prompt = `Write what the brand's founder says on camera in a vertical social video of about 20 seconds, in ${languageLabel}. At most 280 characters, 4 or 5 short spoken sentences.
 
-The first sentence is a hook of at most 50 characters that makes someone stop scrolling: a real situation, a question or an honest opinion. When the description says what the product does for an outfit or a moment, build the hook from that. Then give concrete details and end with a very short call to action to the link in bio.
+It must sound like a friend telling you about something she loves, not like an ad being read:
+- Sentence 1 is a hook of at most 50 characters built from a moment or a feeling the viewer knows (a situation, a small frustration, a question). Never open with the speaker's name, the brand name or the product name.
+- Each middle sentence carries one idea about something you can see in the product (the leather, the closure, the pocket, how it looks worn), and says what it does for the person in that moment, not just what it is. One idea per sentence.
+- Make the viewer picture herself using it: when, where, with what. That is where the desire comes from. Only mention urgency or low stock if the evidence below says so.
+- The last sentence is a short, relaxed call to action to the link in bio.
+- Mix short and slightly longer sentences, use everyday spoken words and contractions where the language has them. A small honest opinion is fine.
+- Never use ad clichés such as discover, elevate, timeless, must-have, iconic, perfect for every occasion, or their equivalents in ${languageLabel}.
 
-Describe the product exactly as the description does: keep its words for materials and construction, and never add a function it doesn't state. If the sources say where it is made, say so once.
+Facts: use only what the description and evidence state. Keep their meaning for materials and construction, never add a function they don't state. If the sources say where it is made, say so once.
 
-Write as natural speech, in plain words. No hashtags, emojis, stage directions, labels or em dashes. Never say the speaker personally owns or uses the product, since that isn't known. The call to action points to the link in bio, never to a physical store.
+No hashtags, emojis, stage directions, labels or em dashes. Never say the speaker personally owns, uses or designed the product, since that isn't known. The call to action points to the link in bio, never to a physical store.
 
 Product: ${claimSources.productTitle}
 Product description: ${claimSources.productDescription ?? "(none)"}

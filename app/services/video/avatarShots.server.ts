@@ -32,7 +32,8 @@ ${sentences.map((sentence, index) => `${index + 1}. ${sentence}`).join("\n")}
 For each sentence, choose the photo that shows what is being said, or null to keep the presenter on screen:
 - Sentence 1 and the last sentence are always null.
 - What fits inside: a photo of the open interior. How it is worn: a photo of it being worn. Material or details: a close photo of the product.
-- If no photo shows what the sentence says, use null. A wrong photo is worse than no photo.
+- The product should be on screen as much as possible: every middle sentence gets a photo. When no photo shows that exact detail, use a photo of the whole product.
+- Never use a photo that contradicts the sentence (an interior photo while she talks about how it looks worn, for example). In that case use null.
 - Use each photo at most once.
 
 Respond with only the JSON object.`;

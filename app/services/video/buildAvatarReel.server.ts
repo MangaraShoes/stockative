@@ -263,7 +263,8 @@ export async function buildAvatarReel(params: {
         const frames = Math.max(1, Math.round(duration * FPS));
         filters.push(`[t${index}]nullsink`);
         filters.push(
-          `[${nextInput}:v]zoompan=z='1+0.04*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${FPS},format=yuv420p,setsar=1[s${index}]`,
+          // Aproximação lenta, mais viva que foto parada (Patricia, 08/11/2026).
+          `[${nextInput}:v]zoompan=z='1+0.10*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${FPS},format=yuv420p,setsar=1[s${index}]`,
         );
       } else {
         // Foto de estúdio mostra o produto inteiro; cortar uma cena arrancava a

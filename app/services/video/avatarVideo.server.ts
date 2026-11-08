@@ -2,7 +2,8 @@ import prisma from "../../db.server";
 import { getContentItemImageJpegBuffer } from "../imageMvp/contentItemImageSource.server";
 import { isAvatarVideoEnabled, MAX_AVATAR_SCRIPT_CHARS, MAX_AVATAR_VIDEO_ATTEMPTS } from "./avatarVideoConfig";
 import { buildAvatarReel } from "./buildAvatarReel.server";
-import { planAvatarShots } from "./avatarShots.server";
+import { planAvatarShots, splitSentences } from "./avatarShots.server";
+import { translateReelCaptions } from "./avatarCaptions.server";
 import { createHeyGenAvatarVideo, getHeyGenVideo, HeyGenError } from "./heygen.server";
 
 // Passado disso a montagem caiu no meio (redeploy) e pode ser retomada.
@@ -113,8 +114,19 @@ async function finishAvatarVideo(contentItemId: string, videoUrl: string, script
     select: { id: true },
   });
   const buffers = await Promise.all(images.map((image) => getContentItemImageJpegBuffer(image.id)));
-  const sentenceShots = await planAvatarShots(script, buffers);
-  const video = await buildAvatarReel({ avatarVideo, images: buffers, script, sentenceShots });
+  const languages = await prisma.contentItem.findUnique({
+    where: { id: contentItemId },
+    select: { shop: { select: { contentLanguagePrimary: true, contentLanguageSecondary: true } } },
+  });
+  const [sentenceShots, captions] = await Promise.all([
+    planAvatarShots(script, buffers),
+    translateReelCaptions(
+      splitSentences(script),
+      languages?.shop.contentLanguageSecondary,
+      languages?.shop.contentLanguagePrimary,
+    ),
+  ]);
+  const video = await buildAvatarReel({ avatarVideo, images: buffers, script, sentenceShots, captions });
 
   // Post publicado ou cancelado enquanto gerava: o vídeo é descartado.
   const saved = await prisma.contentItem.updateMany({

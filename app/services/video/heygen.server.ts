@@ -76,6 +76,12 @@ export async function createHeyGenAvatarVideo(
   apiKey: string,
   params: { avatarId: string; voiceId: string; script: string; title: string },
 ): Promise<string> {
+  // Avatar de foto aceita gestos pedidos em texto; avatar de vídeo no Avatar IV
+  // recusa o campo e já se mexe como na gravação (developers.heygen.com,
+  // 08/11/2026). Pedido da Patricia: mais movimento de mãos.
+  const avatarType = await getHeyGenLookType(apiKey, params.avatarId).catch(() => null);
+  const motion =
+    avatarType === "photo_avatar" ? { motion_prompt: PHOTO_AVATAR_MOTION, expressiveness: "medium" } : {};
   const data = await request<{ video_id: string }>(apiKey, "/v3/videos", {
     method: "POST",
     body: {
@@ -87,9 +93,18 @@ export async function createHeyGenAvatarVideo(
       resolution: "1080p",
       aspect_ratio: "9:16",
       engine: { type: "avatar_iv" },
+      ...motion,
     },
   });
   return data.video_id;
+}
+
+export const PHOTO_AVATAR_MOTION =
+  "Talks warmly to the camera with natural, relaxed hand gestures at chest height, as if presenting a product she loves. Slow, calm movements, small head nods.";
+
+async function getHeyGenLookType(apiKey: string, lookId: string): Promise<string | null> {
+  const data = await request<{ avatar_type?: string }>(apiKey, `/v3/avatars/looks/${encodeURIComponent(lookId)}`);
+  return data?.avatar_type ?? null;
 }
 
 export interface HeyGenVideoStatus {

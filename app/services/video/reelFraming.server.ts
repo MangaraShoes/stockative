@@ -67,7 +67,8 @@ async function frameStudioImage(
   width: number,
   height: number,
   box: { left: number; top: number; width: number; height: number },
-): Promise<Buffer> {
+  centerY: number,
+): Promise<{ jpeg: Buffer; productBottom: number }> {
   // Nunca amplia além do que o corte normal já faria (produto em escala
   // real, sem "zoom" artificial): só reduz quando o produto não caberia.
   const coverScale = Math.max(REEL_FRAME_WIDTH / width, REEL_FRAME_HEIGHT / height);
@@ -79,9 +80,9 @@ async function frameStudioImage(
   const scaledWidth = Math.round(width * scale);
   const scaledHeight = Math.round(height * scale);
 
-  // Produto centralizado no quadro.
+  // Produto centralizado no quadro (na vertical, em centerY).
   const left = Math.round(REEL_FRAME_WIDTH / 2 - (box.left + box.width / 2) * scale);
-  const top = Math.round(REEL_FRAME_HEIGHT / 2 - (box.top + box.height / 2) * scale);
+  const top = Math.round(REEL_FRAME_HEIGHT * centerY - (box.top + box.height / 2) * scale);
 
   const extendLeft = Math.max(0, left);
   const extendTop = Math.max(0, top);
@@ -101,7 +102,7 @@ async function frameStudioImage(
     })
     .toBuffer();
 
-  return sharp(extended)
+  const jpeg = await sharp(extended)
     .extract({
       left: Math.max(0, -left),
       top: Math.max(0, -top),
@@ -110,15 +111,22 @@ async function frameStudioImage(
     })
     .jpeg({ quality: 92 })
     .toBuffer();
+  return { jpeg, productBottom: REEL_FRAME_HEIGHT * centerY + (box.height * scale) / 2 };
 }
 
-export async function frameImageForReel(input: Buffer): Promise<{ jpeg: Buffer; kind: ReelFrameKind }> {
+// productBottom: onde o produto termina no quadro (só estúdio), para a
+// legenda ir embaixo dele e não em cima. centerY < 0.5 sobe o produto de
+// estúdio e deixa espaço para a legenda embaixo.
+export async function frameImageForReel(
+  input: Buffer,
+  { centerY = 0.5 }: { centerY?: number } = {},
+): Promise<{ jpeg: Buffer; kind: ReelFrameKind; productBottom?: number }> {
   const { width, height } = await sharp(input).metadata();
 
   if (width && height && (await hasPlainEdges(input))) {
     const box = await findProductBox(input, width, height);
     if (box) {
-      return { jpeg: await frameStudioImage(input, width, height, box), kind: "studio" };
+      return { ...(await frameStudioImage(input, width, height, box, centerY)), kind: "studio" };
     }
   }
 

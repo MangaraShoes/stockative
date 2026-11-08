@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { resolveFfmpegPath, runFfmpegCommand } from "./buildReel.server";
-import { frameImageForReel } from "./reelFraming.server";
+import { frameImageForReel, REEL_FRAME_HEIGHT } from "./reelFraming.server";
 import { readVideoInfo } from "./uploadedVideo.server";
 import { parseSilences, segmentsFromShots, sentenceSpans, splitSentences } from "./avatarShots.server";
 
@@ -104,17 +104,29 @@ const CAPTION_FONT_SIZE = 50;
 const CAPTION_MAX_CHARS = 30;
 const CAPTION_TOP_Y = 1180;
 const CAPTION_BAND_HEIGHT = 200;
+// Abaixo disso o Instagram cobre o vídeo com a legenda do post e os botões.
+const CAPTION_BOTTOM_LIMIT = 1660;
+const CAPTION_GAP = 30;
+const IMAGE_MAX_ZOOM = 1.1;
+// Com legenda, o produto de estúdio sobe um pouco: a legenda cabe embaixo dele.
+const CAPTIONED_PRODUCT_CENTER_Y = 0.42;
 
-// Legenda de uma frase. Durante o fechamento (avatar em cima, produto embaixo)
-// ela sobe para cima da divisão, para não cobrir o produto.
+// Onde a legenda vai em cada tipo de corte:
+// - avatar: na altura do peito, como sempre;
+// - split (fechamento): no topo da metade do produto, sem cobrir rosto nem produto;
+// - image: embaixo do produto (foto de estúdio) ou no pé da tela (cena), nunca
+//   no meio da foto (Patricia, 08/11/2026: a legenda tapava a bolsa Ally).
+export type CaptionPlacement = { kind: "avatar" } | { kind: "split" } | { kind: "image"; belowY: number | null };
+
 export function captionBox(
   text: string,
-  overProductSplit: boolean,
+  placement: CaptionPlacement,
 ): { lines: string[]; fontSize: number; y: number; height: number } | null {
+  const overSplit = placement.kind === "split";
   // No fechamento a metade de cima é pequena: letra menor, para cobrir só o
   // peito e não o rosto.
-  let fontSize = overProductSplit ? 40 : CAPTION_FONT_SIZE;
-  let lines = wrapWords(text, overProductSplit ? 38 : CAPTION_MAX_CHARS);
+  let fontSize = overSplit ? 40 : CAPTION_FONT_SIZE;
+  let lines = wrapWords(text, overSplit ? 38 : CAPTION_MAX_CHARS);
   if (lines.length > 3) {
     fontSize = 42;
     lines = wrapWords(text, 36);
@@ -122,8 +134,19 @@ export function captionBox(
   if (lines.length === 0 || lines.length > 4) return null;
   const lineHeight = Math.round(fontSize * 1.28);
   const height = lines.length * lineHeight + 52 - 10;
-  const y = overProductSplit ? SPLIT_TOP_HEIGHT + Math.max(8, (CAPTION_BAND_HEIGHT - height) / 2) : CAPTION_TOP_Y;
+  let y = CAPTION_TOP_Y;
+  if (placement.kind === "split") y = SPLIT_TOP_HEIGHT + Math.max(8, (CAPTION_BAND_HEIGHT - height) / 2);
+  if (placement.kind === "image") {
+    const lowest = CAPTION_BOTTOM_LIMIT - height;
+    y = placement.belowY === null ? lowest : Math.min(placement.belowY + CAPTION_GAP, lowest);
+  }
   return { lines, fontSize, y, height };
+}
+
+// Onde o produto termina na tela, no zoom máximo da aproximação lenta.
+export function productBottomOnScreen(productBottomInFrame: number): number {
+  const frameToScreen = HEIGHT / REEL_FRAME_HEIGHT;
+  return HEIGHT / 2 + (productBottomInFrame - REEL_FRAME_HEIGHT / 2) * frameToScreen * IMAGE_MAX_ZOOM;
 }
 
 async function renderCaption(
@@ -244,8 +267,10 @@ export async function buildAvatarReel(params: {
       `[0:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},format=yuv420p,setsar=1,split=${segments.length}${segments.map((_, i) => `[a${i}]`).join("")}`,
     ];
     let nextInput = 1;
+    const captionPlacements: CaptionPlacement[] = [];
 
     for (const [index, segment] of segments.entries()) {
+      captionPlacements[index] = segment.kind === "split" ? { kind: "split" } : { kind: "avatar" };
       const duration = segment.end - segment.start;
       const trim = `trim=${segment.start.toFixed(3)}:${segment.end.toFixed(3)},setpts=PTS-STARTPTS`;
       filters.push(`[a${index}]${trim}[t${index}]`);
@@ -256,7 +281,11 @@ export async function buildAvatarReel(params: {
       }
       if (segment.kind === "image") {
         const source = params.images[segment.imageIndex ?? 0];
-        const framed = await frameImageForReel(source);
+        const framed = await frameImageForReel(source, { centerY: captions ? CAPTIONED_PRODUCT_CENTER_Y : 0.5 });
+        captionPlacements[index] = {
+          kind: "image",
+          belowY: framed.productBottom === undefined ? null : productBottomOnScreen(framed.productBottom),
+        };
         const imagePath = path.join(workDir, `image${index}.jpg`);
         await writeFile(imagePath, framed.jpeg);
         inputs.push("-i", imagePath);
@@ -264,7 +293,7 @@ export async function buildAvatarReel(params: {
         filters.push(`[t${index}]nullsink`);
         filters.push(
           // Aproximação lenta, mais viva que foto parada (Patricia, 08/11/2026).
-          `[${nextInput}:v]zoompan=z='1+0.10*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${FPS},format=yuv420p,setsar=1[s${index}]`,
+          `[${nextInput}:v]zoompan=z='1+${(IMAGE_MAX_ZOOM - 1).toFixed(2)}*on/${frames}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${frames}:s=${WIDTH}x${HEIGHT}:fps=${FPS},format=yuv420p,setsar=1[s${index}]`,
         );
       } else {
         // Foto de estúdio mostra o produto inteiro; cortar uma cena arrancava a
@@ -321,15 +350,17 @@ export async function buildAvatarReel(params: {
     }
 
     if (captions && spans) {
-      const splitStart = segments.find((segment) => segment.kind === "split")?.start ?? Infinity;
       for (const [index, span] of spans.entries()) {
-        // Frase que atravessa o início do fechamento troca de lugar no corte.
-        const pieces = [
-          { start: span.start, end: Math.min(span.end, splitStart), overSplit: false },
-          { start: Math.max(span.start, splitStart), end: span.end, overSplit: true },
-        ].filter((piece) => piece.end - piece.start > 0.05);
+        // A frase troca de lugar a cada corte que atravessa.
+        const pieces = segments
+          .map((segment, segmentIndex) => ({
+            start: Math.max(span.start, segment.start),
+            end: Math.min(span.end, segment.end),
+            placement: captionPlacements[segmentIndex],
+          }))
+          .filter((piece) => piece.end - piece.start > 0.05);
         for (const [pieceIndex, piece] of pieces.entries()) {
-          const box = captionBox(captions[index], piece.overSplit);
+          const box = captionBox(captions[index], piece.placement);
           if (!box) continue;
           const captionPath = path.join(workDir, `caption${index}_${pieceIndex}.png`);
           await renderCaption(box, captionPath);

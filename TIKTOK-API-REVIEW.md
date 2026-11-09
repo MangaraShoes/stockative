@@ -75,7 +75,7 @@ Conferido em 09/11/2026: o `TikTokPostPanel.tsx` já cumpre todos os itens da "R
 - Legenda na tela (texto sobreposto na edição) dizendo qual requisito aparece em cada trecho. É o que mais ajuda o revisor a marcar os itens.
 - Até 50 MB, em inglês.
 
-**Cena 1. Site enviado na revisão (motivo 2 da recusa).** Abrir `https://stockative.com/` com a URL bem visível e rolar até o rodapé (Privacy Policy e Terms). Depois ir para o app. ⚠️ Hoje o site não tem link para o app (só e-mails), então a passagem seria digitando o endereço do Shopify Admin. Ver a decisão pendente no fim desta seção.
+**Cena 1. Site enviado na revisão (motivo 2 da recusa).** Abrir `https://stockative.com/` com a URL bem visível e rolar até o rodapé (Privacy Policy e Terms). Depois clicar em **Open in Shopify**, no topo do site, e mostrar o app abrindo dentro do Shopify Admin da Mangará. O link foi adicionado em 09/11/2026 e aponta para `https://admin.shopify.com/apps/stockative-1`: a Shopify troca esse endereço pela loja de quem está logado e abre o app custom da Mangará.
 
 **Cena 2. Conectar o TikTok (Login Kit).** Social accounts → Connect TikTok → tela de autorização do TikTok com as permissões → voltar e mostrar "TikTok account connected (@mangara.official)". Antes de gravar, usar Disconnect para a tela de consentimento aparecer de novo.
 
@@ -105,7 +105,7 @@ Conferido em 09/11/2026: o `TikTokPostPanel.tsx` já cumpre todos os itens da "R
 - 1b, "a conta não pode postar agora": o painel mostra "Your TikTok account can't receive new posts right now… Try again later." Só aparece quando o TikTok bloqueia, então basta uma legenda.
 - 1c, duração máxima: a checagem contra `max_video_post_duration_sec` acontece na hora de publicar (`publishContentItem.server.ts`). Uma legenda basta, por exemplo "Video duration is checked against max_video_post_duration_sec before posting".
 
-**Decisão pendente (motivo 2):** colocar no stockative.com um link para o app ("Install on Shopify" / "Open the app"), para o vídeo ir do site ao app sem cortar. A alternativa é só mostrar o site e depois digitar o endereço do Shopify Admin. Para gravar a tela de permissões foi preciso fazer o Disconnect revogar o acesso no TikTok (commit 5570af1). Antes disso, o TikTok pulava a tela porque o consentimento continuava guardado.
+**Link "Open in Shopify" do site (09/11/2026):** hoje ele só abre o app para quem tem o app custom da Mangará (`stockative-1`). Para outras lojas dá 404. Quando a ficha do app público (`stockative-2`) for aprovada na App Store, trocar o link em `.artifacts/index.html` e `.artifacts/stockative-landing.html` pelo endereço da ficha (`https://apps.shopify.com/...`). Para gravar a tela de permissões foi preciso fazer o Disconnect revogar o acesso no TikTok (commit 5570af1). Antes disso, o TikTok pulava a tela porque o consentimento continuava guardado.
 - [ ] Quando for aprovada: `TIKTOK_DIRECT_POST_AUDITED=true` em `/opt/stockative/.env.production` (Hetzner), recriar o container e testar um post como "Followers".
 - [x] **Revisão (revision) enviada em 28/10/2026** só com o Redirect URI novo; motivo: "Adds redirect URI https://apps.stockative.com/auth/tiktok/callback for our public Shopify app. No other changes." **Aprovada:** a versão atual está Live desde 28/10/2026, 19:28 (conferido no portal em 04/11/2026).
 - [x] **Redirect URI do app público**: `https://apps.stockative.com/auth/tiktok/callback` e `https://app.stockative.com/auth/tiktok/callback` aparecem em Login Kit → Web na versão Live de Production (conferido em 04/11/2026). Sandbox feito em 28/10/2026.

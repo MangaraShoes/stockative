@@ -64,7 +64,48 @@ O Reel `cmv80u3yt0004ny011sgs15fh` foi confirmado no painel TikTok do Weekly Pla
 - [ ] **Auditoria do Direct Post RECUSADA em 09/11/2026** (e-mail de noreply@dev.tiktok.com, referência 20261028182803). O motivo aparece no ícone ⓘ ao lado de **Reapply** (Production → Content Posting API → Direct Post). São dois:
   1. O vídeo demo não mostra com clareza todos os requisitos da seção "Required UX Implementation in Your App" das [Content Sharing Guidelines](https://developers.tiktok.com/docs/en/content-sharing-guidelines).
   2. A URL do site que aparece no vídeo demo é diferente da URL enviada para a revisão. O vídeo precisa mostrar o site que foi enviado (em App details → Platforms → Web está `https://stockative.com/`, e o vídeo mostrava admin.shopify.com / app.stockative.com).
-  Para reenviar: gravar outro vídeo que comece em stockative.com, mostre o caminho até o app e passe por cada item da "Required UX Implementation", um por um. Depois clicar em **Reapply**. Para gravar a tela de permissões foi preciso fazer o Disconnect revogar o acesso no TikTok (commit 5570af1). Antes disso, o TikTok pulava a tela porque o consentimento continuava guardado.
+  Para reenviar: gravar outro vídeo que comece em stockative.com, mostre o caminho até o app e passe por cada item da "Required UX Implementation", um por um. Depois clicar em **Reapply**. Roteiro na seção "Vídeo da reaplicação do Direct Post" abaixo.
+
+## Vídeo da reaplicação do Direct Post (roteiro de 09/11/2026)
+
+Conferido em 09/11/2026: o `TikTokPostPanel.tsx` já cumpre todos os itens da "Required UX Implementation" (diretrizes atualizadas em 04/08/2026). A recusa foi por causa do vídeo, que não deixou cada item visível. Regras para gravar:
+
+- Uma ação por vez, com 2 a 3 segundos parada em cada uma, e o cursor apontando para o que está sendo mostrado.
+- Barra de endereço sempre visível.
+- Legenda na tela (texto sobreposto na edição) dizendo qual requisito aparece em cada trecho. É o que mais ajuda o revisor a marcar os itens.
+- Até 50 MB, em inglês.
+
+**Cena 1. Site enviado na revisão (motivo 2 da recusa).** Abrir `https://stockative.com/` com a URL bem visível e rolar até o rodapé (Privacy Policy e Terms). Depois ir para o app. ⚠️ Hoje o site não tem link para o app (só e-mails), então a passagem seria digitando o endereço do Shopify Admin. Ver a decisão pendente no fim desta seção.
+
+**Cena 2. Conectar o TikTok (Login Kit).** Social accounts → Connect TikTok → tela de autorização do TikTok com as permissões → voltar e mostrar "TikTok account connected (@mangara.official)". Antes de gravar, usar Disconnect para a tela de consentimento aparecer de novo.
+
+**Cena 3. Painel TikTok de um Reel no Weekly Plan.** Seguir esta ordem, com a legenda indicada:
+
+| # | Mostrar | Legenda na tela | Requisito |
+|---|---|---|---|
+| 3.1 | O vídeo do Reel tocando no card, ao lado do painel | "Preview of the content to be posted" | 5a |
+| 3.2 | "Posting to **nickname** (@mangara.official)" com avatar | "Creator nickname from creator_info" | 1a |
+| 3.3 | Clicar na legenda, apagar e digitar um pedaço | "Title is editable, preset text and hashtags can be changed" | 2a, 5b |
+| 3.4 | Abrir o dropdown "Who can see this video" com "Select who can see this" sem nada escolhido | "No default privacy; options come from privacy_level_options" | 2b |
+| 3.5 | Comment / Duet / Stitch todos desmarcados; marcar e desmarcar um | "Interactions are off by default; greyed out if disabled in the creator's TikTok settings" | 2c |
+| 3.6 | Declaração "By posting, you agree to TikTok's Music Usage Confirmation", passando o cursor no link | "Music Usage Confirmation shown before the publish button" | nota do 2 |
+| 3.7 | Ligar "Disclose video content", sem marcar nada; passar o cursor no botão desabilitado e mostrar "You need to indicate if your content promotes yourself, a third party, or both." | "Publish is disabled until a disclosure option is selected" | 3a |
+| 3.8 | Marcar "Your brand": aparece o rótulo "Promotional content" | "Your brand → Promotional content" | 3a |
+| 3.9 | Marcar também "Branded content": rótulo vira "Paid partnership" e a declaração passa a citar o Branded Content Policy | "Branded content → Paid partnership + Branded Content Policy" | 3a, 4 |
+| 3.10 | Com Branded content marcado, abrir o dropdown: "Only me" desabilitado, com "(not available for branded content)" | "Branded content cannot be private" | 3b |
+| 3.11 | Desmarcar Branded content, escolher "Only me": a caixa Branded content fica cinza; passar o cursor nela | "Only me disables Branded content" | 3b |
+| 3.12 | Aviso "it may take a few minutes for the video to process…" | "Processing notice" | 5d |
+| 3.13 | Clicar em "Post this Reel to TikTok" | "Nothing is sent until the user confirms" | 5c |
+
+**Cena 4. Publicar e status.** Clicar em Publish now (ou reagendar para alguns minutos). Mostrar o status mudando de "TikTok is processing the video" para "Posted on TikTok". Legenda: "Status from publish/status/fetch". (5e)
+
+**Cena 5. No celular.** Perfil do TikTok com o vídeo publicado (Only me, conta privada, por limitação de app não auditado). Mostrar que a legenda é a editada e que não há marca d'água da Stockative (5b).
+
+**Itens que não aparecem sozinhos na tela. Explicar com legenda curta:**
+- 1b, "a conta não pode postar agora": o painel mostra "Your TikTok account can't receive new posts right now… Try again later." Só aparece quando o TikTok bloqueia, então basta uma legenda.
+- 1c, duração máxima: a checagem contra `max_video_post_duration_sec` acontece na hora de publicar (`publishContentItem.server.ts`). Uma legenda basta, por exemplo "Video duration is checked against max_video_post_duration_sec before posting".
+
+**Decisão pendente (motivo 2):** colocar no stockative.com um link para o app ("Install on Shopify" / "Open the app"), para o vídeo ir do site ao app sem cortar. A alternativa é só mostrar o site e depois digitar o endereço do Shopify Admin. Para gravar a tela de permissões foi preciso fazer o Disconnect revogar o acesso no TikTok (commit 5570af1). Antes disso, o TikTok pulava a tela porque o consentimento continuava guardado.
 - [ ] Quando for aprovada: `TIKTOK_DIRECT_POST_AUDITED=true` em `/opt/stockative/.env.production` (Hetzner), recriar o container e testar um post como "Followers".
 - [x] **Revisão (revision) enviada em 28/10/2026** só com o Redirect URI novo; motivo: "Adds redirect URI https://apps.stockative.com/auth/tiktok/callback for our public Shopify app. No other changes." **Aprovada:** a versão atual está Live desde 28/10/2026, 19:28 (conferido no portal em 04/11/2026).
 - [x] **Redirect URI do app público**: `https://apps.stockative.com/auth/tiktok/callback` e `https://app.stockative.com/auth/tiktok/callback` aparecem em Login Kit → Web na versão Live de Production (conferido em 04/11/2026). Sandbox feito em 28/10/2026.

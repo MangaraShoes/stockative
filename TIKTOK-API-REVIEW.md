@@ -89,7 +89,7 @@ Conferido em 09/11/2026: o `TikTokPostPanel.tsx` já cumpre todos os itens da "R
 | 3.4 | Abrir o dropdown "Who can see this video" com "Select who can see this" sem nada escolhido | "No default privacy; options come from privacy_level_options" | 2b |
 | 3.5 | Comment / Duet / Stitch todos desmarcados; marcar e desmarcar um | "Interactions are off by default; greyed out if disabled in the creator's TikTok settings" | 2c |
 | 3.6 | Declaração "By posting, you agree to TikTok's Music Usage Confirmation", passando o cursor no link | "Music Usage Confirmation shown before the publish button" | nota do 2 |
-| 3.7 | Ligar "Disclose video content", sem marcar nada; passar o cursor no botão desabilitado e mostrar "You need to indicate if your content promotes yourself, a third party, or both." | "Publish is disabled until a disclosure option is selected" | 3a |
+| 3.7 | Escolher antes uma visibilidade que não seja "Only me" (ex.: Followers), porque a mensagem em vermelho só aparece com visibilidade escolhida. Ligar "Disclose video content" sem marcar nada: o botão fica desabilitado e aparece embaixo "You need to indicate if your content promotes yourself, a third party, or both." | "Publish is disabled until a disclosure option is selected" | 3a |
 | 3.8 | Marcar "Your brand": aparece o rótulo "Promotional content" | "Your brand → Promotional content" | 3a |
 | 3.9 | Marcar também "Branded content": rótulo vira "Paid partnership" e a declaração passa a citar o Branded Content Policy | "Branded content → Paid partnership + Branded Content Policy" | 3a, 4 |
 | 3.10 | Com Branded content marcado, abrir o dropdown: "Only me" desabilitado, com "(not available for branded content)" | "Branded content cannot be private" | 3b |

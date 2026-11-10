@@ -68,6 +68,8 @@ O Reel `cmv80u3yt0004ny011sgs15fh` foi confirmado no painel TikTok do Weekly Pla
 
 ## Vídeo da reaplicação do Direct Post (roteiro de 09/11/2026)
 
+**Reaplicação enviada em 10/11/2026.** App ID de Production `7687576510936827925`. Faixa de uso trocada para a menor (antes 101-300), justificada com 1 loja ativa hoje e Reels em 1 a 3 dias por semana por loja. Vídeo em 3 partes porque o formulário aceita até 5 MB por arquivo: `stockative-tiktok-demo-part1.mp4` (site, autorização, Weekly plan), `part2` (preview e painel, com o clipe da Claire XS mostrando Branded content → Paid partnership e Only me desabilitado) e `part3` (Publish now, status, vídeo Private com rótulo Promotional content). Montado das gravações de 10/11 13:50 e 15:16, legendas em inglês por requisito. Prazo informado: 2-4 semanas; ver o status em Manage apps.
+
 Conferido em 09/11/2026: o `TikTokPostPanel.tsx` já cumpre todos os itens da "Required UX Implementation" (diretrizes atualizadas em 04/08/2026). A recusa foi por causa do vídeo, que não deixou cada item visível. Regras para gravar:
 
 - Uma ação por vez, com 2 a 3 segundos parada em cada uma, e o cursor apontando para o que está sendo mostrado.

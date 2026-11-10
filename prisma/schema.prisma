@@ -519,6 +519,9 @@ model ContentItem {
   // Preenchido quando o vídeo foi enviado pela lojista (uploadedVideo.server.ts):
   // o app nunca o substitui por um Reel montado automaticamente.
   videoUploadedAt       DateTime?
+  // Quando a lojista mandou o vídeo atual pra galeria do produto (botão "Save
+  // Reel to Shopify", 10/11/2026). Volta a null sempre que o vídeo muda.
+  videoSavedToShopifyAt DateTime?
   // Vídeo com avatar: processing | composing | ready | failed (avatarVideo.server.ts).
   avatarScript           String?
   avatarVideoJobId       String?

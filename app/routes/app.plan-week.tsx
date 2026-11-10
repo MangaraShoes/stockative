@@ -1,7 +1,7 @@
 import { ensurePlannedReel, generateReelForContentItem } from "../services/video/generateReelForContentItem.server";
 import { applyUploadedVideoToPost, removeUploadedVideoFromPost } from "../services/video/uploadedVideo.server";
 import { startAvatarVideo } from "../services/video/avatarVideo.server";
-import { saveHeroImageToShopify } from "../services/shopify/uploadProductImage.server";
+import { saveHeroImageToShopify, saveReelToShopify } from "../services/shopify/uploadProductImage.server";
 import {
   estimateAvatarVideoCostUsd,
   isAvatarVideoEnabled,
@@ -336,6 +336,12 @@ export const action = withInFlight(async ({ request }: ActionFunctionArgs) => {
     const contentItemId = String(formData.get("contentItemId"));
     const result = await saveHeroImageToShopify(admin, { shopId: shop.id, contentItemId });
     return { intent: "save-image-to-shopify" as const, contentItemId, result };
+  }
+
+  if (intent === "save-reel-to-shopify") {
+    const contentItemId = String(formData.get("contentItemId"));
+    const result = await saveReelToShopify(admin, { shopId: shop.id, contentItemId });
+    return { intent: "save-reel-to-shopify" as const, contentItemId, result };
   }
 
   // As 3 ações abaixo chamam planOneSlot/buildCarousel por baixo (IA +
@@ -1158,6 +1164,13 @@ export default function PlanWeek() {
   const captionFetcher = useFetcher<typeof action>();
   const reelFetcher = useFetcher<typeof action>();
   const shopifyImageFetcher = useFetcher<typeof action>();
+  const shopifyReelFetcher = useFetcher<typeof action>();
+  const shopifyReelFailure =
+    shopifyReelFetcher.state === "idle" &&
+    shopifyReelFetcher.data?.intent === "save-reel-to-shopify" &&
+    shopifyReelFetcher.data.result.status === "error"
+      ? { contentItemId: shopifyReelFetcher.data.contentItemId, reason: shopifyReelFetcher.data.result.reason }
+      : null;
   const shopifyImageFailure =
     shopifyImageFetcher.state === "idle" &&
     shopifyImageFetcher.data?.intent === "save-image-to-shopify" &&
@@ -1564,6 +1577,7 @@ export default function PlanWeek() {
   };
 
   const savingShopifyImageContentItemId = submittingContentItemId(shopifyImageFetcher);
+  const savingShopifyReelContentItemId = submittingContentItemId(shopifyReelFetcher);
   const videoBusyContentItemId = submittingContentItemId(videoFetcher);
   const makingReelContentItemId = submittingContentItemId(reelFetcher);
   const reelOutcome =
@@ -1968,6 +1982,33 @@ export default function PlanWeek() {
                         controls
                         style={{ width: 160, borderRadius: 4, display: "block" }}
                       />
+                    )}
+                    {slot.format === "reel" && slot.videoUrl && (
+                      <div>
+                        {slot.reelSavedToShopify ? (
+                          <s-text color="subdued">
+                            This Reel is in your Shopify product gallery. Shopify can take a few minutes to show it.
+                          </s-text>
+                        ) : (
+                          <s-button
+                            variant="secondary"
+                            onClick={() =>
+                              shopifyReelFetcher.submit(
+                                { intent: "save-reel-to-shopify", contentItemId: slot.contentItemId },
+                                { method: "POST" },
+                              )
+                            }
+                            {...(savingShopifyReelContentItemId === slot.contentItemId ? { loading: true } : {})}
+                          >
+                            Save Reel to Shopify
+                          </s-button>
+                        )}
+                        {shopifyReelFailure?.contentItemId === slot.contentItemId && (
+                          <p style={{ fontSize: 13, color: "#d72c0d", margin: "4px 0 0" }}>
+                            {shopifyReelFailure.reason}
+                          </p>
+                        )}
+                      </div>
                     )}
                     {editable && (
                       <div>

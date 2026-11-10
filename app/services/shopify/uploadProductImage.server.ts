@@ -26,7 +26,23 @@ export async function uploadGeneratedImageToProduct(
   admin: AdminGraphqlClient,
   params: { shopifyProductId: string; imageDataUrl: string; filename: string; alt: string },
 ): Promise<{ status: "success" } | { status: "error"; reason: string }> {
-  const { buffer, mimeType } = dataUrlToBuffer(params.imageDataUrl);
+  return uploadMediaToProduct(admin, {
+    kind: "IMAGE",
+    shopifyProductId: params.shopifyProductId,
+    dataUrl: params.imageDataUrl,
+    filename: params.filename,
+    alt: params.alt,
+  });
+}
+
+// Mesmo fluxo de 2 passos, com resource/mediaContentType VIDEO. A Shopify
+// processa o vídeo depois de anexado (status PROCESSING), então ele leva uns
+// minutos pra aparecer na página do produto.
+async function uploadMediaToProduct(
+  admin: AdminGraphqlClient,
+  params: { kind: "IMAGE" | "VIDEO"; shopifyProductId: string; dataUrl: string; filename: string; alt: string },
+): Promise<{ status: "success" } | { status: "error"; reason: string }> {
+  const { buffer, mimeType } = dataUrlToBuffer(params.dataUrl);
 
   const stagedResponse = await admin.graphql(
     `#graphql
@@ -44,7 +60,7 @@ export async function uploadGeneratedImageToProduct(
       variables: {
         input: [
           {
-            resource: "IMAGE",
+            resource: params.kind,
             filename: params.filename,
             mimeType,
             httpMethod: "POST",
@@ -87,7 +103,7 @@ export async function uploadGeneratedImageToProduct(
     {
       variables: {
         productId: params.shopifyProductId,
-        media: [{ originalSource: target.resourceUrl, mediaContentType: "IMAGE", alt: params.alt }],
+        media: [{ originalSource: target.resourceUrl, mediaContentType: params.kind, alt: params.alt }],
       },
     },
   );
@@ -140,3 +156,43 @@ export async function saveHeroImageToShopify(
   return result;
 }
 
+
+// Botão "Save Reel to Shopify" (Patricia, 10/11/2026): só manual, nunca na
+// publicação — o Reel tem texto na tela e legendas, e nem toda loja quer vídeo
+// na página do produto. Entra no fim da galeria, como a imagem.
+export async function saveReelToShopify(
+  admin: AdminGraphqlClient,
+  params: { shopId: string; contentItemId: string },
+): Promise<{ status: "success" } | { status: "error"; reason: string }> {
+  const item = await prisma.contentItem.findFirst({
+    where: { id: params.contentItemId, shopId: params.shopId },
+    select: { id: true, videoUrl: true, product: { select: { title: true, shopifyProductId: true } } },
+  });
+  if (!item?.product || !item.videoUrl?.startsWith("data:")) {
+    return { status: "error", reason: "This post has no Reel to save." };
+  }
+  const videoUrl = item.videoUrl;
+
+  // Reserva antes de enviar, e só pra este vídeo: se ele mudou no meio, a
+  // reserva não pega e nada sobe.
+  const claimed = await prisma.contentItem.updateMany({
+    where: { id: item.id, videoSavedToShopifyAt: null, videoUrl },
+    data: { videoSavedToShopifyAt: new Date() },
+  });
+  if (claimed.count === 0) return { status: "success" };
+
+  const result = await uploadMediaToProduct(admin, {
+    kind: "VIDEO",
+    shopifyProductId: item.product.shopifyProductId,
+    dataUrl: videoUrl,
+    filename: `${item.product.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-reel.mp4`,
+    alt: `${item.product.title} — video`,
+  }).catch((error: unknown) => {
+    console.error(`Failed to save Reel of content item ${item.id} to Shopify:`, error);
+    return { status: "error" as const, reason: "We couldn't save this Reel to Shopify. Please try again." };
+  });
+  if (result.status === "error") {
+    await prisma.contentItem.update({ where: { id: item.id }, data: { videoSavedToShopifyAt: null } });
+  }
+  return result;
+}

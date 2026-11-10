@@ -39,7 +39,13 @@ export async function generateReelForContentItem(
 
   await prisma.contentItem.update({
     where: { id: contentItemId },
-    data: { videoUrl: videoDataUrl, videoGeneratedAt: new Date(), videoUploadedAt: null, format: "reel" },
+    data: {
+      videoUrl: videoDataUrl,
+      videoGeneratedAt: new Date(),
+      videoUploadedAt: null,
+      videoSavedToShopifyAt: null,
+      format: "reel",
+    },
   });
 
   // 1 crédito = 1 Reel entregue (mesmo princípio já usado pra imagem, ver

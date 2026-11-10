@@ -135,6 +135,7 @@ async function finishAvatarVideo(contentItemId: string, videoUrl: string, script
       videoUrl: `data:video/mp4;base64,${video.toString("base64")}`,
       videoGeneratedAt: new Date(),
       videoUploadedAt: new Date(),
+      videoSavedToShopifyAt: null,
       format: "reel",
       avatarVideoStatus: "ready",
       avatarVideoError: null,

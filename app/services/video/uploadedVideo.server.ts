@@ -169,6 +169,7 @@ export async function applyUploadedVideoToPost(params: {
       videoUrl: `data:video/mp4;base64,${normalized.toString("base64")}`,
       videoGeneratedAt: new Date(),
       videoUploadedAt: new Date(),
+      videoSavedToShopifyAt: null,
       format: "reel",
       requiresApproval: false,
       avatarVideoStatus: null,
@@ -193,6 +194,7 @@ export async function removeUploadedVideoFromPost(params: {
     data: {
       videoUrl: null,
       videoUploadedAt: null,
+      videoSavedToShopifyAt: null,
       requiresApproval: false,
       avatarVideoStatus: null,
       avatarVideoError: null,

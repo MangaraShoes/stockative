@@ -36,9 +36,12 @@ interface CreatorInfoResponse {
 // Achado ao vivo, 06/10/2026: app não auditado só publica com a conta
 // privada E o post em SELF_ONLY. FOLLOWER_OF_CREATOR numa conta já privada
 // também volta 403 unaudited_client_can_only_post_to_private_accounts.
-// Enquanto TIKTOK_DIRECT_POST_AUDITED não for "true", as opções ficam só
-// em SELF_ONLY. Como a tela e a validação do servidor (ao salvar e na hora
-// de publicar) leem daqui, nenhuma das duas aceita outra opção.
+// Enquanto TIKTOK_DIRECT_POST_AUDITED não for "true", só SELF_ONLY passa na
+// validação (validateTikTokPostSettings, na tela, ao salvar e na hora de
+// publicar). Desde 10/11/2026 a tela mostra todas as opções que o TikTok
+// devolve (diretriz 2b, e o vídeo da auditoria precisa mostrar "Paid
+// partnership", que exige visibilidade não privada); escolher outra opção
+// só desabilita o botão com o motivo.
 // PUBLIC_TO_EVERYONE só aparece pra conta pública, por isso serve pra
 // avisar a lojista que a conta precisa ficar privada.
 export async function queryTikTokCreatorInfo(target: TikTokTarget): Promise<TikTokCreatorInfo> {
@@ -53,7 +56,7 @@ export async function queryTikTokCreatorInfo(target: TikTokTarget): Promise<TikT
     nickname: data.creator_nickname ?? data.creator_username ?? "",
     username: data.creator_username ?? "",
     avatarUrl: data.creator_avatar_url ?? null,
-    privacyLevelOptions: unauditedOnlyMe ? options.filter((level) => level === "SELF_ONLY") : options,
+    privacyLevelOptions: options,
     unauditedOnlyMe,
     accountIsPublic: options.includes("PUBLIC_TO_EVERYONE"),
     commentDisabled: Boolean(data.comment_disabled),

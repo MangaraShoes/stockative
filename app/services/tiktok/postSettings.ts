@@ -48,7 +48,8 @@ export interface TikTokCreatorInfo {
   maxVideoPostDurationSec: number;
   // Enquanto o app não passar pela auditoria do Direct Post, o TikTok só
   // aceita post "Only me" numa conta privada (ver queryTikTokCreatorInfo).
-  // unauditedOnlyMe = as opções já foram cortadas pra SELF_ONLY;
+  // unauditedOnlyMe = só SELF_ONLY passa na validação (as outras opções
+  // aparecem na tela, mas desabilitam o botão);
   // accountIsPublic = a conta ainda é pública, então até o "Only me" falha.
   unauditedOnlyMe: boolean;
   accountIsPublic: boolean;
@@ -109,6 +110,11 @@ export function validateTikTokPostSettings(
   if (settings.allowStitch && creator.stitchDisabled) return "Stitch is turned off on your TikTok account.";
   if (settings.title.length > TIKTOK_TITLE_MAX_LENGTH) {
     return `The TikTok caption can have at most ${TIKTOK_TITLE_MAX_LENGTH} characters.`;
+  }
+  // Por último de propósito: as mensagens de divulgação comercial acima
+  // continuam aparecendo com qualquer visibilidade escolhida.
+  if (creator.unauditedOnlyMe && settings.privacyLevel !== "SELF_ONLY") {
+    return 'While Stockative is under TikTok review, posts can only be "Only me".';
   }
   return null;
 }

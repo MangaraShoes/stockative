@@ -89,17 +89,19 @@ Conferido em 09/11/2026: o `TikTokPostPanel.tsx` já cumpre todos os itens da "R
 | 3.4 | Abrir o dropdown "Who can see this video" com "Select who can see this" sem nada escolhido | "No default privacy; options come from privacy_level_options" | 2b |
 | 3.5 | Comment / Duet / Stitch todos desmarcados; marcar e desmarcar um | "Interactions are off by default; greyed out if disabled in the creator's TikTok settings" | 2c |
 | 3.6 | Declaração "By posting, you agree to TikTok's Music Usage Confirmation", passando o cursor no link | "Music Usage Confirmation shown before the publish button" | nota do 2 |
-| 3.7 | Escolher antes uma visibilidade que não seja "Only me" (ex.: Followers), porque a mensagem em vermelho só aparece com visibilidade escolhida. Ligar "Disclose video content" sem marcar nada: o botão fica desabilitado e aparece embaixo "You need to indicate if your content promotes yourself, a third party, or both." | "Publish is disabled until a disclosure option is selected" | 3a |
+| 3.7 | Escolher **Followers** no menu: aparece embaixo, em vermelho, "While Stockative is under TikTok review, posts can only be "Only me"." e o botão fica desabilitado. Ligar "Disclose video content" sem marcar nada: a mensagem vira "You need to indicate if your content promotes yourself, a third party, or both." | "Publish is disabled until a disclosure option is selected" | 3a |
 | 3.8 | Marcar "Your brand": aparece o rótulo "Promotional content" | "Your brand → Promotional content" | 3a |
 | 3.9 | Marcar também "Branded content": rótulo vira "Paid partnership" e a declaração passa a citar o Branded Content Policy | "Branded content → Paid partnership + Branded Content Policy" | 3a, 4 |
 | 3.10 | Com Branded content marcado, abrir o dropdown: "Only me" desabilitado, com "(not available for branded content)" | "Branded content cannot be private" | 3b |
-| 3.11 | Desmarcar Branded content, escolher "Only me": a caixa Branded content fica cinza; passar o cursor nela | "Only me disables Branded content" | 3b |
+| 3.11 | Desmarcar Branded content, escolher "Only me": a caixa Branded content fica cinza; passar o cursor nela. O botão volta a ficar ativo | "Only me disables Branded content" | 3b |
 | 3.12 | Aviso "it may take a few minutes for the video to process…" | "Processing notice" | 5d |
 | 3.13 | Clicar em "Post this Reel to TikTok" | "Nothing is sent until the user confirms" | 5c |
 
 **Cena 4. Publicar e status.** Clicar em Publish now (ou reagendar para alguns minutos). Mostrar o status mudando de "TikTok is processing the video" para "Posted on TikTok". Legenda: "Status from publish/status/fetch". (5e)
 
 **Cena 5. No celular.** Perfil do TikTok com o vídeo publicado (Only me, conta privada, por limitação de app não auditado). Mostrar que a legenda é a editada e que não há marca d'água da Stockative (5b).
+
+**Menu de visibilidade (10/11/2026, commit 2a84969):** antes o app cortava as opções e só mostrava "Only me", o que impedia gravar 3.9 e 3.10. Agora o menu lista tudo que o creator_info devolve; enquanto `TIKTOK_DIRECT_POST_AUDITED` não for `true`, qualquer opção que não seja "Only me" só desabilita o botão com o motivo. Se o vídeo mostrar Followers escolhido, pode pôr a legenda "Until the audit, only SELF_ONLY can be posted".
 
 **Itens que não aparecem sozinhos na tela. Explicar com legenda curta:**
 - 1b, "a conta não pode postar agora": o painel mostra "Your TikTok account can't receive new posts right now… Try again later." Só aparece quando o TikTok bloqueia, então basta uma legenda.

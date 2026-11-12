@@ -267,7 +267,7 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - [x] Vídeos v2 (01/10/2026), substituem os anteriores: `~/Desktop/META VIDEO 1 - final v2.mp4` (1:50, todas as permissões) e `~/Desktop/META VIDEO instagram_basic (1+2) v2.mp4` (2:18). Conexão regravada mostrando @ e Página. Tempos: 0:04 Página · 0:06 negócio · 0:08 Instagram · 0:12 permissões · 0:20 "Connected: Instagram @mangara.official · Facebook Page Mangará" · 0:24 Weekly plan · 0:32 Publish now · 1:18 post no Instagram · 1:28 post na Página · 1:42 Performance · 1:50 Competitor accounts (só no vídeo 1+2).
 - [x] API test call do instagram_manage_insights registrada (5 seções verdes em 01/10/2026)
 - [x] Loja de teste ajustada pro revisor (01/10/2026): voz de marca trocada de Mangará (sapatos, FR+NL) para uma loja de snowboard genérica, idioma só English — antes a IA geraria legendas em FR/NL misturando sapato com snowboard. Instruções do revisor: Publish now só em post de imagem (não Reel); nota de que as legendas do screencast são FR/NL.
-- [ ] Depois da aprovação: colocar o app em modo **Live** no painel da Meta.
+- [x] Depois da aprovação: colocar o app em modo **Live** no painel da Meta. **Publicado em 12/11/2026** ("Your app was successfully published").
 - [x] **Submetido em 01/10/2026** — status "Review in progress" (Meta: maioria revisada em até 20 dias, ~21/10/2026). 8 permissões. Acompanhar Alert Inbox + e-mail.
 - [ ] Depois da aprovação: remover usuário `review@stockative.com` da organização Shopify e a regra `review` → Mailinator no Purelymail.
 - [x] (antigo) Último bloqueio: "API test calls" do instagram_manage_insights (chamadas feitas 30/09 ~22:26 via refresh da Performance da Mangará, aparecem em até 24h)
@@ -279,3 +279,14 @@ Cada vídeo: 1–3 min, **contínuo sem cortes** do clique em Connect até volta
 - **Reenvio (27/10):** só `pages_read_engagement`, com texto explicando os 2 usos reais: ler os campos da Página (nome + `instagram_business_account`) e publicar na Página (`/{page-id}/photos|feed|videos`). As 7 aprovadas foram junto como renovação. No Data handling, Railway trocada por **Hetzner Online GmbH** (Finland/Germany), e a Privacy Policy no ar foi atualizada igual.
 - **App ainda Unpublished.** Decisão da Patricia: só publicar depois da aprovação da `pages_read_engagement`, porque sem ela a conexão e o espelho no Facebook de lojistas sem papel no app provavelmente falham.
 - **Access Verification (Tech Provider)** continua "In review" desde 23/09. O prazo para concluir é **26/12/2026**. Não existe chamado direto: o suporte manda para o fórum. Pergunta postada em 27/10: https://developers.facebook.com/community/threads/1060005730391258/. Vários outros devs relatam o mesmo atraso desde fim de setembro.
+
+## Status 12/11/2026: aprovado e publicado
+
+- **Reenvio aprovado em 11/11/2026.** Na tela da submissão aparece "Submitted on November 11, 2026 at 17:24 GMT+1", seguido de "Submission approved: your requests and app settings were approved". A `pages_read_engagement` está **Approved**, e as outras 7 aparecem como **Renewed**: 8 de 8.
+- **App publicado (Live) em 12/11/2026.** Antes de publicar, conferi que as 8 permissões que o app usa estavam "Ready to publish" na lista de Permissions and features. As permissões que o app não usa aparecem como "—" ou "Ready for testing" (`instagram_business_*`, `instagram_manage_comments`, `email`, Business Asset User Profile Access etc.); isso é esperado, e não é para adicioná-las ao App Review. No popup de Requirements, as Data handling questions apareciam com um ponto cinza, mas isso não bloqueou a publicação.
+- **Access Verification (Tech Provider)** continua "In review": um único envio, em 23/09/2026 às 18:49, para o negócio MANGARÁ. O prazo mudou para **1/11/2027** (formato americano, ou seja, 11/01/2027) "to avoid restrictions to 1 app". Ela não impediu a publicação.
+- Também chegou em 11/11 um novo alerta "Data access renewal is complete".
+- **Em aberto:**
+  - [ ] Testar a conexão e a publicação com uma conta **sem papel** no app (nem Tester, nem Admin).
+  - [ ] Decidir se a `pages_read_engagement` volta para o `META_SCOPES`. Ela saiu em 14/10, depois da recusa, e o código continua sem ela, mas o reenvio que a Meta aprovou descreve dois usos: ler os campos da Página e publicar na Página.
+  - [ ] Depois da aprovação da Shopify: remover o `review@stockative.com` e a regra do Purelymail.
